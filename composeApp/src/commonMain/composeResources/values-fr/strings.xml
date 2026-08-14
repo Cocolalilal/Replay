@@ -317,11 +317,9 @@
     <string name="less">Moins</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Se connecter à Spotify</string>
-    <string name="intro_login_to_spotify">Connectez-vous pour des paroles Spotify, la toile, et plus encore !</string>
+    <string name="intro_login_to_spotify">Connectez-vous pour des paroles Spotify et plus encore !</string>
     <string name="enable_spotify_lyrics">Activer les paroles Spotify</string>
     <string name="spotify_lyrícs_info">Plus de paroles sans traduction</string>
-    <string name="enable_canvas">Activer la toile</string>
-    <string name="canvas_info">Afficher la toile Spotify dans SimpMusic</string>
     <string name="spotify_lyrics_provider">Paroles fournies par Spotify</string>
     <string name="offline_mode">Mode hors-ligne</string>
     <string name="added_to_youtube_liked">Ajouté aux favoris YouTube</string>
@@ -380,8 +378,8 @@
     <string name="updating">Mise à jour</string>
     <string name="go_to_log_in_page">Accéder à la page de connexion</string>
     <string name="log_in_warning">YouTube Music nécessite désormais que vous vous connectiez pour diffuser de la musique. Piped Instance ne peut parfois pas fonctionner non plus. Vous devez vous connecter à YouTube pour bénéficier d'une meilleure expérience avec SimpMusic.</string>
-    <string name="spotify_canvas_cache">Cache de la toile Spotify</string>
-    <string name="clear_canvas_cache">Vider le cache de la toile</string>
+    <string name="animated_artwork_cache">Cache des visuels animés</string>
+    <string name="clear_animated_artwork_cache">Vider le cache des visuels animés</string>
     <string name="proxy">Proxy</string>
     <string name="proxy_description">Utilisation d'un proxy pour contourner le blocage du contenu d'un pays</string>
     <string name="proxy_type">Type de proxy</string>

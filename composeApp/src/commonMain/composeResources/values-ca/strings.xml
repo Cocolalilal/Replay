@@ -317,11 +317,9 @@
     <string name="less">Menys</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Inicieu sessió a Spotify</string>
-    <string name="intro_login_to_spotify">Inicieu la sessió per a Spotify Lyrics, Canvas i molt més</string>
+    <string name="intro_login_to_spotify">Inicieu la sessió per a Spotify Lyrics i molt més</string>
     <string name="enable_spotify_lyrics">Activa les lletres de Spotify</string>
     <string name="spotify_lyrícs_info">Més lletres sense traducció</string>
-    <string name="enable_canvas">Activa Canvas</string>
-    <string name="canvas_info">Mostra Spotify Canvas a SimpMusic</string>
     <string name="spotify_lyrics_provider">Lyrics proporcionada per Spotify</string>
     <string name="offline_mode">Mode fora de línia</string>
     <string name="added_to_youtube_liked">S'ha afegit a YouTube M'agrada</string>
@@ -371,8 +369,8 @@
     <string name="updating">Actualitzant</string>
     <string name="go_to_log_in_page">Ves a la pàgina d'inici de sessió</string>
     <string name="log_in_warning">YouTube Music ara requereix que iniciï la sessió per a transmetre música, les instàncies de Piped poden no funcionar correctament en algun moment. Hauria d'iniciar la sessió a YouTube per tindre una millor experiència amb SimpMusic</string>
-    <string name="spotify_canvas_cache">Memòria cau d'Spotify Canvas</string>
-    <string name="clear_canvas_cache">Esborra la memòria cau de canvas</string>
+    <string name="animated_artwork_cache">Memòria cau d'il·lustracions animades</string>
+    <string name="clear_animated_artwork_cache">Esborra la memòria cau de les il·lustracions animades</string>
     <string name="proxy">Proxy</string>
     <string name="proxy_description">Utilitzant el proxy per evitar el bloqueig de contingut regional</string>
     <string name="proxy_type">Tipus de Proxy</string>

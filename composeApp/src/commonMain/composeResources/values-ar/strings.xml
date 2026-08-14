@@ -306,11 +306,9 @@
     <string name="less">أقل</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">تسجيل الدخول إلى Spotify</string>
-    <string name="intro_login_to_spotify">تسجيل الدخول إلى كلمات Spotify و Canvas والمزيد</string>
+    <string name="intro_login_to_spotify">تسجيل الدخول إلى كلمات Spotify والمزيد</string>
     <string name="enable_spotify_lyrics">تمكين كلمات أغاني Spotify</string>
     <string name="spotify_lyrícs_info">المزيد من كلمات الأغاني بدون ترجمة</string>
-    <string name="enable_canvas">تمكين Canvas</string>
-    <string name="canvas_info">إظهار Spotify Canvas في SimpMusic</string>
     <string name="spotify_lyrics_provider">كلمات الأغاني المقدمة من Spotify</string>
     <string name="offline_mode">وضع غير متصل</string>
     <string name="added_to_youtube_liked">تمت الإضافة إلى إعجابات YouTube</string>

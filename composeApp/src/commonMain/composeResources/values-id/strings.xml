@@ -316,11 +316,9 @@
     <string name="less">Lebih sedikit</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Masuk ke Spotify</string>
-    <string name="intro_login_to_spotify">Masuk untuk Lirik Spotify, Kanvas dan lainnya</string>
+    <string name="intro_login_to_spotify">Masuk untuk Lirik Spotify dan lainnya</string>
     <string name="enable_spotify_lyrics">Aktifkan Lirik Spotify</string>
     <string name="spotify_lyrícs_info">Lirik lainnya tanpa terjemahan</string>
-    <string name="enable_canvas">Aktifkan Kanvas</string>
-    <string name="canvas_info">Tampilkan Kanvas Spotify di SimpMusic</string>
     <string name="spotify_lyrics_provider">Lirik disediakan oleh Spotify</string>
     <string name="offline_mode">Mode Offline</string>
     <string name="added_to_youtube_liked">Ditambahkan ke Disukai di YouTube</string>
@@ -379,8 +377,8 @@
     <string name="updating">Memperbarui</string>
     <string name="go_to_log_in_page">Pergi ke halaman masuk</string>
     <string name="log_in_warning">YouTube Music sekarang mengharuskan Anda masuk untuk melakukan streaming musik, Piped Instance terkadang tidak dapat berfungsi juga. Anda harus masuk ke YouTube untuk mendapatkan pengalaman yang lebih baik dengan SimpMusic.</string>
-    <string name="spotify_canvas_cache">Tembolok Kanvas Spotify</string>
-    <string name="clear_canvas_cache">Hapus tembolok kanvas</string>
+    <string name="animated_artwork_cache">Tembolok karya seni animasi</string>
+    <string name="clear_animated_artwork_cache">Hapus tembolok karya seni animasi</string>
     <string name="proxy">Proksi</string>
     <string name="proxy_description">Gunakan Proksi untuk melewati pemblokiran konten wilayah</string>
     <string name="proxy_type">Jenis proksi</string>

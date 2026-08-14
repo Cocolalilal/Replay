@@ -287,6 +287,13 @@ fun NowPlayingScreenContent(
     dismissIcon: ImageVector,
     onDismiss: () -> Unit = {},
 ) {
+    ReferenceNowPlayingLayout(
+        sharedViewModel = sharedViewModel,
+        navController = navController,
+        onDismiss = onDismiss,
+    )
+    return
+
     val screenInfo = getScreenSizeInfo()
 
     val localDensity = LocalDensity.current
@@ -304,7 +311,7 @@ fun NowPlayingScreenContent(
     val lyricsVoteState by sharedViewModel.lyricsVoteState.collectAsStateWithLifecycle()
 
     // Artwork Pager state — Spotify-style horizontal swipe between queue tracks.
-    // The pager wraps the Canvas + Thumbnail layers. Controller layout below stays fixed.
+    // The pager wraps the AnimatedArtwork + Thumbnail layers. Controller layout below stays fixed.
     val nowPlayingState by sharedViewModel.nowPlayingState.collectAsStateWithLifecycle()
     val queueDataState by sharedViewModel.getQueueDataState().collectAsStateWithLifecycle()
     val artworkQueue by remember {
@@ -317,7 +324,7 @@ fun NowPlayingScreenContent(
         derivedStateOf { deriveOrderIndex(artworkQueue, nowPlayingVideoId) }
     }
     val isRepeatOne = controllerState.repeatState is RepeatState.One
-    // Single PagerState — the unified ArtworkPager renders BOTH the fullscreen canvas
+    // Single PagerState — the unified ArtworkPager renders BOTH the fullscreen animated artwork
     // background and the centered square thumbnail in each page, so we don't need two
     // pagers + state mirroring.
     val artworkPagerState =
@@ -460,7 +467,7 @@ fun NowPlayingScreenContent(
 
     LaunchedEffect(screenDataState) {
         Logger.d(TAG, "ScreenDataState: $screenDataState")
-        showHideMiddleLayout = screenDataState.canvasData == null
+        showHideMiddleLayout = screenDataState.animatedArtworkData == null
         snapshotFlow { screenDataState.bitmap }.collectLatest {
             if (it != null) {
                 paletteState.generate(it)
@@ -584,9 +591,9 @@ fun NowPlayingScreenContent(
         snapshotFlow {
             screenDataState
         }.distinctUntilChangedBy {
-            it.canvasData?.url
+            it.animatedArtworkData?.url
         }.collectLatest {
-            if (it.canvasData != null && mainScrollState.value == 0) {
+            if (it.animatedArtworkData != null && mainScrollState.value == 0) {
                 showHideJob = false
             } else {
                 showHideJob = true
@@ -596,7 +603,7 @@ fun NowPlayingScreenContent(
     }
 
     LaunchedEffect(key1 = showHideControlLayout) {
-        if (showHideControlLayout && screenDataState.canvasData != null && mainScrollState.value == 0) {
+        if (showHideControlLayout && screenDataState.animatedArtworkData != null && mainScrollState.value == 0) {
             showHideJob = false
         }
     }
@@ -605,10 +612,10 @@ fun NowPlayingScreenContent(
         snapshotFlow { mainScrollState.value }
             .distinctUntilChanged()
             .collect {
-                if (it > 0 && !showHideControlLayout && screenDataState.canvasData != null) {
+                if (it > 0 && !showHideControlLayout && screenDataState.animatedArtworkData != null) {
                     showHideJob = true
                     showHideControlLayout = true
-                } else if (showHideControlLayout && it == 0 && screenDataState.canvasData != null) {
+                } else if (showHideControlLayout && it == 0 && screenDataState.animatedArtworkData != null) {
                     showHideJob = false
                 }
             }
@@ -630,14 +637,14 @@ fun NowPlayingScreenContent(
         }
     }
 
-    // Canvas subtitle sync
+    // Animated artwork subtitle sync
     LaunchedEffect(timelineState, screenDataState.lyricsData?.lyrics) {
         val lyrics = screenDataState.lyricsData?.lyrics
         if (lyrics == null || lyrics.syncType == "UNSYNCED" || lyrics.syncType == null) {
             currentLyricLineIndex = -1
             return@LaunchedEffect
         }
-        val lines = lyrics.lines ?: return@LaunchedEffect
+        val lines = (lyrics ?: return@LaunchedEffect).lines ?: return@LaunchedEffect
         val translatedLines =
             screenDataState.lyricsData
                 ?.translatedLyrics
@@ -828,10 +835,10 @@ fun NowPlayingScreenContent(
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 // === Unified ArtworkPager (Spotify-style swipe) ===
-                // ONE HorizontalPager wraps both the fullscreen canvas backdrop AND the
+                // ONE HorizontalPager wraps both the fullscreen animated artwork backdrop AND the
                 // centered square thumbnail. Both layers slide together as a single page
-                // so when the user swipes during canvas mode, they see the next track's
-                // thumbnail enter and the canvas exit in lockstep.
+                // so when the user swipes during animated artwork mode, they see the next track's
+                // thumbnail enter and the artwork exit in lockstep.
                 HorizontalPager(
                     state = artworkPagerState,
                     modifier =
@@ -847,7 +854,7 @@ fun NowPlayingScreenContent(
                 ) { page ->
                     val pageTrack = artworkQueue.getOrNull(page)
                     val isCurrentArtworkPage = page == currentOrderIndex
-                    val pageHasCanvas = isCurrentArtworkPage && screenDataState.canvasData != null
+                    val pageHasAnimatedArtwork = isCurrentArtworkPage && screenDataState.animatedArtworkData != null
 
                     // Per-page palette state for the gradient backdrop.
                     // The bitmap is fed in by Layer 2's adjacent-thumbnail AsyncImage
@@ -873,14 +880,14 @@ fun NowPlayingScreenContent(
                         modifier =
                             Modifier
                                 .fillMaxSize()
-                                // Prevent the canvas video (9:16 aspect, can be wider than the
+                                // Prevent the animated artwork video (9:16 aspect, can be wider than the
                                 // page) and any other content from bleeding into adjacent pages.
                                 .clipToBounds()
-                                // Tap toggles controls only when the canvas is covering this page;
+                                // Tap toggles controls only when the artwork is covering this page;
                                 // otherwise no-op (matches the legacy behaviour where the touch
-                                // overlay only appeared in canvas mode).
+                                // overlay only appeared in animated artwork mode).
                                 .clickable(
-                                    enabled = pageHasCanvas,
+                                    enabled = pageHasAnimatedArtwork,
                                     onClick = {
                                         if (mainScrollState.value == 0) {
                                             showHideJob = true
@@ -898,7 +905,7 @@ fun NowPlayingScreenContent(
                         // Palette gradient (startColor → endColor) so the adjacent page never
                         // falls back to a flat dark void during a swipe.
                         // The CURRENT page deliberately skips this layer so the existing
-                        // gradient / canvas on the Column stays visible.
+                        // gradient / animated artwork on the Column stays visible.
                         if (!isCurrentArtworkPage && pageTrack != null) {
                             // Palette is fed by Layer 2's adjacent-thumbnail AsyncImage
                             // (see below) so the gradient color stays consistent with
@@ -921,11 +928,11 @@ fun NowPlayingScreenContent(
                             )
                         }
 
-                        // ── Layer 1: fullscreen canvas backdrop (current track + canvas data) ──
-                        if (pageHasCanvas) {
-                            Crossfade(targetState = screenDataState.canvasData?.isVideo) { isVideo ->
+                        // ── Layer 1: fullscreen animated artwork backdrop (current track + artwork data) ──
+                        if (pageHasAnimatedArtwork) {
+                            Crossfade(targetState = screenDataState.animatedArtworkData?.isVideo) { isVideo ->
                                 if (isVideo == true) {
-                                    screenDataState.canvasData?.url?.let { url ->
+                                    screenDataState.animatedArtworkData?.url?.let { url ->
                                         MediaPlayerView(
                                             url = url,
                                             modifier =
@@ -947,9 +954,9 @@ fun NowPlayingScreenContent(
                                         model =
                                             ImageRequest
                                                 .Builder(LocalPlatformContext.current)
-                                                .data(screenDataState.canvasData?.url)
+                                                .data(screenDataState.animatedArtworkData?.url)
                                                 .diskCachePolicy(CachePolicy.ENABLED)
-                                                .diskCacheKey(screenDataState.canvasData?.url)
+                                                .diskCacheKey(screenDataState.animatedArtworkData?.url)
                                                 .crossfade(550)
                                                 .build(),
                                         contentDescription = null,
@@ -960,7 +967,7 @@ fun NowPlayingScreenContent(
                             // Bottom gradient overlay — different intensity per state:
                             // - Focus: original full-height heavy gradient (controls readability)
                             // - Unfocus: 50% height + 50% lighter colors (just enough for metadata,
-                            //   lets more canvas show through)
+                            //   lets more animated artwork show through)
                             Crossfade(
                                 targetState = showHideControlLayout,
                                 modifier =
@@ -989,9 +996,9 @@ fun NowPlayingScreenContent(
                                     // to pager height — guaranteeing the visible viewport bottom
                                     // always falls inside the held-Black region (>=0.85f).
                                     // Unfocused gradient — compact dark coverage at the very bottom only:
-                                    //   - 0%-92%: fully Transparent (canvas clear)
+                                    //   - 0%-92%: fully Transparent (artwork clear)
                                     //   - 92%-97%: quick fade to Black
-                                    //   - 97%-100%: held solid Black (avoids canvas bleed-through
+                                    //   - 97%-100%: held solid Black (avoids artwork bleed-through
                                     //     at visible viewport bottom — alpha must reach 0xFF before
                                     //     the visible bottom, which sits at ~94-95% of pager).
                                     Box(
@@ -1014,7 +1021,7 @@ fun NowPlayingScreenContent(
                         // ── Layer 2: centered square thumbnail ──
                         // Positioned at the same Y as the original middle layout
                         // (TopAppBar height + middleLayoutPaddingDp from the top of the page).
-                        // alpha=0 when the canvas is covering this page; otherwise visible so
+                        // alpha=0 when the animated artwork is covering this page; otherwise visible so
                         // adjacent pages always show the upcoming/previous track artwork.
                         Column(modifier = Modifier.fillMaxSize()) {
                             Spacer(modifier = Modifier.height(topAppBarHeightDp.dp))
@@ -1030,7 +1037,7 @@ fun NowPlayingScreenContent(
                                     Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 20.dp)
-                                        .alpha(if (pageHasCanvas) 0f else 1f)
+                                        .alpha(if (pageHasAnimatedArtwork) 0f else 1f)
                                         .aspectRatio(1f),
                             ) {
                                 if (isCurrentArtworkPage) {
@@ -1432,10 +1439,10 @@ fun NowPlayingScreenContent(
                                         inlineLyrics.syncType != null &&
                                         inlineLyrics.syncType != "UNSYNCED" &&
                                         inlineLyrics.lines != null
-                                // Canvas mode has its own subtitle overlay — never show both.
+                                // Animated artwork mode has its own subtitle overlay — never show both.
                                 val currentLyricLineText =
                                     if (!hasSyncedLyrics ||
-                                        screenDataState.canvasData != null ||
+                                        screenDataState.animatedArtworkData != null ||
                                         currentLyricLineIndex < 0
                                     ) {
                                         ""
@@ -1491,7 +1498,7 @@ fun NowPlayingScreenContent(
                                                 .padding(horizontal = 20.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        AnimatedVisibility(screenDataState.canvasData != null) {
+                                        AnimatedVisibility(screenDataState.animatedArtworkData != null) {
                                             AsyncImage(
                                                 model =
                                                     ImageRequest
@@ -1926,7 +1933,7 @@ fun NowPlayingScreenContent(
                                                 ),
                                         contentAlignment = Alignment.BottomStart,
                                     ) {
-                                        // Gradient backdrop — transparent at top so Canvas shows
+                                        // Gradient backdrop — transparent at top so animated artwork shows
                                         // through, fading to dark at the bottom for a Spotify-like
                                         // backdrop under the metadata row.
                                         Box(
@@ -1952,7 +1959,7 @@ fun NowPlayingScreenContent(
                                                 enter = fadeIn() + expandVertically(),
                                                 exit = fadeOut() + shrinkVertically(),
                                             ) {
-                                                // Canvas subtitle - Spotify-style: lyrics line above metadata row
+                                                // Animated artwork subtitle - Spotify-style: lyrics line above metadata row
                                                 val lineText =
                                                     screenDataState.lyricsData
                                                         ?.lyrics
@@ -2014,7 +2021,7 @@ fun NowPlayingScreenContent(
                                                         .padding(horizontal = 20.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                             ) {
-                                                AnimatedVisibility(screenDataState.canvasData != null) {
+                                                AnimatedVisibility(screenDataState.animatedArtworkData != null) {
                                                     AsyncImage(
                                                         model =
                                                             ImageRequest
@@ -2158,7 +2165,7 @@ fun NowPlayingScreenContent(
                             }
                         }
                         // The original Touch Area overlay was removed: tap-to-toggle is now
-                        // wired directly onto each ArtworkPager page (canvas + middle), so
+                        // wired directly onto each ArtworkPager page (artwork + middle), so
                         // drag gestures reach HorizontalPager without competing with a
                         // sibling clickable.
                     }

@@ -83,9 +83,9 @@ class LibraryViewModel(
         MutableStateFlow(LocalResource.Loading())
     val chartPlaylists: StateFlow<LocalResource<List<ChartItem>>> get() = _chartPlaylists.asStateFlow()
 
-    private val _listCanvasSong: MutableStateFlow<LocalResource<List<SongEntity>>> =
+    private val _listAnimatedArtworkSongs: MutableStateFlow<LocalResource<List<SongEntity>>> =
         MutableStateFlow(LocalResource.Loading())
-    val listCanvasSong: StateFlow<LocalResource<List<SongEntity>>> get() = _listCanvasSong.asStateFlow()
+    val listAnimatedArtworkSongs: StateFlow<LocalResource<List<SongEntity>>> get() = _listAnimatedArtworkSongs.asStateFlow()
 
     private val _accountThumbnail: MutableStateFlow<String?> = MutableStateFlow(null)
     val accountThumbnail: StateFlow<String?> get() = _accountThumbnail.asStateFlow()
@@ -211,6 +211,7 @@ class LibraryViewModel(
         }
     }
 
+<<<<<<< Updated upstream
     fun getFavoritePodcasts() {
         viewModelScope.launch {
             podcastRepository.getFavoritePodcasts().collectLatest { podcasts ->
@@ -222,9 +223,13 @@ class LibraryViewModel(
 
     fun getCanvasSong() {
         _listCanvasSong.value = LocalResource.Loading()
+=======
+    fun getAnimatedArtworkSongs() {
+        _listAnimatedArtworkSongs.value = LocalResource.Loading()
+>>>>>>> Stashed changes
         viewModelScope.launch {
-            songRepository.getCanvasSong(max = 5).collect { data ->
-                _listCanvasSong.value = LocalResource.Success(data)
+            songRepository.getAnimatedArtworkSongs(max = 5).collect { data ->
+                _listAnimatedArtworkSongs.value = LocalResource.Success(data)
             }
         }
     }

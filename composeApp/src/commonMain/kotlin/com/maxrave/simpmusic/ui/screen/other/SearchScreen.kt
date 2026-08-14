@@ -47,6 +47,8 @@ import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -148,6 +150,7 @@ import simpmusic.composeapp.generated.resources.no_results_found
 import simpmusic.composeapp.generated.resources.playlists
 import simpmusic.composeapp.generated.resources.podcasts
 import simpmusic.composeapp.generated.resources.retry
+import simpmusic.composeapp.generated.resources.search
 import simpmusic.composeapp.generated.resources.search_for
 import simpmusic.composeapp.generated.resources.search_for_songs_artists_albums_playlists_and_more
 import simpmusic.composeapp.generated.resources.song
@@ -274,16 +277,20 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(isExpanded, searchText, isFocused) {
+    // The bar itself lives in the liquid-glass bottom navigation, not on this screen, so the
+    // display mode is driven by the ViewModel: barQuery is the live field text (suggestions
+    // while it differs from the submitted query), query is the last submitted search (results).
+    LaunchedEffect(searchScreenState.query, searchScreenState.barQuery, searchScreenState.searchBarActive, searchScreenState.searchFieldTapped) {
         searchUIType =
-            if (searchText.isNotEmpty() && isExpanded) {
-                SearchUIType.SEARCH_SUGGESTIONS
-            } else if (isFocused && isExpanded) {
-                SearchUIType.SEARCH_HISTORY
-            } else if (searchText.isEmpty()) {
-                SearchUIType.EMPTY
-            } else {
-                SearchUIType.SEARCH_RESULTS
+            when {
+                searchScreenState.barQuery.isNotEmpty() && searchScreenState.barQuery != searchScreenState.query ->
+                    SearchUIType.SEARCH_SUGGESTIONS
+                searchScreenState.barQuery.isNotEmpty() -> SearchUIType.SEARCH_RESULTS
+                searchScreenState.query.isNotEmpty() && !searchScreenState.searchBarActive ->
+                    SearchUIType.SEARCH_RESULTS
+                searchScreenState.searchBarActive && searchScreenState.searchFieldTapped ->
+                    SearchUIType.SEARCH_HISTORY
+                else -> SearchUIType.EMPTY
             }
     }
 
@@ -329,7 +336,7 @@ fun SearchScreen(
                                                     listTracks = arrayListOf(firstTrack),
                                                     firstPlayedTrack = firstTrack,
                                                     playlistId = "RDAMVM${firstTrack.videoId}",
-                                                    playlistName = "\"${searchText}\" ${getStringBlocking(Res.string.in_search)}",
+                                                    playlistName = "\"${searchScreenState.barQuery}\" ${getStringBlocking(Res.string.in_search)}",
                                                     playlistType = PlaylistType.RADIO,
                                                     continuation = null,
                                                 ),
@@ -369,7 +376,7 @@ fun SearchScreen(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = ripple(),
                                             onClick = {
-                                                searchText = suggestion
+                                                searchViewModel.setSearchBarQuery(suggestion)
                                                 focusManager.clearFocus()
                                                 isSearchSubmitted = true
                                                 searchViewModel.insertSearchHistory(suggestion)
@@ -395,7 +402,7 @@ fun SearchScreen(
                                 Spacer(modifier = Modifier.weight(1f))
                                 IconButton(
                                     onClick = {
-                                        searchText = suggestion
+                                        searchViewModel.setSearchBarQuery(suggestion)
                                         focusRequester.requestFocus()
                                     },
                                 ) {
@@ -456,7 +463,7 @@ fun SearchScreen(
                                         Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                searchText = historyItem
+                                                searchViewModel.setSearchBarQuery(historyItem)
                                                 focusManager.clearFocus()
                                                 isSearchSubmitted = true
                                                 searchViewModel.insertSearchHistory(historyItem)
@@ -486,7 +493,7 @@ fun SearchScreen(
                                     Spacer(modifier = Modifier.weight(1f))
                                     IconButton(
                                         onClick = {
-                                            searchText = historyItem
+                                            searchViewModel.setSearchBarQuery(historyItem)
                                             focusRequester.requestFocus()
                                         },
                                     ) {
@@ -613,7 +620,7 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                             state = pullToRefreshState,
                             onRefresh = {
-                                val query = searchText.trim()
+                                val query = searchScreenState.query
                                 if (query.isNotEmpty()) {
                                     isSearchSubmitted = true
                                     searchViewModel.insertSearchHistory(query)
@@ -711,7 +718,7 @@ fun SearchScreen(
                                                                                     firstPlayedTrack = firstTrack,
                                                                                     playlistId = "RDAMVM${result.videoId}",
                                                                                     playlistName =
-                                                                                        "\"${searchText}\" ${
+                                                                                        "\"${searchScreenState.query}\" ${
                                                                                             getStringBlocking(
                                                                                                 Res.string.in_search,
                                                                                             )
@@ -746,7 +753,7 @@ fun SearchScreen(
                                                                                     firstPlayedTrack = firstTrack,
                                                                                     playlistId = "RDAMVM${result.videoId}",
                                                                                     playlistName =
-                                                                                        "\"${searchText}\" ${
+                                                                                        "\"${searchScreenState.query}\" ${
                                                                                             getStringBlocking(
                                                                                                 Res.string.in_search,
                                                                                             )
@@ -849,8 +856,8 @@ fun SearchScreen(
                                                 )
                                                 Spacer(modifier = Modifier.height(10.dp))
                                                 Button(onClick = {
-                                                    if (searchText.isNotEmpty()) {
-                                                        searchViewModel.searchAll(searchText)
+                                                    if (searchScreenState.query.isNotEmpty()) {
+                                                        searchViewModel.searchAll(searchScreenState.query)
                                                     }
                                                 }) {
                                                     Text(text = stringResource(Res.string.retry))
@@ -903,6 +910,7 @@ fun SearchScreen(
                                     blurEnabled = true
                                 }
                             },
+<<<<<<< Updated upstream
                         ).padding(vertical = 10.dp),
             ) {
         // Search Bar with Animated Placeholder
@@ -991,6 +999,25 @@ fun SearchScreen(
             shape = RoundedCornerShape(8.dp),
             content = {},
         )
+=======
+                        ),
+            ) {
+                // Fixed top bar (title + status bar inset) so content never slides under
+                // the status bar — same arrangement as Home and Library.
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(Res.string.search),
+                            style = typo().titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    },
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                        ),
+                )
+>>>>>>> Stashed changes
                 // Filter chips ride along inside the blurred block instead of sitting in the
                 // results branch. That way searchBarHeight covers them too, results scroll
                 // underneath the whole thing, and the glass has something to blur.

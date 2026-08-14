@@ -24,9 +24,11 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -76,11 +78,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
@@ -125,9 +129,11 @@ private const val MIN_WIPE_MS = 150
 
 // Repeated lyrics palette tokens hoisted to file scope: avoids re-allocating
 // the same Color() objects on every recomposition of every line item.
-private val DimOriginalColor = Color.LightGray.copy(alpha = 0.35f)
-private val DimTranslatedColor = Color(0xFF97971A).copy(alpha = 0.3f)
-private val DimRichPendingColor = Color.LightGray.copy(alpha = 0.6f)
+// Apple Music-style: everything is a shade of white — sung lines are full white,
+// pending lines are dimmed, translations are dimmer still.
+private val DimOriginalColor = Color.White.copy(alpha = 0.42f)
+private val DimTranslatedColor = Color.White.copy(alpha = 0.30f)
+private val DimRichPendingColor = Color.White.copy(alpha = 0.55f)
 
 private data class TimedLineIndex(
     val index: Int,
@@ -281,10 +287,15 @@ fun LyricsView(
         }
     }
 
-    Box(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier) {
+        // The active line is kept centred by the auto-scroll below; top/bottom padding lets the
+        // first and last lines reach the centre too (Apple Music style) instead of pinning to
+        // the edges.
+        val centerPadding = (maxHeight / 2f - 40.dp).coerceAtLeast(24.dp)
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = centerPadding, bottom = centerPadding),
         ) {
             items(lyricsData.lyrics.lines?.size ?: 0) { index ->
                 val line = lyricsData.lyrics.lines?.getOrNull(index)
@@ -327,7 +338,7 @@ fun LyricsView(
                                 LyricsLineItem(
                                     originalWords = words,
                                     translatedWords = translatedWords,
-                                    isBold = index <= currentLineIndex,
+                                    isBold = index == currentLineIndex,
                                     isCurrent = index == currentLineIndex,
                                     modifier =
                                         Modifier
@@ -343,7 +354,7 @@ fun LyricsView(
                             LyricsLineItem(
                                 originalWords = words,
                                 translatedWords = translatedWords,
-                                isBold = index <= currentLineIndex || lyricsData.lyrics.syncType != "LINE_SYNCED",
+                                isBold = index == currentLineIndex || lyricsData.lyrics.syncType != "LINE_SYNCED",
                                 isCurrent = index == currentLineIndex || lyricsData.lyrics.syncType != "LINE_SYNCED",
                                 modifier =
                                     Modifier
@@ -367,47 +378,24 @@ fun LyricsLineItem(
     isCurrent: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    Crossfade(targetState = isBold) {
-        if (it) {
-            Column(
-                modifier = modifier,
-            ) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = originalWords,
-                    style = typo().headlineLarge,
-                    color = if (isCurrent) Color.White else DimOriginalColor,
-                )
-                if (translatedWords != null) {
-                    Text(
-                        text = translatedWords,
-                        style = typo().bodyMedium,
-                        color = if (isCurrent) Color.Yellow else DimTranslatedColor,
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
-    }
-    if (!isBold) {
-        Column(
-            modifier = modifier,
-        ) {
-            Spacer(modifier = Modifier.height(12.dp))
+    Column(
+        modifier = modifier,
+    ) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = originalWords,
+            style = typo().headlineLarge.copy(fontSize = 27.sp),
+            color = if (isCurrent) Color.White else DimOriginalColor,
+            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+        )
+        if (translatedWords != null) {
             Text(
-                text = originalWords,
-                style = typo().headlineMedium,
-                color = DimOriginalColor,
+                text = translatedWords,
+                style = typo().bodyMedium.copy(fontSize = 14.sp),
+                color = if (isCurrent) Color.White.copy(alpha = 0.55f) else DimTranslatedColor,
             )
-            if (translatedWords != null) {
-                Text(
-                    text = translatedWords,
-                    style = typo().bodyMedium,
-                    color = DimTranslatedColor,
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
         }
+        Spacer(modifier = Modifier.height(10.dp))
     }
 }
 
@@ -438,8 +426,7 @@ fun RichSyncLyricsLineItem(
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.Center,
-        ) {
-            parsedLine.words.forEachIndexed { index, wordTiming ->
+        ) {            parsedLine.words.forEachIndexed { index, wordTiming ->
                 // Calculate word end time (start time of next word or line end time)
                 // If last word and lineEndTimeMs is invalid (Long.MAX_VALUE), estimate based on previous word duration
                 val wordEndTimeMs =
@@ -474,8 +461,8 @@ fun RichSyncLyricsLineItem(
         if (translatedWords != null) {
             Text(
                 text = translatedWords,
-                style = typo().bodyMedium,
-                color = if (isCurrent) Color.Yellow else DimTranslatedColor,
+                style = typo().bodyMedium.copy(fontSize = 14.sp),
+                color = if (isCurrent) Color.White.copy(alpha = 0.5f) else DimTranslatedColor,
             )
         }
 
@@ -497,7 +484,7 @@ private fun AnimatedWord(
 ) {
     val style =
         typo().headlineLarge.copy(
-            fontSize = customFontSize ?: typo().headlineLarge.fontSize,
+            fontSize = customFontSize ?: 27.sp,
         )
 
     if (!isCurrent) {

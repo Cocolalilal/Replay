@@ -126,7 +126,7 @@ fun LibraryScreen(
     val nowPlaying by viewModel.nowPlayingVideoId.collectAsStateWithLifecycle()
     val youTubePlaylist by viewModel.youTubePlaylist.collectAsStateWithLifecycle()
     val youTubeMixForYou by viewModel.youTubeMixForYou.collectAsStateWithLifecycle()
-    val listCanvasSong by viewModel.listCanvasSong.collectAsStateWithLifecycle()
+    val listAnimatedArtworkSongs by viewModel.listAnimatedArtworkSongs.collectAsStateWithLifecycle()
     val yourLocalPlaylist by viewModel.yourLocalPlaylist.collectAsStateWithLifecycle()
     val favoritePlaylist by viewModel.favoritePlaylist.collectAsStateWithLifecycle()
     val downloadedPlaylist by viewModel.downloadedPlaylist.collectAsStateWithLifecycle()
@@ -167,7 +167,7 @@ fun LibraryScreen(
             }
 
             LibraryChipType.YOUR_LIBRARY -> {
-                viewModel.getCanvasSong()
+                viewModel.getAnimatedArtworkSongs()
                 viewModel.getRecentlyAdded()
             }
 
@@ -224,14 +224,14 @@ fun LibraryScreen(
                         LibraryTilingBox(navController)
                     }
 
-                    if (!listCanvasSong.data.isNullOrEmpty()) {
+                    if (!listAnimatedArtworkSongs.data.isNullOrEmpty()) {
                         item {
                             LibraryItem(
                                 state =
                                     LibraryItemState(
-                                        type = LibraryItemType.CanvasSong,
-                                        data = listCanvasSong.data ?: emptyList(),
-                                        isLoading = listCanvasSong is LocalResource.Loading,
+                                        type = LibraryItemType.AnimatedArtworkSong,
+                                        data = listAnimatedArtworkSongs.data ?: emptyList(),
+                                        isLoading = listAnimatedArtworkSongs is LocalResource.Loading,
                                     ),
                                 navController = navController,
                             )

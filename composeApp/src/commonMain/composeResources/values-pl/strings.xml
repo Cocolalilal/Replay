@@ -318,11 +318,9 @@
     <string name="less">Mniej</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Zaloguj się do Spotify</string>
-    <string name="intro_login_to_spotify">Zaloguj się po teksty piosenek, Canvas i wiele innych</string>
+    <string name="intro_login_to_spotify">Zaloguj się po teksty piosenek i wiele innych</string>
     <string name="enable_spotify_lyrics">Włącz teksty piosenek Spotify</string>
     <string name="spotify_lyrícs_info">Więcej tekstu bez tłumaczenia</string>
-    <string name="enable_canvas">Włącz Canvas</string>
-    <string name="canvas_info">Pokaż Spotify Canvas w SimpMusic</string>
     <string name="spotify_lyrics_provider">Tekst piosenki dostarczony przez Spotify</string>
     <string name="offline_mode">Tryb offline</string>
     <string name="added_to_youtube_liked">Dodano do polubień YouTube</string>
@@ -380,8 +378,8 @@
     <string name="updating">Aktualizowanie</string>
     <string name="go_to_log_in_page">Przejdź do strony logowania</string>
     <string name="log_in_warning">YouTube Music wymaga teraz zalogowania się do strumieniowania muzyki. Instancja Piped może również przestać działać. Należy zalogować się do YouTube, aby uzyskać lepsze doświadczenia z SimpMusic.</string>
-    <string name="spotify_canvas_cache">Pamięć podręczna Spotify Canvas</string>
-    <string name="clear_canvas_cache">Wyczyść pamięć podręczną Canvas</string>
+    <string name="animated_artwork_cache">Pamięć podręczna animowanych okładek</string>
+    <string name="clear_animated_artwork_cache">Wyczyść pamięć podręczną animowanych okładek</string>
     <string name="proxy">Proxy</string>
     <string name="proxy_description">Użyj Proxy do ominięcia blokowania treści wg kraju</string>
     <string name="proxy_type">Typ Proxy</string>

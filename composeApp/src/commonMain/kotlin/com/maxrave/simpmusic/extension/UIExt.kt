@@ -486,6 +486,41 @@ fun Palette?.toImmersiveBackground(): Color {
 }
 
 /**
+ * Apple-Music-style button tint for the player controls.
+ *
+ * Starts from the MOST SATURATED swatch of the artwork ("the strongest colour"), then quarters its
+ * saturation and pushes brightness to maximum. The result is a pale, soft tint — never a vivid
+ * fill — which the player applies at 20-30% opacity so the controls read as frosted glass rather
+ * than solid colour. Falls back to the warm-white [Color(0xFFF4F3F0)] with no artwork.
+ */
+fun Palette?.toAppleMusicTintColor(): Color {
+    val p = this ?: return Color(0xFFF4F3F0)
+    val strongestRgb =
+        p.swatches.maxByOrNull { it.hsl?.getOrNull(1) ?: 0f }?.rgb?.takeIf { it != 0 }
+            ?: p.getVibrantColor(0).takeIf { it != 0 }
+            ?: p.getDominantColor(0).takeIf { it != 0 }
+            ?: p.getMutedColor(0).takeIf { it != 0 }
+            ?: return Color(0xFFF4F3F0)
+    return Color(strongestRgb).quarterSaturationAtMaxBrightness()
+}
+
+/** Quarter the HSV saturation and set the value (brightness) to maximum. */
+private fun Color.quarterSaturationAtMaxBrightness(): Color {
+    val max = maxOf(red, green, blue)
+    val min = minOf(red, green, blue)
+    val delta = max - min
+    val hue =
+        when {
+            delta == 0f -> 0f
+            max == red -> 60f * (((green - blue) / delta) % 6f)
+            max == green -> 60f * ((blue - red) / delta + 2f)
+            else -> 60f * ((red - green) / delta + 4f)
+        }.let { if (it < 0f) it + 360f else it }
+    val saturation = if (max == 0f) 0f else delta / max
+    return hsvToColor(hue, saturation * 0.25f, 1f)
+}
+
+/**
  * Vertical scrim from [from] to [to] that fades without showing an edge.
  *
  * Two details are what make this read as smooth where a plain

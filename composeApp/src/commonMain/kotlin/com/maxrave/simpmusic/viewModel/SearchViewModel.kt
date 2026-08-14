@@ -51,6 +51,14 @@ data class SearchScreenState(
     val searchPodcastsResult: List<PlaylistsResult> = emptyList(),
     val suggestQueries: List<String> = emptyList(),
     val suggestYTItems: List<SearchResultType> = emptyList(),
+    /** Last query actually submitted to a search call — non-empty means results are on screen. */
+    val query: String = "",
+    /** Live text of the liquid-glass search bar, so SearchScreen can show suggestions while typing. */
+    val barQuery: String = "",
+    /** Whether the liquid-glass search field is open. */
+    val searchBarActive: Boolean = false,
+    /** Whether the user actually tapped into the search field — only then does history show. */
+    val searchFieldTapped: Boolean = false,
 )
 
 // Loại tìm kiếm
@@ -195,7 +203,10 @@ class SearchViewModel(
                     is Resource.Success -> {
                         values.data?.let { songsList ->
                             _searchScreenState.update { state ->
-                                state.copy(searchSongsResult = songsList)
+                                state.copy(
+                                    searchSongsResult = songsList,
+                                    query = query,
+                                )
                             }
                         }
                         _searchScreenUIState.value = SearchScreenUIState.Success
@@ -318,6 +329,7 @@ class SearchViewModel(
                 _searchScreenState.update { state ->
                     state.copy(
                         searchType = SearchType.ALL,
+                        query = query,
                         searchAllResult = temp,
                         searchSongsResult = song,
                         searchArtistsResult = artist,
@@ -370,6 +382,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.ALBUMS,
+                                    query = query,
                                     searchAlbumsResult = albumsList,
                                 )
                             }
@@ -395,6 +408,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.FEATURED_PLAYLISTS,
+                                    query = query,
                                     searchFeaturedPlaylistsResult = featuredPlaylistList,
                                 )
                             }
@@ -445,6 +459,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.ARTISTS,
+                                    query = query,
                                     searchArtistsResult = artistsList,
                                 )
                             }
@@ -470,6 +485,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.PLAYLISTS,
+                                    query = query,
                                     searchPlaylistsResult = playlistsList,
                                 )
                             }
@@ -495,6 +511,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.VIDEOS,
+                                    query = query,
                                     searchVideosResult = videosList,
                                 )
                             }
@@ -513,6 +530,32 @@ class SearchViewModel(
     fun setSearchType(searchType: SearchType) {
         _searchScreenState.update { state ->
             state.copy(searchType = searchType)
+        }
+    }
+
+    /** Live text of the liquid-glass search bar; lets SearchScreen show suggestions while typing. */
+    fun setSearchBarQuery(text: String) {
+        _searchScreenState.update { state ->
+            state.copy(barQuery = text)
+        }
+    }
+
+    /** Whether the liquid-glass search field is open (its circle/field expanded). */
+    fun setSearchBarActive(active: Boolean) {
+        _searchScreenState.update { state ->
+            state.copy(
+                searchBarActive = active,
+                // Closing the bar (or leaving the screen) resets the tap, so the next
+                // visit starts on the mood grid again until the field is tapped.
+                searchFieldTapped = if (active) state.searchFieldTapped else false,
+            )
+        }
+    }
+
+    /** The user tapped into the search field — this is what reveals the search history. */
+    fun setSearchFieldTapped(tapped: Boolean) {
+        _searchScreenState.update { state ->
+            state.copy(searchFieldTapped = tapped)
         }
     }
 }

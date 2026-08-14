@@ -151,7 +151,7 @@ fun MiniPlayer(
     onClose: () -> Unit,
     onClick: () -> Unit,
 ) {
-    val isLiquidGlassEnabled by sharedViewModel.getEnableLiquidGlass().collectAsStateWithLifecycle(DataStoreManager.FALSE)
+    val isLiquidGlassEnabled = if (getPlatform() == Platform.Android) DataStoreManager.TRUE else DataStoreManager.FALSE
     val controllerState by sharedViewModel.controllerState.collectAsStateWithLifecycle()
     val timelineState by sharedViewModel.timeline.collectAsStateWithLifecycle()
 

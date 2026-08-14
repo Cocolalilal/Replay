@@ -322,11 +322,9 @@
     <string name="less">کمتر</string>
     <string name="spotify">اسپاتیفای</string>
     <string name="log_in_to_spotify">وارد اسپاتیفای شوید</string>
-    <string name="intro_login_to_spotify">وارد شوید برای متن ترانه‌های اسپاتیفای، بوم و بیشتر</string>
+    <string name="intro_login_to_spotify">وارد شوید برای متن ترانه‌های اسپاتیفای و بیشتر</string>
     <string name="enable_spotify_lyrics">به‌کارگیری متن ترانه اسپاتیفای</string>
     <string name="spotify_lyrícs_info">متن‌های بیشتری بدون ترجمه</string>
-    <string name="enable_canvas">به‌کارگیری بوم</string>
-    <string name="canvas_info">نمایش بوم اسپاتیفای در SimpMusic</string>
     <string name="spotify_lyrics_provider">متن ترانه ارائه شده توسط اسپاتیفای</string>
     <string name="offline_mode">حالت آفلاین</string>
     <string name="added_to_youtube_liked">به فهرست پسندیده‌های یوتیوب افزوده شد</string>
@@ -376,8 +374,8 @@
     <string name="updating">در حال بروز رسانی</string>
     <string name="go_to_log_in_page">به صفحه ورود به سیستم بروید</string>
     <string name="log_in_warning">YouTube Music اکنون از شما می خواهد که برای پخش موسیقی وارد شوید، Piped Instance گاهی اوقات نیز نمی تواند کار کند. برای کسب تجربه بهتر با SimpMusic باید وارد YouTube شوید.</string>
-    <string name="spotify_canvas_cache">کش Spotify Canvas</string>
-    <string name="clear_canvas_cache">پاکسازی کش canvas</string>
+    <string name="animated_artwork_cache">کش آثار هنری متحرک</string>
+    <string name="clear_animated_artwork_cache">پاکسازی کش آثار هنری متحرک</string>
     <string name="proxy">پروکسی</string>
     <string name="proxy_description">استفاده از پروکسی برای دور زدن سیستم فیلتریتگ</string>
     <string name="proxy_type">نوع پروکسي</string>

@@ -46,7 +46,7 @@ actual suspend fun calculateDataFraction(cacheRepository: CacheRepository): Sett
     return withContext(Dispatchers.Default) {
         val playerCache = cacheRepository.getCacheSize(Config.PLAYER_CACHE)
         val downloadCache = cacheRepository.getCacheSize(Config.DOWNLOAD_CACHE)
-        val canvasCache = cacheRepository.getCacheSize(Config.CANVAS_CACHE)
+        val animatedArtworkCache = cacheRepository.getCacheSize(Config.ANIMATED_ARTWORK_CACHE)
         val mStorageStatsManager =
             application.getSystemService(StorageStatsManager::class.java)
         if (mStorageStatsManager != null) {
@@ -59,7 +59,7 @@ actual suspend fun calculateDataFraction(cacheRepository: CacheRepository): Sett
             val thumbSize = (application.imageLoader.diskCache?.size ?: 0L).bytesToMB()
             val otherApp = simpMusicSize.let { usedSpace.minus(it) - thumbSize }
             val databaseSize =
-                simpMusicSize - playerCache.bytesToMB() - downloadCache.bytesToMB() - canvasCache.bytesToMB()
+                simpMusicSize - playerCache.bytesToMB() - downloadCache.bytesToMB() - animatedArtworkCache.bytesToMB()
             if (totalByte ==
                 freeSpace + otherApp + simpMusicSize + thumbSize
             ) {
@@ -75,8 +75,8 @@ actual suspend fun calculateDataFraction(cacheRepository: CacheRepository): Sett
                             .bytesToMB()
                             .toFloat()
                             .div(totalByte.toFloat()),
-                    canvasCache =
-                        canvasCache
+                    animatedArtworkCache =
+                        animatedArtworkCache
                             .bytesToMB()
                             .toFloat()
                             .div(totalByte.toFloat()),

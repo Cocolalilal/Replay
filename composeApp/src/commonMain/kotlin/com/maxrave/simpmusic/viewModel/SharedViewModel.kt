@@ -21,7 +21,7 @@ import com.maxrave.domain.data.entities.SongEntity
 import com.maxrave.domain.data.entities.SongInfoEntity
 import com.maxrave.domain.data.entities.TranslatedLyricsEntity
 import com.maxrave.domain.data.model.browse.album.Track
-import com.maxrave.domain.data.model.canvas.CanvasResult
+import com.maxrave.domain.data.model.browse.artist.ArtistLogo
 import com.maxrave.domain.data.model.download.DownloadProgress
 import com.maxrave.domain.data.model.intent.GenericIntent
 import com.maxrave.domain.data.model.metadata.Lyrics
@@ -29,7 +29,6 @@ import com.maxrave.domain.data.model.streams.TimeLine
 import com.maxrave.domain.data.model.update.UpdateData
 import com.maxrave.domain.data.player.GenericCastState
 import com.maxrave.domain.extension.decodeHtmlEntities
-import com.maxrave.domain.extension.isSong
 import com.maxrave.domain.extension.isVideo
 import com.maxrave.domain.extension.toGenericMediaItem
 import com.maxrave.domain.manager.DataStoreManager
@@ -47,7 +46,7 @@ import com.maxrave.domain.mediaservice.handler.SleepTimerState
 import com.maxrave.domain.repository.AlbumRepository
 import com.maxrave.domain.repository.CacheRepository
 import com.maxrave.domain.repository.LocalPlaylistRepository
-import com.maxrave.domain.repository.LyricsCanvasRepository
+import com.maxrave.domain.repository.LyricsRepository
 import com.maxrave.domain.repository.PlaylistRepository
 import com.maxrave.domain.repository.SongRepository
 import com.maxrave.domain.repository.StreamRepository
@@ -117,7 +116,7 @@ class SharedViewModel(
     private val albumRepository: AlbumRepository,
     private val localPlaylistRepository: LocalPlaylistRepository,
     private val playlistRepository: PlaylistRepository,
-    private val lyricsCanvasRepository: LyricsCanvasRepository,
+    private val lyricsRepository: LyricsRepository,
     private val cacheRepository: CacheRepository,
 ) : BaseViewModel() {
     var isFirstLiked: Boolean = false
@@ -142,11 +141,6 @@ class SharedViewModel(
 
     private var _format: MutableStateFlow<NewFormatEntity?> = MutableStateFlow(null)
     val format: SharedFlow<NewFormatEntity?> = _format.asSharedFlow()
-
-    private var _canvas: MutableStateFlow<CanvasResult?> = MutableStateFlow(null)
-    val canvas: StateFlow<CanvasResult?> = _canvas
-
-    private var canvasJob: Job? = null
 
     private val _intent: MutableStateFlow<GenericIntent?> = MutableStateFlow(null)
     val intent: StateFlow<GenericIntent?> = _intent
@@ -234,11 +228,6 @@ class SharedViewModel(
                             val nowPlaying = it.second
                             val timeline = it.first
                             if (timeline.total > 0 && nowPlaying.songEntity != null) {
-                                if (nowPlaying.mediaItem.isSong() && nowPlayingScreenData.value.canvasData == null) {
-                                    Logger.w(tag, "Duration is ${timeline.total}")
-                                    Logger.w(tag, "MediaId is ${nowPlaying.mediaItem.mediaId}")
-                                    getCanvas(nowPlaying.mediaItem.mediaId, (timeline.total / 1000).toInt())
-                                }
                                 nowPlaying.songEntity?.let { song ->
                                     if (nowPlayingScreenData.value.lyricsData == null) {
                                         Logger.w(tag, "Get lyrics from format")
@@ -301,7 +290,6 @@ class SharedViewModel(
                     it.songEntity?.videoId
                 }.collectLatest { state ->
                     Logger.w(tag, "NowPlayingState is $state")
-                    canvasJob?.cancel()
                     _nowPlayingState.value = state
                     state.songEntity?.let { track ->
                         _nowPlayingScreenData.value =
@@ -313,7 +301,7 @@ class SharedViewModel(
                                         ?.joinToString(", ") ?: "",
                                 isVideo = false,
                                 thumbnailURL = null,
-                                canvasData = null,
+                                animatedArtworkData = null,
                                 lyricsData = null,
                                 songInfoData = null,
                                 playlistName =
@@ -323,7 +311,6 @@ class SharedViewModel(
                             )
                     }
                     state.mediaItem.let { now ->
-                        _canvas.value = null
                         getLikeStatus(now.mediaId)
                         getSongInfo(now.mediaId)
                         getFormat(now.mediaId)
@@ -511,6 +498,7 @@ class SharedViewModel(
         }
     }
 
+<<<<<<< Updated upstream
     private fun getCanvas(
         videoId: String,
         duration: Int,
@@ -559,6 +547,8 @@ class SharedViewModel(
         }
     }
 
+=======
+>>>>>>> Stashed changes
     fun getString(key: String): String? = runBlocking { dataStoreManager.getString(key).first() }
 
     fun putString(
@@ -650,13 +640,13 @@ class SharedViewModel(
 
     fun insertLyrics(lyrics: LyricsEntity) {
         viewModelScope.launch {
-            lyricsCanvasRepository.insertLyrics(lyrics)
+            lyricsRepository.insertLyrics(lyrics)
         }
     }
 
     private fun getSavedLyrics(track: Track) {
         viewModelScope.launch {
-            lyricsCanvasRepository.getSavedLyrics(track.videoId).cancellable().collectLatest { lyrics ->
+            lyricsRepository.getSavedLyrics(track.videoId).cancellable().collectLatest { lyrics ->
                 if (lyrics != null) {
                     val lyricsData = lyrics.toLyrics()
                     Logger.d(tag, "Saved Lyrics $lyricsData")
@@ -1102,7 +1092,7 @@ class SharedViewModel(
                     }
 
                     viewModelScope.launch {
-                        lyricsCanvasRepository.removeTranslatedLyrics(
+                        lyricsRepository.removeTranslatedLyrics(
                             videoId,
                             dataStoreManager.translationLanguage.first(),
                         )
@@ -1110,7 +1100,7 @@ class SharedViewModel(
                         val simpMusicLyricsId = lyrics.simpMusicLyrics?.id
                         if (lyricsProvider == LyricsProvider.SIMPMUSIC && !simpMusicLyricsId.isNullOrEmpty()) {
                             viewModelScope.launch {
-                                lyricsCanvasRepository
+                                lyricsRepository
                                     .voteSimpMusicTranslatedLyrics(
                                         translatedLyricsId = simpMusicLyricsId,
                                         false,
@@ -1166,7 +1156,7 @@ class SharedViewModel(
                     }
                     if (shouldSendLyricsToSimpMusic && track != null) {
                         viewModelScope.launch {
-                            lyricsCanvasRepository
+                            lyricsRepository
                                 .insertSimpMusicTranslatedLyrics(
                                     dataStoreManager,
                                     track,
@@ -1207,7 +1197,7 @@ class SharedViewModel(
                     }
                     // Save lyrics to database
                     viewModelScope.launch {
-                        lyricsCanvasRepository.insertLyrics(
+                        lyricsRepository.insertLyrics(
                             LyricsEntity(
                                 videoId = videoId,
                                 error = false,
@@ -1218,7 +1208,7 @@ class SharedViewModel(
                     }
                     if (shouldSendLyricsToSimpMusic && track != null) {
                         viewModelScope.launch {
-                            lyricsCanvasRepository
+                            lyricsRepository
                                 .insertSimpMusicLyrics(
                                     dataStoreManager,
                                     track,
@@ -1311,7 +1301,7 @@ class SharedViewModel(
         artist: String?,
         duration: Int,
     ) {
-        lyricsCanvasRepository.getSimpMusicLyrics(videoId).collectLatest {
+        lyricsRepository.getSimpMusicLyrics(videoId).collectLatest {
             Logger.w(tag, "Get SimpMusic Lyrics for $videoId: $it")
             val data = it.data
             if (it is Resource.Success && data != null) {
@@ -1352,7 +1342,7 @@ class SharedViewModel(
         artist: String?,
         duration: Int,
     ) {
-        lyricsCanvasRepository
+        lyricsRepository
             .getYouTubeCaption(dataStoreManager.youtubeSubtitleLanguage.first(), videoId)
             .cancellable()
             .collect { response ->
@@ -1403,7 +1393,7 @@ class SharedViewModel(
         duration: Int,
     ) {
         viewModelScope.launch {
-            lyricsCanvasRepository
+            lyricsRepository
                 .getLrclibLyricsData(
                     artist,
                     song.title,
@@ -1449,7 +1439,7 @@ class SharedViewModel(
         duration: Int,
     ) {
         viewModelScope.launch {
-            lyricsCanvasRepository
+            lyricsRepository
                 .getBetterLyrics(
                     artist,
                     song.title,
@@ -1497,7 +1487,7 @@ class SharedViewModel(
     ) {
         val translationLanguage =
             dataStoreManager.translationLanguage.first()
-        lyricsCanvasRepository.getSimpMusicTranslatedLyrics(videoId, translationLanguage).collectLatest { response ->
+        lyricsRepository.getSimpMusicTranslatedLyrics(videoId, translationLanguage).collectLatest { response ->
             val data = response.data
             when (response) {
                 is Resource.Success if (data != null) -> {
@@ -1508,7 +1498,7 @@ class SharedViewModel(
                         val simpMusicLyricsId = data.simpMusicLyrics?.id
                         if (!simpMusicLyricsId.isNullOrEmpty()) {
                             viewModelScope.launch {
-                                lyricsCanvasRepository
+                                lyricsRepository
                                     .voteSimpMusicTranslatedLyrics(simpMusicLyricsId, false)
                                     .collectLatest { voteResult ->
                                         when (voteResult) {
@@ -1553,7 +1543,7 @@ class SharedViewModel(
             dataStoreManager.enableTranslateLyric.first() == FALSE
         ) {
             val savedTranslatedLyrics =
-                lyricsCanvasRepository
+                lyricsRepository
                     .getSavedTranslatedLyrics(
                         videoId,
                         dataStoreManager.translationLanguage.first(),
@@ -1576,7 +1566,7 @@ class SharedViewModel(
                     } else {
                         lyrics
                     }
-                lyricsCanvasRepository
+                lyricsRepository
                     .getAITranslationLyrics(
                         lyricsForAi,
                         dataStoreManager.translationLanguage.first(),
@@ -1586,7 +1576,7 @@ class SharedViewModel(
                         when (it) {
                             is Resource.Success if (data != null) -> {
                                 Logger.d(tag, "Get AI Translate Lyrics Success")
-                                lyricsCanvasRepository.insertTranslatedLyrics(
+                                lyricsRepository.insertTranslatedLyrics(
                                     TranslatedLyricsEntity(
                                         videoId = videoId,
                                         language = dataStoreManager.translationLanguage.first(),
@@ -1620,7 +1610,7 @@ class SharedViewModel(
     ) {
         viewModelScope.launch {
             Logger.d("Check SpotifyLyrics", "SpotifyLyrics $query")
-            lyricsCanvasRepository.getSpotifyLyrics(dataStoreManager, query, duration).cancellable().collect { response ->
+            lyricsRepository.getSpotifyLyrics(dataStoreManager, query, duration).cancellable().collect { response ->
                 Logger.d("Check SpotifyLyrics", response.toString())
                 val data = response.data
                 when (response) {
@@ -1725,6 +1715,8 @@ class SharedViewModel(
     fun getTranslucentBottomBar() = dataStoreManager.translucentBottomBar
 
     fun getEnableLiquidGlass() = dataStoreManager.enableLiquidGlass
+
+    fun getAnimatedNowPlayingBackground() = dataStoreManager.animatedNowPlayingBackground
 
     fun getThemeMode() = dataStoreManager.themeMode
 
@@ -1854,7 +1846,7 @@ class SharedViewModel(
                     state = VoteState.Loading,
                 )
             }
-            lyricsCanvasRepository
+            lyricsRepository
                 .voteSimpMusicLyrics(
                     lyricsId = simpMusicLyricsId,
                     upvote = upvote,
@@ -1909,7 +1901,7 @@ class SharedViewModel(
                     state = VoteState.Loading,
                 )
             }
-            lyricsCanvasRepository
+            lyricsRepository
                 .voteSimpMusicTranslatedLyrics(
                     translatedLyricsId = simpMusicLyricsId,
                     upvote = upvote,
@@ -1998,12 +1990,12 @@ data class NowPlayingScreenData(
     val isVideo: Boolean,
     val isExplicit: Boolean = false,
     val thumbnailURL: String?,
-    val canvasData: CanvasData? = null,
+    val animatedArtworkData: AnimatedArtworkData? = null,
     val lyricsData: LyricsData? = null,
     val songInfoData: SongInfoEntity? = null,
     val bitmap: ImageBitmap? = null,
 ) {
-    data class CanvasData(
+    data class AnimatedArtworkData(
         val isVideo: Boolean,
         val url: String,
     )
@@ -2021,7 +2013,7 @@ data class NowPlayingScreenData(
                 artistName = "",
                 isVideo = false,
                 thumbnailURL = null,
-                canvasData = null,
+                animatedArtworkData = null,
                 lyricsData = null,
                 songInfoData = null,
                 playlistName = "",

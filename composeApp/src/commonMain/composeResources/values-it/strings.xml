@@ -317,11 +317,9 @@
     <string name="less">Meno</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Accedi con Spotify</string>
-    <string name="intro_login_to_spotify">Accedi per i testi, i Canvas e altro ancora da Spotify</string>
+    <string name="intro_login_to_spotify">Accedi per i testi e altro ancora da Spotify</string>
     <string name="enable_spotify_lyrics">Abilita testi da Spotify</string>
     <string name="spotify_lyrícs_info">Più testi senza traduzione</string>
-    <string name="enable_canvas">Abilita Canvas</string>
-    <string name="canvas_info">Mostra i Canvas di Spotify in SimpMusic</string>
     <string name="spotify_lyrics_provider">Testi forniti da Spotify</string>
     <string name="offline_mode">Modalità disconnessa</string>
     <string name="added_to_youtube_liked">Aggiunto ai mi piace di YouTube</string>
@@ -380,8 +378,8 @@
     <string name="updating">Aggiornando</string>
     <string name="go_to_log_in_page">Vai alla pagina di accesso</string>
     <string name="log_in_warning">YouTube Music ora richiede di accedere per riprodurre musica, quindi l'istanza Piped potrebbe occasionalmente non funzionare. Si consiglia di accedere a YouTube per ottenere un'esperienza migliore con SimpMusic.</string>
-    <string name="spotify_canvas_cache">Cache di Spotify Canvas</string>
-    <string name="clear_canvas_cache">Pulisci la cache di Spotify Canvas</string>
+    <string name="animated_artwork_cache">Cache delle copertine animate</string>
+    <string name="clear_animated_artwork_cache">Pulisci la cache delle copertine animate</string>
     <string name="proxy">Proxy</string>
     <string name="proxy_description">Usa il proxy per aggirare il blocco dei contenuti</string>
     <string name="proxy_type">Tipo di proxy</string>

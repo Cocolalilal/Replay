@@ -26,10 +26,12 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.eygraber.uri.toKmpUriOrNull
 import com.maxrave.common.FIRST_TIME_MIGRATION
+import com.maxrave.common.LocationResolver
 import com.maxrave.common.SELECTED_LANGUAGE
 import com.maxrave.common.STATUS_DONE
 import com.maxrave.common.SUPPORTED_LANGUAGE
-import com.maxrave.common.SUPPORTED_LOCATION
+import com.maxrave.common.getDeviceCountry
+import com.maxrave.common.getDeviceLanguage
 import com.maxrave.domain.data.model.intent.GenericIntent
 import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.mediaservice.handler.MediaPlayerHandler
@@ -147,11 +149,10 @@ class MainActivity : AppCompatActivity() {
                     }",
                 )
                 putString(SELECTED_LANGUAGE, Locale.getDefault().toLanguageTag())
-                if (SUPPORTED_LOCATION.items.contains(Locale.getDefault().country)) {
-                    putString("location", Locale.getDefault().country)
-                } else {
-                    putString("location", "US")
-                }
+                putString(
+                    "location",
+                    LocationResolver.resolveDefaultLocation(getDeviceCountry(), getDeviceLanguage()),
+                )
             } else {
                 putString(SELECTED_LANGUAGE, "en-US")
             }

@@ -16,7 +16,7 @@ import com.maxrave.domain.extension.now
 import com.maxrave.domain.mediaservice.handler.PlaylistType
 import com.maxrave.domain.mediaservice.handler.QueueData
 import com.maxrave.domain.repository.ArtistRepository
-import com.maxrave.domain.repository.LyricsCanvasRepository
+import com.maxrave.domain.repository.LyricsRepository
 import com.maxrave.domain.repository.SongRepository
 import com.maxrave.domain.utils.Resource
 import com.maxrave.simpmusic.extension.toArtistScreenData
@@ -37,11 +37,11 @@ import simpmusic.composeapp.generated.resources.shuffle
 class ArtistViewModel(
     private val artistRepository: ArtistRepository,
     private val songRepository: SongRepository,
-    private val lyricsCanvasRepository: LyricsCanvasRepository,
+    private val lyricsRepository: LyricsRepository,
 ) : BaseViewModel() {
     // It is dynamic and can be changed by the user, so separate it from the ArtistScreenData
-    private var _canvasUrl: MutableStateFlow<Pair<String, SongEntity>?> = MutableStateFlow(null)
-    var canvasUrl: StateFlow<Pair<String, SongEntity>?> = _canvasUrl
+    private var _animatedArtworkUrl: MutableStateFlow<Pair<String, SongEntity>?> = MutableStateFlow(null)
+    var animatedArtworkUrl: StateFlow<Pair<String, SongEntity>?> = _animatedArtworkUrl
 
     // Artist name-logo image + accent color from the hidden catalog (immersive header).
     private val _artistLogo: MutableStateFlow<ArtistLogo?> = MutableStateFlow(null)
@@ -55,7 +55,7 @@ class ArtistViewModel(
 
     fun browseArtist(channelId: String) {
         _artistScreenState.value = Loading
-        _canvasUrl.value = null
+        _animatedArtworkUrl.value = null
         _artistLogo.value = null
         _followed.value = false
         viewModelScope.launch {
@@ -76,15 +76,15 @@ class ArtistViewModel(
                         }
                         _artistScreenState.value =
                             Success(data.toArtistScreenData())
-                        // Canvas comes ONLY from the single most-popular song: take the first
-                        // popular result and use its canvas if it has one. If it doesn't,
-                        // leave canvas null (already reset above) — no fallback to other songs.
+                        // Animated artwork comes ONLY from the single most-popular song: take the first
+                        // popular result and use its artwork if it has one. If it doesn't,
+                        // leave it null (already reset above) — no fallback to other songs.
                         data.songs?.results?.firstOrNull()?.let { topSong ->
                             val entity = songRepository.getSongById(topSong.videoId).firstOrNull()
-                            val canvasUrl = entity?.canvasUrl
-                            if (entity != null && canvasUrl != null) {
-                                _canvasUrl.value = Pair(canvasUrl, entity)
-                                log("CanvasUrl: $canvasUrl")
+                            val animatedArtworkUrl = entity?.animatedArtworkUrl
+                            if (entity != null && animatedArtworkUrl != null) {
+                                _animatedArtworkUrl.value = Pair(animatedArtworkUrl, entity)
+                                log("AnimatedArtworkUrl: $animatedArtworkUrl")
                             }
                         }
                     }
@@ -104,7 +104,7 @@ class ArtistViewModel(
         channelId: String,
         artistName: String,
     ) {
-        lyricsCanvasRepository.getArtistLogo(artistName).collectLatest { res ->
+        lyricsRepository.getArtistLogo(artistName).collectLatest { res ->
             if (res is Resource.Success) {
                 val logo = res.data ?: return@collectLatest
                 _artistLogo.value = logo

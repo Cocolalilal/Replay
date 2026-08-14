@@ -311,11 +311,9 @@
     <string name="less">По-малко</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Вход в Spotify</string>
-    <string name="intro_login_to_spotify">Вход за Spotify Lyrics, Canvas и още</string>
+    <string name="intro_login_to_spotify">Вход за Spotify Lyrics и още</string>
     <string name="enable_spotify_lyrics">Включи Spotify Lyrics</string>
     <string name="spotify_lyrícs_info">Повече текстове без превод</string>
-    <string name="enable_canvas">Включване на Canvas</string>
-    <string name="canvas_info">Покажи Spotify Canvas в SimpMusic</string>
     <string name="spotify_lyrics_provider">Текст предоставен от Spotify</string>
     <string name="offline_mode">Режим офлайн</string>
     <string name="added_to_youtube_liked">Добавено в YouTube харесани</string>
@@ -365,8 +363,8 @@
     <string name="updating">Актуализиране</string>
     <string name="go_to_log_in_page">Отиди на страницата за вход</string>
     <string name="log_in_warning">YouTube Music вече изисква да сте вписани за да стриймвате музика, Piped понякога също не работи. Трябва да влезете в YouTube по-добро преживяване със SimpMusic.</string>
-    <string name="spotify_canvas_cache">Spotify кеш на изображенията</string>
-    <string name="clear_canvas_cache">Изстрий кеша на изображенията</string>
+    <string name="animated_artwork_cache">Кеш за анимирани обложки</string>
+    <string name="clear_animated_artwork_cache">Изчисти кеша за анимирани обложки</string>
     <string name="proxy">Прокси</string>
     <string name="proxy_description">Използване на прокси за да се прескочат ограниченията за някои държави</string>
     <string name="proxy_type">Тип прокси</string>

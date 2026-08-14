@@ -316,11 +316,9 @@
     <string name="less">收起</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">使用Spotify帳號登入</string>
-    <string name="intro_login_to_spotify">登入以啟用Spotify 歌詞、Canvas 等</string>
+    <string name="intro_login_to_spotify">登入以啟用Spotify 歌詞等</string>
     <string name="enable_spotify_lyrics">啟用Spotify歌詞</string>
     <string name="spotify_lyrícs_info">更多原始歌詞</string>
-    <string name="enable_canvas">啟用Canvas</string>
-    <string name="canvas_info">在SimpMusic中顯示Spotify Canvas</string>
     <string name="spotify_lyrics_provider">歌詞由Spotify提供</string>
     <string name="offline_mode">離線模式</string>
     <string name="added_to_youtube_liked">已新增到YouTube「喜歡的影片」</string>
@@ -379,8 +377,8 @@
     <string name="updating">更新中</string>
     <string name="go_to_log_in_page">前往登入頁面</string>
     <string name="log_in_warning">前端替代有時無法工作，現在只有您登入Youtube才能在SimpMusic播放音樂。</string>
-    <string name="spotify_canvas_cache">Spotify Canvas快取</string>
-    <string name="clear_canvas_cache">清理Spotify Canvas快取</string>
+    <string name="animated_artwork_cache">動態封面快取</string>
+    <string name="clear_animated_artwork_cache">清除動態封面快取</string>
     <string name="proxy">代理</string>
     <string name="proxy_description">通過代理越過地區内容限制</string>
     <string name="proxy_type">代理類型</string>

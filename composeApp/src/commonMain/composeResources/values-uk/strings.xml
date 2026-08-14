@@ -319,11 +319,9 @@
     <string name="less">Менше</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Увійти в Spotify</string>
-    <string name="intro_login_to_spotify">Увійдіть для Spotify Lyrics, Canvas та інше</string>
+    <string name="intro_login_to_spotify">Увійдіть для Spotify Lyrics та інше</string>
     <string name="enable_spotify_lyrics">Увімкнути Spotify Lyrics</string>
     <string name="spotify_lyrícs_info">Більше текстів пісень без перекладу</string>
-    <string name="enable_canvas">Увімкнути Canvas</string>
-    <string name="canvas_info">Показувати Spotify Canvas у SimpMusic</string>
     <string name="spotify_lyrics_provider">Тексти пісень надані Spotify</string>
     <string name="offline_mode">Автономний режим</string>
     <string name="added_to_youtube_liked">Додано у вподобані на YouTube</string>
@@ -382,8 +380,8 @@
     <string name="updating">Оновлення</string>
     <string name="go_to_log_in_page">Перейти на сторінку входу</string>
     <string name="log_in_warning">YouTube Music тепер вимагає входу для потокової передачі музики, Piped Instance іноді теж не працює. Вам слід увійти на YouTube, щоб отримати кращий досвід роботи з SimpMusic.</string>
-    <string name="spotify_canvas_cache">Кеш Spotify Canvas</string>
-    <string name="clear_canvas_cache">Очистити кеш Canvas</string>
+    <string name="animated_artwork_cache">Кеш анімованих обкладинок</string>
+    <string name="clear_animated_artwork_cache">Очистити кеш анімованих обкладинок</string>
     <string name="proxy">Проксі</string>
     <string name="proxy_description">Використання проксі для обходу блокування контенту</string>
     <string name="proxy_type">Тип проксі</string>

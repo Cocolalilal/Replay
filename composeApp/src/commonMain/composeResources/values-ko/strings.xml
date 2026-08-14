@@ -316,11 +316,9 @@
     <string name="less">간단히</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Spotify에 로그인</string>
-    <string name="intro_login_to_spotify">로그인하여 Spotify 가사, 캔버스 등 이용</string>
+    <string name="intro_login_to_spotify">로그인하여 Spotify 가사 등 이용</string>
     <string name="enable_spotify_lyrics">Spotify 가사 켜기</string>
     <string name="spotify_lyrícs_info">번역 없이 더 많은 가사 제공</string>
-    <string name="enable_canvas">캔버스 켜기</string>
-    <string name="canvas_info">SimpMusic에 Spotify 캔버스 표시</string>
     <string name="spotify_lyrics_provider">Spotify에서 제공된 가사</string>
     <string name="offline_mode">오프라인 모드</string>
     <string name="added_to_youtube_liked">YouTube 좋아요 표시한 항목에 추가 완료</string>
@@ -379,8 +377,8 @@
     <string name="updating">업데이트 중</string>
     <string name="go_to_log_in_page">로그인 페이지로 이동</string>
     <string name="log_in_warning">이제 YouTube Music으로 음악을 스트리밍하려면 로그인해야 합니다. Piped 인스턴스도 가끔 동작하지 않을 수 있습니다. SimpMusic을 더 원활하게 이용하려면 YouTube에 로그인하십시오.</string>
-    <string name="spotify_canvas_cache">Spotify 캔버스 캐시</string>
-    <string name="clear_canvas_cache">캔버스 캐시 지우기</string>
+    <string name="animated_artwork_cache">애니메이션 아트워크 캐시</string>
+    <string name="clear_animated_artwork_cache">애니메이션 아트워크 캐시 지우기</string>
     <string name="proxy">프록시</string>
     <string name="proxy_description">프록시를 이용해 지역 콘텐츠 차단을 우회</string>
     <string name="proxy_type">프록시 유형</string>

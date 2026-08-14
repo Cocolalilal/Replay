@@ -163,7 +163,7 @@ fun ArtistScreen(
 ) {
     val artistScreenState by viewModel.artistScreenState.collectAsStateWithLifecycle()
     val isFollowed by viewModel.followed.collectAsStateWithLifecycle()
-    val canvasUrl by viewModel.canvasUrl.collectAsStateWithLifecycle()
+    val animatedArtworkUrl by viewModel.animatedArtworkUrl.collectAsStateWithLifecycle()
     val artistLogo by viewModel.artistLogo.collectAsStateWithLifecycle()
 
     val playingTrack by remember {
@@ -252,7 +252,7 @@ fun ArtistScreen(
                                     // (unlike Modifier.offset, which only moves pixels, not layout).
                                     verticalArrangement = Arrangement.spacedBy((-36).dp),
                                 ) {
-                                    // Edge-to-edge artwork (canvas plays on top of it when available).
+                                    // Edge-to-edge artwork (animated artwork plays on top of it when available).
                                     // Glass back button MUST be a sibling of the backdrop source
                                     // (not a child) to avoid render feedback loop / RuntimeShader crash.
                                     val artworkBackdrop = rememberBackdrop(Color.Black)
@@ -267,9 +267,9 @@ fun ArtistScreen(
                                                 .fillMaxWidth()
                                                 .aspectRatio(1f),
                                     ) {
-                                        // Inner Box — backdrop SOURCE (artwork + canvas + overlays, NO glass)
+                                        // Inner Box — backdrop SOURCE (artwork + animated artwork + overlays, NO glass)
                                         Box(modifier = Modifier.fillMaxSize().clipToBounds().layerBackdrop(artworkBackdrop)) {
-                                            // Media layer (artwork + canvas) — Haze SOURCE for the bottom blur.
+                                            // Media layer (artwork + animated artwork) — Haze SOURCE for the bottom blur.
                                             Box(modifier = Modifier.fillMaxSize().hazeSource(headerHaze)) {
                                                 AsyncImage(
                                                     model =
@@ -287,32 +287,32 @@ fun ArtistScreen(
                                                     contentDescription = null,
                                                     contentScale = ContentScale.FillWidth,
                                                     // Always decoded so the page background color can be extracted
-                                                    // from the artwork palette, even when a canvas is playing.
+                                                    // from the artwork palette, even when animated artwork is playing.
                                                     onSuccess = {
                                                         bitmap = it.result.image.toImageBitmap()
                                                     },
-                                                    // Hidden (but still decoded above) while a canvas is present —
-                                                    // the canvas is shown instead. No canvas -> artwork is shown.
+                                                    // Hidden (but still decoded above) while animated artwork is present —
+                                                    // the artwork is shown instead. No artwork -> static image is shown.
                                                     modifier =
                                                         Modifier
                                                             .fillMaxSize()
-                                                            .alpha(if (canvasUrl != null) 0f else 1f),
+                                                            .alpha(if (animatedArtworkUrl != null) 0f else 1f),
                                                 )
-                                                // Canvas (Spotify) plays AS the background when present;
+                                                // Animated artwork plays AS the background when present;
                                                 // otherwise the static artwork above is the fallback.
-                                                canvasUrl?.let { canvas ->
-                                                    // Canvas is a tall/portrait video. cropToBounds center
+                                                animatedArtworkUrl?.let { animatedArtwork ->
+                                                    // Animated artwork is a tall/portrait video. cropToBounds center
                                                     // scale-to-covers it into the square frame (ContentScale.Crop):
                                                     // true video aspect ratio, no stretch, overflow clipped.
                                                     MediaPlayerView(
-                                                        url = canvas.first,
+                                                        url = animatedArtwork.first,
                                                         modifier = Modifier.fillMaxSize(),
                                                         cropToBounds = true,
                                                     )
                                                 }
                                             } // end media layer (Haze source)
                                             // Bottom fade — progressive blur (Haze) over the media layer, so the
-                                            // canvas/artwork edge melts into the page bg.
+                                            // artwork/artwork edge melts into the page bg.
                                             Box(
                                                 modifier =
                                                     Modifier
@@ -596,9 +596,9 @@ fun ArtistScreen(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    AnimatedVisibility(canvasUrl != null) {
+                                    AnimatedVisibility(animatedArtworkUrl != null) {
                                         Row {
-                                            val canvas = canvasUrl ?: return@Row
+                                            val animatedArtwork = animatedArtworkUrl ?: return@Row
                                             LimitedBorderAnimationView(
                                                 isAnimated = true,
                                                 brush = Brush.sweepGradient(listOf(Color.Transparent, Color.White)),
@@ -610,7 +610,7 @@ fun ArtistScreen(
                                                 interactionNumber = 1,
                                             ) {
                                                 MediaPlayerView(
-                                                    url = canvas.first,
+                                                    url = animatedArtwork.first,
                                                     modifier =
                                                         Modifier
                                                             .width(28.dp)
@@ -625,7 +625,7 @@ fun ArtistScreen(
                                                                 shape = RoundedCornerShape(4.dp),
                                                             ).clip(RoundedCornerShape(4.dp))
                                                             .clickable {
-                                                                val firstQueue: Track = canvas.second.toTrack()
+                                                                val firstQueue: Track = animatedArtwork.second.toTrack()
                                                                 viewModel.setQueueData(
                                                                     QueueData.Data(
                                                                         listTracks = arrayListOf(firstQueue),
@@ -714,7 +714,7 @@ fun ArtistScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
                                             Icon(SimpIcons.Sensors, "")
-                                            if (canvasUrl == null) {
+                                            if (animatedArtworkUrl == null) {
                                                 Spacer(Modifier.width(6.dp))
                                                 Text(text = stringResource(Res.string.start_radio))
                                             }

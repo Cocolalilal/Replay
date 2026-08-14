@@ -73,10 +73,18 @@ actual fun LiquidGlassAppBottomNavigationBar(
     onOpenNowPlaying: () -> Unit,
     reloadDestinationIfNeeded: (KClass<*>) -> Unit,
 ) {
+<<<<<<< Updated upstream
     val layer = rememberGraphicsLayer()
     val toolbarInteraction = rememberGlassInteraction()
     val searchFabInteraction = rememberGlassInteraction()
     val luminanceAnimation = remember { Animatable(0f) }
+=======
+    val searchViewModel: SearchViewModel = koinInject()
+    val nowPlayingData by viewModel.nowPlayingState.collectAsStateWithLifecycle()
+    val controllerState by viewModel.controllerState.collectAsStateWithLifecycle()
+    val searchScreenState by searchViewModel.searchScreenState.collectAsStateWithLifecycle()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+>>>>>>> Stashed changes
 
     LaunchedEffect(layer) {
         val buffer = IntBuffer.allocate(25)
@@ -148,6 +156,30 @@ actual fun LiquidGlassAppBottomNavigationBar(
         mutableStateOf(false)
     }
 
+<<<<<<< Updated upstream
+=======
+    var isManuallyExpanded by remember { mutableStateOf(false) }
+
+    // Per-route memory of the last scroll-top state. Restoring the incoming route's
+    // state immediately on navigation prevents the bar from flashing the outgoing
+    // screen's minimized state (hard cut) before the new screen reports its scroll.
+    var currentRouteKey by remember { mutableStateOf("home") }
+    val routeAtTop = remember { mutableStateMapOf<String, Boolean>() }
+    var lastLiveAtTop by remember { mutableStateOf(isScrolledToTop) }
+
+    // Keyed on the epoch so repeated scrolls in the same direction still re-run the
+    // reset (a direction-only key would miss -1 -> -1 and leave manual expansion on).
+    LaunchedEffect(isScrolledToTop, scrollDirection, scrollEpoch) {
+        if (scrollDirection < 0) {
+            // Any downward scroll cancels a manual expansion (re-minimizes the bar).
+            isManuallyExpanded = false
+        }
+        lastLiveAtTop = isScrolledToTop
+        routeAtTop[currentRouteKey] = isScrolledToTop
+        Logger.d(TAG, "scroll: atTop=$isScrolledToTop dir=$scrollDirection epoch=$scrollEpoch route=$currentRouteKey manual=$isManuallyExpanded lastLive=$lastLiveAtTop")
+    }
+
+>>>>>>> Stashed changes
     LaunchedEffect(nowPlayingData) {
         isShowMiniPlayer = !(nowPlayingData?.mediaItem == null || nowPlayingData?.mediaItem == GenericMediaItem.EMPTY)
     }
@@ -155,7 +187,37 @@ actual fun LiquidGlassAppBottomNavigationBar(
     LaunchedEffect(currentBackStackEntry) {
         currentBackStackEntry?.destination?.let { current ->
             Logger.d(TAG, "LiquidGlassAppBottomNavigationBar: current route: ${current.route}")
+<<<<<<< Updated upstream
             isInSearchDestination = current.hasRoute(SearchDestination::class)
+=======
+            val inSearch = current.hasRoute(SearchDestination::class)
+            val inLibrary = current.hasRoute(LibraryDestination::class)
+            val inHome = current.hasRoute(HomeDestination::class)
+
+            val key =
+                when {
+                    inSearch -> "search"
+                    inLibrary -> "library"
+                    inHome -> "home"
+                    else -> "detail"
+                }
+            if (key != currentRouteKey) {
+                routeAtTop[currentRouteKey] = lastLiveAtTop
+                currentRouteKey = key
+                if (!isManuallyExpanded) {
+                    // Restore the incoming route's remembered state so there is no flash.
+                    // A manual expansion is deliberately kept: expanded stays expanded
+                    // until the user scrolls.
+                    lastLiveAtTop = routeAtTop[key] ?: true
+                }
+                Logger.d(TAG, "route change -> $key, restored lastLive=$lastLiveAtTop, manual=$isManuallyExpanded, map=$routeAtTop")
+            }
+
+            isSearchActive = inSearch
+            searchViewModel.setSearchBarActive(inSearch)
+            if (inLibrary) selectedIndex = 1
+            else if (inHome) selectedIndex = 0
+>>>>>>> Stashed changes
         }
     }
 
@@ -227,6 +289,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
                 ).imePadding(),
         animateChangesSpec = tween(300),
     ) {
+<<<<<<< Updated upstream
         /**
          * LTR: HOME -> MIX FOR YOU -> LIBRARY | SEARCH
          */
@@ -265,6 +328,27 @@ actual fun LiquidGlassAppBottomNavigationBar(
                     contentAlignment = Alignment.Center,
                 ) {
                     BottomNavScreen.Search.icon()
+=======
+        BottomNavigationOrchestrator(
+            selectedTabIndex = selectedIndex,
+            onTabSelected = { index -> selectTab(index) },
+            isSearchActive = isSearchActive,
+            onSearchActiveChange = { active ->
+                isSearchActive = active
+                searchViewModel.setSearchBarActive(active)
+                if (active) {
+                    if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) != true) {
+                        navController.navigate(SearchDestination) {
+                            launchSingleTop = true
+                        }
+                    }
+                } else {
+                    // Leaving search always keeps the bar expanded until the user scrolls.
+                    isManuallyExpanded = true
+                    if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) == true) {
+                        navController.popBackStack()
+                    }
+>>>>>>> Stashed changes
                 }
             } else {
                 val selectedScreen =
@@ -301,6 +385,36 @@ actual fun LiquidGlassAppBottomNavigationBar(
                 viewModel.stopPlayer()
                 viewModel.isServiceRunning = false
             },
+<<<<<<< Updated upstream
+=======
+            searchText = searchScreenState.barQuery,
+            onSearchTextChange = { text ->
+                searchViewModel.setSearchBarQuery(text)
+                if (text.isNotEmpty()) {
+                    searchViewModel.suggestQuery(text)
+                }
+            },
+            onSearchSubmit = { query ->
+                if (query.isNotEmpty()) {
+                    searchViewModel.insertSearchHistory(query)
+                    searchViewModel.searchAll(query)
+                    // Fire from any tab: land on the search screen so the results are visible.
+                    if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) != true) {
+                        navController.navigate(SearchDestination) {
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            },
+            onSearchFieldTapped = {
+                // History shows on the search screen only once the user actually taps the field.
+                searchViewModel.setSearchFieldTapped(true)
+            },
+            onExpandRequested = {
+                isManuallyExpanded = !isManuallyExpanded
+                Logger.d(TAG, "manual expand toggled -> $isManuallyExpanded")
+            }
+>>>>>>> Stashed changes
         )
     }
 }

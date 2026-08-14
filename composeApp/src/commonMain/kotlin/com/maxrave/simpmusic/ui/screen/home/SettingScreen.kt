@@ -93,11 +93,14 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.eygraber.uri.toKmpUri
 import com.maxrave.common.LIMIT_CACHE_SIZE
+import com.maxrave.common.LocationResolver
 import com.maxrave.common.QUALITY
 import com.maxrave.common.SUPPORTED_LANGUAGE
 import com.maxrave.common.SUPPORTED_LOCATION
 import com.maxrave.common.SponsorBlockType
 import com.maxrave.common.VIDEO_QUALITY
+import com.maxrave.common.getDeviceCountry
+import com.maxrave.common.getDeviceLanguage
 import com.maxrave.domain.extension.now
 import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.manager.DataStoreManager.Values.TRUE
@@ -175,6 +178,8 @@ import simpmusic.composeapp.generated.resources.ai_api_key
 import simpmusic.composeapp.generated.resources.ai_provider
 import simpmusic.composeapp.generated.resources.anonymous
 import simpmusic.composeapp.generated.resources.app_name
+import simpmusic.composeapp.generated.resources.animated_now_playing_background
+import simpmusic.composeapp.generated.resources.animated_now_playing_background_description
 import simpmusic.composeapp.generated.resources.audio
 import simpmusic.composeapp.generated.resources.author
 import simpmusic.composeapp.generated.resources.auto_backup
@@ -191,14 +196,14 @@ import simpmusic.composeapp.generated.resources.blog_notification_description
 import simpmusic.composeapp.generated.resources.blog_notification_title
 import simpmusic.composeapp.generated.resources.buy_me_a_coffee
 import simpmusic.composeapp.generated.resources.cancel
-import simpmusic.composeapp.generated.resources.canvas_info
 import simpmusic.composeapp.generated.resources.categories_sponsor_block
 import simpmusic.composeapp.generated.resources.change
 import simpmusic.composeapp.generated.resources.change_language_warning
 import simpmusic.composeapp.generated.resources.check_for_update
+import simpmusic.composeapp.generated.resources.animated_artwork_cache
 import simpmusic.composeapp.generated.resources.checking
 import simpmusic.composeapp.generated.resources.clear
-import simpmusic.composeapp.generated.resources.clear_canvas_cache
+import simpmusic.composeapp.generated.resources.clear_animated_artwork_cache
 import simpmusic.composeapp.generated.resources.clear_downloaded_cache
 import simpmusic.composeapp.generated.resources.clear_player_cache
 import simpmusic.composeapp.generated.resources.clear_thumbnail_cache
@@ -225,9 +230,6 @@ import simpmusic.composeapp.generated.resources.discord_integration
 import simpmusic.composeapp.generated.resources.donation
 import simpmusic.composeapp.generated.resources.download_quality
 import simpmusic.composeapp.generated.resources.downloaded_cache
-import simpmusic.composeapp.generated.resources.enable_canvas
-import simpmusic.composeapp.generated.resources.enable_liquid_glass_effect
-import simpmusic.composeapp.generated.resources.enable_liquid_glass_effect_description
 import simpmusic.composeapp.generated.resources.enable_rich_presence
 import simpmusic.composeapp.generated.resources.enable_sponsor_block
 import simpmusic.composeapp.generated.resources.enable_spotify_lyrics
@@ -333,7 +335,6 @@ import simpmusic.composeapp.generated.resources.socks
 import simpmusic.composeapp.generated.resources.sponsorBlock
 import simpmusic.composeapp.generated.resources.sponsor_block_intro
 import simpmusic.composeapp.generated.resources.spotify
-import simpmusic.composeapp.generated.resources.spotify_canvas_cache
 import simpmusic.composeapp.generated.resources.spotify_lyrícs_info
 import simpmusic.composeapp.generated.resources.storage
 import simpmusic.composeapp.generated.resources.such_as_music_video_lyrics_video_podcasts_and_more
@@ -349,7 +350,6 @@ import simpmusic.composeapp.generated.resources.third_party_libraries
 import simpmusic.composeapp.generated.resources.thumbnail_cache
 import simpmusic.composeapp.generated.resources.translation_language
 import simpmusic.composeapp.generated.resources.translation_language_message
-import simpmusic.composeapp.generated.resources.translucent_bottom_navigation_bar
 import simpmusic.composeapp.generated.resources.unknown
 import simpmusic.composeapp.generated.resources.update_channel
 import simpmusic.composeapp.generated.resources.upload_your_listening_history_to_youtube_music_server_it_will_make_yt_music_recommendation_system_better_working_only_if_logged_in
@@ -364,7 +364,6 @@ import simpmusic.composeapp.generated.resources.video_quality
 import simpmusic.composeapp.generated.resources.warning
 import simpmusic.composeapp.generated.resources.weekly
 import simpmusic.composeapp.generated.resources.what_segments_will_be_skipped
-import simpmusic.composeapp.generated.resources.you_can_see_the_content_below_the_bottom_bar
 import simpmusic.composeapp.generated.resources.youtube_account
 import simpmusic.composeapp.generated.resources.youtube_subtitle_language
 import simpmusic.composeapp.generated.resources.youtube_subtitle_language_message
@@ -447,7 +446,6 @@ fun SettingScreen(
     // Open equalizer
     val resultLauncher = openEqResult(viewModel.getAudioSessionId())
 
-    val enableTranslucentNavBar by remember { viewModel.translucentBottomBar.map { it == TRUE } }.collectAsStateWithLifecycle(initialValue = false)
     val language by viewModel.language.collectAsStateWithLifecycle()
     val location by viewModel.location.collectAsStateWithLifecycle()
     val quality by viewModel.quality.collectAsStateWithLifecycle()
@@ -469,13 +467,12 @@ fun SettingScreen(
     val youtubeSubtitleLanguage by viewModel.youtubeSubtitleLanguage.collectAsStateWithLifecycle()
     val spotifyLoggedIn by viewModel.spotifyLogIn.collectAsStateWithLifecycle()
     val spotifyLyrics by viewModel.spotifyLyrics.collectAsStateWithLifecycle()
-    val spotifyCanvas by viewModel.spotifyCanvas.collectAsStateWithLifecycle()
     val enableSponsorBlock by remember { viewModel.sponsorBlockEnabled.map { it == TRUE } }.collectAsStateWithLifecycle(initialValue = false)
     val skipSegments by viewModel.sponsorBlockCategories.collectAsStateWithLifecycle()
     val playerCache by viewModel.cacheSize.collectAsStateWithLifecycle()
     val downloadedCache by viewModel.downloadedCacheSize.collectAsStateWithLifecycle()
     val thumbnailCache by viewModel.thumbCacheSize.collectAsStateWithLifecycle()
-    val canvasCache by viewModel.canvasCacheSize.collectAsStateWithLifecycle()
+    val animatedArtworkCache by viewModel.animatedArtworkCacheSize.collectAsStateWithLifecycle()
     val limitPlayerCache by viewModel.playerCacheLimit.collectAsStateWithLifecycle()
     val fraction by viewModel.fraction.collectAsStateWithLifecycle()
     val lastCheckUpdate by viewModel.lastCheckForUpdate.collectAsStateWithLifecycle()
@@ -502,7 +499,6 @@ fun SettingScreen(
     val autoBackupMaxFiles by viewModel.autoBackupMaxFiles.collectAsStateWithLifecycle()
     val autoBackupLastTime by viewModel.autoBackupLastTime.collectAsStateWithLifecycle()
     val updateChannel by viewModel.updateChannel.collectAsStateWithLifecycle()
-    val enableLiquidGlass by viewModel.enableLiquidGlass.collectAsStateWithLifecycle()
     val themeMode by sharedViewModel.getThemeMode().collectAsStateWithLifecycle(DataStoreManager.THEME_MODE_DARK)
     val themeColorSource by sharedViewModel.getThemeColorSource().collectAsStateWithLifecycle(DataStoreManager.THEME_COLOR_DEFAULT)
     val customThemeColorHex by sharedViewModel.getCustomThemeColor().collectAsStateWithLifecycle(DataStoreManager.DEFAULT_THEME_COLOR_HEX)
@@ -513,6 +509,7 @@ fun SettingScreen(
     val lastfmScrobbleEnabled by viewModel.lastfmScrobbleEnabled.collectAsStateWithLifecycle()
     val richPresenceEnabled by viewModel.richPresenceEnabled.collectAsStateWithLifecycle()
     val keepServiceAlive by viewModel.keepServiceAlive.collectAsStateWithLifecycle()
+    val animatedNowPlayingBackground by viewModel.animatedNowPlayingBackground.collectAsStateWithLifecycle()
 
     val crossfadeEnabled by viewModel.crossfadeEnabled.collectAsStateWithLifecycle()
     val crossfadeDuration by viewModel.crossfadeDuration.collectAsStateWithLifecycle()
@@ -646,20 +643,11 @@ fun SettingScreen(
                     )
                 }
                 SettingItem(
-                    title = stringResource(Res.string.translucent_bottom_navigation_bar),
-                    subtitle = stringResource(Res.string.you_can_see_the_content_below_the_bottom_bar),
+                    title = stringResource(Res.string.animated_now_playing_background),
+                    subtitle = stringResource(Res.string.animated_now_playing_background_description),
                     smallSubtitle = true,
-                    switch = (enableTranslucentNavBar to { viewModel.setTranslucentBottomBar(it) }),
+                    switch = (animatedNowPlayingBackground to { viewModel.setAnimatedNowPlayingBackground(it) }),
                 )
-                if (getPlatform() == Platform.Android) {
-                    SettingItem(
-                        title = stringResource(Res.string.enable_liquid_glass_effect),
-                        subtitle = stringResource(Res.string.enable_liquid_glass_effect_description),
-                        smallSubtitle = true,
-                        switch = (enableLiquidGlass to { viewModel.setEnableLiquidGlass(it) }),
-                        isEnable = getPlatform() == Platform.Android,
-                    )
-                }
             }
         }
         item(key = "content") {
@@ -731,7 +719,11 @@ fun SettingScreen(
                                 confirm =
                                     runBlocking { getString(Res.string.change) } to { state ->
                                         viewModel.changeLocation(
-                                            state.selectOne?.getSelected() ?: "US",
+                                            state.selectOne?.getSelected()
+                                                ?: LocationResolver.resolveDefaultLocation(
+                                                    getDeviceCountry(),
+                                                    getDeviceLanguage(),
+                                                ),
                                         )
                                     },
                                 dismiss = runBlocking { getString(Res.string.cancel) },
@@ -1598,17 +1590,6 @@ fun SettingScreen(
                         }
                     },
                 )
-                SettingItem(
-                    title = stringResource(Res.string.enable_canvas),
-                    subtitle = stringResource(Res.string.canvas_info),
-                    switch = (spotifyCanvas to { viewModel.setSpotifyCanvas(it) }),
-                    isEnable = spotifyLoggedIn,
-                    onDisable = {
-                        if (spotifyCanvas) {
-                            viewModel.setSpotifyCanvas(false)
-                        }
-                    },
-                )
             }
         }
         item(key = "discord") {
@@ -1841,16 +1822,16 @@ fun SettingScreen(
                         },
                     )
                     SettingItem(
-                        title = stringResource(Res.string.spotify_canvas_cache),
-                        subtitle = "${canvasCache.bytesToMB()} MB",
+                        title = stringResource(Res.string.animated_artwork_cache),
+                        subtitle = "${animatedArtworkCache.bytesToMB()} MB",
                         onClick = {
                             viewModel.setBasicAlertData(
                                 SettingBasicAlertState(
-                                    title = runBlocking { getString(Res.string.clear_canvas_cache) },
+                                    title = runBlocking { getString(Res.string.clear_animated_artwork_cache) },
                                     message = null,
                                     confirm =
                                         runBlocking { getString(Res.string.clear) } to {
-                                            viewModel.clearCanvasCache()
+                                            viewModel.clearAnimatedArtworkCache()
                                         },
                                     dismiss = runBlocking { getString(Res.string.cancel) },
                                 ),
@@ -1943,7 +1924,7 @@ fun SettingScreen(
                                     modifier =
                                         Modifier
                                             .width(
-                                                (fraction.canvasCache * width).dp,
+                                                (fraction.animatedArtworkCache * width).dp,
                                             ).background(
                                                 Color.Cyan,
                                             ).fillMaxHeight(),
@@ -2042,7 +2023,7 @@ fun SettingScreen(
                                 ),
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(text = stringResource(Res.string.spotify_canvas_cache), style = typo().bodySmall)
+                        Text(text = stringResource(Res.string.animated_artwork_cache), style = typo().bodySmall)
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

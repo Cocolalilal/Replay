@@ -316,11 +316,9 @@
     <string name="less">减少</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">登录Spotify</string>
-    <string name="intro_login_to_spotify">登录以获取 Spotify Lyrics, Canvas 及更多</string>
+    <string name="intro_login_to_spotify">登录以获取 Spotify Lyrics 及更多</string>
     <string name="enable_spotify_lyrics">启用 Spotify 歌词</string>
     <string name="spotify_lyrícs_info">更多没有翻译的歌词</string>
-    <string name="enable_canvas">启用 Canvas</string>
-    <string name="canvas_info">在 SimpMusic 中显示 Spotify Canvas</string>
     <string name="spotify_lyrics_provider">由 Spotify 提供的歌词</string>
     <string name="offline_mode">离线模式</string>
     <string name="added_to_youtube_liked">添加到 YouTube 赞过</string>
@@ -379,8 +377,8 @@
     <string name="updating">更新中</string>
     <string name="go_to_log_in_page">转到登录页面</string>
     <string name="log_in_warning">YouTube Music现在要求您登录以串流音乐，Piped实例有时也无法正常工作。 您应该登录到 YouTube 以获得更好的 SimpMusic 体验。</string>
-    <string name="spotify_canvas_cache">Spotify Canvas 缓存</string>
-    <string name="clear_canvas_cache">清除 canvas 缓存</string>
+    <string name="animated_artwork_cache">动态封面缓存</string>
+    <string name="clear_animated_artwork_cache">清除动态封面缓存</string>
     <string name="proxy">代理</string>
     <string name="proxy_description">使用代理服务器来绕过国家内容封锁</string>
     <string name="proxy_type">代理类型</string>
