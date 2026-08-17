@@ -227,11 +227,12 @@ class SharedViewModel(
                             log("Timeline job ${(it.first.total.toString() + it.second.songEntity?.videoId).hashCode()}")
                             val nowPlaying = it.second
                             val timeline = it.first
-                            if (timeline.total > 0 && nowPlaying.songEntity != null) {
+                            if (nowPlaying.songEntity != null) {
                                 nowPlaying.songEntity?.let { song ->
                                     if (nowPlayingScreenData.value.lyricsData == null) {
+                                        val dur = if (timeline.total > 0L) (timeline.total / 1000).toInt() else song.durationSeconds
                                         Logger.w(tag, "Get lyrics from format")
-                                        getLyricsFromFormat(nowPlaying.mediaItem.isVideo(), song, (timeline.total / 1000).toInt())
+                                        getLyricsFromFormat(nowPlaying.mediaItem.isVideo(), song, dur)
                                     }
                                 }
                             }
@@ -309,6 +310,8 @@ class SharedViewModel(
                                         ?.data
                                         ?.playlistName ?: "",
                             )
+                        val dur = if (timeline.value.total > 0L) (timeline.value.total / 1000).toInt() else track.durationSeconds
+                        getLyricsFromFormat(state.mediaItem.isVideo(), track, dur)
                     }
                     state.mediaItem.let { now ->
                         getLikeStatus(now.mediaId)

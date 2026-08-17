@@ -219,17 +219,22 @@ fun ReferenceNowPlayingLayout(
     val shouldShowVideo by sharedViewModel.getVideo.collectAsStateWithLifecycle()
     val mediaPlayerHandler: MediaPlayerHandler = koinInject()
     val isInPipMode = com.maxrave.simpmusic.extension.rememberIsInPipMode()
-    val currentVideoId = sharedViewModel.nowPlayingState.value?.track?.videoId
+    val currentVideoId = sharedViewModel.nowPlayingState.value?.songEntity?.videoId
+        ?: sharedViewModel.nowPlayingState.value?.track?.videoId
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showOverflow by rememberSaveable { mutableStateOf(false) }
 
     // Seek state, in fractions (0f..1f). The held target keeps the thumb where the user
     // dropped it until real playback catches up (same thresholds as PixelPlayer's bar).
+    val initialProgress =
+        if (timelineState.total > 0L) timelineState.current.toFloat() / timelineState.total.toFloat() else 0f
     var isSliding by rememberSaveable { mutableStateOf(false) }
-    var sliderValue by rememberSaveable { mutableFloatStateOf(0f) }
+    var sliderValue by rememberSaveable { mutableFloatStateOf(initialProgress) }
     var targetSeekFraction by rememberSaveable { mutableFloatStateOf(-1f) }
     var lastSeekFinishedAt by rememberSaveable { mutableStateOf(0L) }
+    var previousVideoId by rememberSaveable { mutableStateOf<String?>(null) }
+
     LaunchedEffect(timelineState, isSliding) {
         if (!isSliding) {
             val actualProgress =
@@ -248,9 +253,18 @@ fun ReferenceNowPlayingLayout(
             sliderValue = if (targetSeekFraction >= 0f) targetSeekFraction else actualProgress
         }
     }
-    LaunchedEffect(screenDataState.thumbnailURL) {
-        targetSeekFraction = -1f
-        sliderValue = 0f
+    LaunchedEffect(currentVideoId) {
+        if (currentVideoId != null && currentVideoId != previousVideoId) {
+            previousVideoId = currentVideoId
+            targetSeekFraction = -1f
+            val actualProgress =
+                if (timelineState.total > 0L) {
+                    timelineState.current.toFloat() / timelineState.total.toFloat()
+                } else {
+                    0f
+                }
+            sliderValue = actualProgress
+        }
     }
 
     val paletteState = rememberPaletteState()
