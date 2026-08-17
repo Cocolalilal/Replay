@@ -207,6 +207,31 @@ class SharedViewModel(
             .map { it == TRUE }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    private var _downloadState: MutableStateFlow<DownloadHandler.Download?> = MutableStateFlow(null)
+    var downloadState: StateFlow<DownloadHandler.Download?> = _downloadState.asStateFlow()
+
+    private var songInfoJob: Job? = null
+
+    private var _updateResponse = MutableStateFlow<UpdateData?>(null)
+    val updateResponse: StateFlow<UpdateData?> = _updateResponse
+
+    private var _recreateActivity: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    val recreateActivity: StateFlow<Boolean> = _recreateActivity
+
+    private val _reloadDestination: MutableStateFlow<KClass<*>?> = MutableStateFlow(null)
+    val reloadDestination: StateFlow<KClass<*>?> = _reloadDestination.asStateFlow()
+
+    private var _downloadFileProgress = MutableStateFlow<DownloadProgress>(DownloadProgress.INIT)
+    val downloadFileProgress: StateFlow<DownloadProgress> get() = _downloadFileProgress
+
+    // Vote state for translated lyrics
+    private val _translatedVoteState = MutableStateFlow<VoteData?>(null)
+    val translatedVoteState: StateFlow<VoteData?> = _translatedVoteState.asStateFlow()
+
+    // Vote state for original lyrics
+    private val _lyricsVoteState = MutableStateFlow<VoteData?>(null)
+    val lyricsVoteState: StateFlow<VoteData?> = _lyricsVoteState.asStateFlow()
+
     fun setShowVideoSubtitles(show: Boolean) {
         viewModelScope.launch {
             dataStoreManager.setShowVideoSubtitles(show)
@@ -550,9 +575,6 @@ class SharedViewModel(
     fun stopSleepTimer() {
         mediaPlayerHandler.sleepStop()
     }
-
-    private var _downloadState: MutableStateFlow<DownloadHandler.Download?> = MutableStateFlow(null)
-    var downloadState: StateFlow<DownloadHandler.Download?> = _downloadState.asStateFlow()
 
     fun checkIsRestoring() {
         viewModelScope.launch {
@@ -911,8 +933,6 @@ class SharedViewModel(
         }
     }
 
-    private var songInfoJob: Job? = null
-
     fun getSongInfo(mediaId: String?) {
         songInfoJob?.cancel()
         songInfoJob =
@@ -928,9 +948,6 @@ class SharedViewModel(
                 }
             }
     }
-
-    private var _updateResponse = MutableStateFlow<UpdateData?>(null)
-    val updateResponse: StateFlow<UpdateData?> = _updateResponse
 
     fun checkForUpdate() {
         viewModelScope.launch {
@@ -1640,9 +1657,6 @@ class SharedViewModel(
         }
     }
 
-    private var _recreateActivity: MutableStateFlow<Boolean> = MutableStateFlow(false)
-    val recreateActivity: StateFlow<Boolean> = _recreateActivity
-
     fun activityRecreate() {
         _recreateActivity.value = true
     }
@@ -1727,9 +1741,6 @@ class SharedViewModel(
         }
     }
 
-    private val _reloadDestination: MutableStateFlow<KClass<*>?> = MutableStateFlow(null)
-    val reloadDestination: StateFlow<KClass<*>?> = _reloadDestination.asStateFlow()
-
     fun reloadDestination(destination: KClass<*>) {
         _reloadDestination.value = destination
     }
@@ -1739,9 +1750,6 @@ class SharedViewModel(
     }
 
     fun shouldCheckForUpdate(): Boolean = runBlocking { dataStoreManager.autoCheckForUpdates.first() == TRUE }
-
-    private var _downloadFileProgress = MutableStateFlow<DownloadProgress>(DownloadProgress.INIT)
-    val downloadFileProgress: StateFlow<DownloadProgress> get() = _downloadFileProgress
 
     fun downloadFile(bitmap: ImageBitmap) {
         val fileName =
@@ -1802,14 +1810,6 @@ class SharedViewModel(
             it.copy(bitmap = bitmap)
         }
     }
-
-    // Vote state for translated lyrics
-    private val _translatedVoteState = MutableStateFlow<VoteData?>(null)
-    val translatedVoteState: StateFlow<VoteData?> = _translatedVoteState.asStateFlow()
-
-    // Vote state for original lyrics
-    private val _lyricsVoteState = MutableStateFlow<VoteData?>(null)
-    val lyricsVoteState: StateFlow<VoteData?> = _lyricsVoteState.asStateFlow()
 
     /**
      * Vote for SimpMusic original lyrics (upvote or downvote)
