@@ -144,38 +144,36 @@ fun BottomNavigationOrchestrator(
             )
         }
 
-        if (effectiveCollapse >= 0.99f || searchProgress > 0.01f) {
+        val searchAlpha = (1f - (2f * rawCollapse)).fastCoerceIn(0f, 1f)
+        if (searchAlpha > 0.01f || searchProgress > 0.01f || isSearchActive) {
             val searchWidthPx = lerp(searchButtonWidthPx, (totalWidthPx - searchButtonWidthPx) - spacingPx, searchProgress)
             val searchXPx = lerp(totalWidthPx - searchButtonWidthPx, searchButtonWidthPx + spacingPx, searchProgress)
-            val searchAlpha = (1f - (2f * rawCollapse)).fastCoerceIn(0f, 1f)
 
-            if (searchAlpha > 0f || isSearchActive) {
-                Box(
-                    modifier = Modifier
-                        .offset { IntOffset(searchXPx.roundToInt(), bottomRowYPx.roundToInt()) }
-                        .width(with(density) { searchWidthPx.toDp() })
-                        .height(56.dp)
-                        .graphicsLayer {
-                            alpha = if (isSearchActive) 1f else searchAlpha
-                            scaleX = if (isSearchActive) 1f else (1f - (rawCollapse * 0.5f))
-                            scaleY = if (isSearchActive) 1f else (1f - (0.5f * rawCollapse))
-                        }
-                ) {
-                    SearchFieldOrCircle(
-                        isSearchActive = isSearchActive,
-                        searchProgress = searchProgress,
-                        backdrop = backdrop,
-                        searchText = searchText,
-                        onSearchTextChange = onSearchTextChange,
-                        onSearchSubmit = onSearchSubmit,
-                        onSearchFieldTapped = onSearchFieldTapped,
-                        onCircleClick = { onSearchActiveChange(true) },
-                        onCloseClick = {
-                            onSearchTextChange("")
-                            onSearchActiveChange(false)
-                        }
-                    )
-                }
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(searchXPx.roundToInt(), bottomRowYPx.roundToInt()) }
+                    .width(with(density) { searchWidthPx.toDp() })
+                    .height(56.dp)
+                    .graphicsLayer {
+                        alpha = if (isSearchActive) 1f else searchAlpha
+                        scaleX = if (isSearchActive) 1f else (1f - (rawCollapse * 0.5f))
+                        scaleY = if (isSearchActive) 1f else (1f - (0.5f * rawCollapse))
+                    }
+            ) {
+                SearchFieldOrCircle(
+                    isSearchActive = isSearchActive,
+                    searchProgress = searchProgress,
+                    backdrop = backdrop,
+                    searchText = searchText,
+                    onSearchTextChange = onSearchTextChange,
+                    onSearchSubmit = onSearchSubmit,
+                    onSearchFieldTapped = onSearchFieldTapped,
+                    onCircleClick = { onSearchActiveChange(true) },
+                    onCloseClick = {
+                        onSearchTextChange("")
+                        onSearchActiveChange(false)
+                    }
+                )
             }
         }
 

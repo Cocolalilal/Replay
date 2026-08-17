@@ -2,13 +2,18 @@ package com.maxrave.simpmusic.ui.component.glass
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,13 +32,16 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -145,14 +153,14 @@ private fun LiquidBottomTabs(
             }
         }
 
-        val floatAmount = drag.pressProgress
+        val floatAmount = maxOf(drag.pressProgress, tapPulse.value)
         val pillWidthPx = tabWidthPx - with(density) { 8.dp.toPx() }
         val pillHeightPx = totalHeightPx - with(density) { 8.dp.toPx() }
         val selectorX = if (isLtr) drag.value * tabWidthPx + with(density) { 4.dp.toPx() } else (tabCount - 1 - drag.value) * tabWidthPx + with(density) { 4.dp.toPx() }
         val selectorOffsetYPx = with(density) { 4.dp.toPx() }
         val selectionAlpha = (1f - collapseProgress * 2.5f).fastCoerceIn(0f, 1f)
 
-        // Backdrop capsule background
+        // 1. Container Backdrop capsule background
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -186,7 +194,64 @@ private fun LiquidBottomTabs(
                 )
         )
 
-        // Sliding indicator pill
+        // 2. Tabs items rendered into tabsBackdrop (so the selection bubble can refract them)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(tabsBackdrop)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEachIndexed { index, tab ->
+                    val isSelected = currentIndex == index
+                    val itemAlpha = (1f - collapseProgress * 2.5f).fastCoerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (collapseProgress < 0.4f) {
+                            Row(
+                                modifier = Modifier
+                                    .graphicsLayer { alpha = itemAlpha }
+                                    .padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = tab.title,
+                                    tint = if (isSelected) activeColor else inactiveColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = tab.title,
+                                    color = if (isSelected) activeColor else inactiveColor,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                            }
+                        } else if (index == currentIndex) {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.title,
+                                tint = activeColor,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Sliding indicator pill (placed OVER tabsBackdrop to refract text & icons when moving/pressed, and subtle glass when resting)
         if (selectionAlpha > 0.01f) {
             Box(
                 modifier = Modifier
@@ -212,7 +277,7 @@ private fun LiquidBottomTabs(
                         clip = false
                     }
                     .drawBackdrop(
-                        backdrop = backdrop,
+                        backdrop = tabsBackdrop,
                         shape = { Capsule() },
                         effects = {
                             if (floatAmount > 0.05f) {
@@ -234,16 +299,14 @@ private fun LiquidBottomTabs(
             )
         }
 
-        // Tabs items Row
+        // 4. Interactive touch layer for tabs
         Row(
             modifier = Modifier
                 .fillMaxSize()
                 .then(drag.modifier),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            tabs.forEachIndexed { index, tab ->
-                val isSelected = currentIndex == index
-                val itemAlpha = (1f - collapseProgress * 2.5f).fastCoerceIn(0f, 1f)
+            tabs.forEachIndexed { index, _ ->
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -257,27 +320,8 @@ private fun LiquidBottomTabs(
                                 drag.animateToValue(index.toFloat())
                                 onTabSelected(index)
                             }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (collapseProgress < 0.4f) {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.title,
-                            tint = if (isSelected) activeColor else inactiveColor,
-                            modifier = Modifier
-                                .graphicsLayer { alpha = itemAlpha }
-                                .size(24.dp)
                         )
-                    } else if (index == currentIndex) {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.title,
-                            tint = activeColor,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                }
+                )
             }
         }
     }
