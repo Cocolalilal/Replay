@@ -107,8 +107,8 @@ private fun LiquidBottomTabs(
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val isDark = isSystemInDarkTheme()
     val containerColor = Color(if (isDark) 0xFF1E1E1E else 0xFFFAFAFA).copy(alpha = 0.18f)
-    val unselectedContentColor = Color(0xFF82BEFF)
-    val selectedContentColor = Color.White.copy(alpha = 0.84f)
+    val activeColor = Color(0xFF82BEFF)
+    val inactiveColor = Color.White.copy(alpha = 0.84f)
 
     val currentIndex = remember {
         mutableIntStateOf(selectedTabIndex.coerceIn(0, tabs.lastIndex))
@@ -231,7 +231,7 @@ private fun LiquidBottomTabs(
                     tabs.forEachIndexed { index, tab ->
                         val dist = abs(index.toFloat() - drag.value)
                         val progress = (1f - dist).fastCoerceIn(0f, 1f)
-                        val tabColor = lerp(unselectedContentColor, selectedContentColor, progress)
+                        val tabColor = lerp(inactiveColor, activeColor, progress)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
