@@ -341,7 +341,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
         } == true
     }
     var isScrolledToTop by rememberSaveable {
-        mutableStateOf(false)
+        mutableStateOf(true)
     }
     var lastScrollDirection by rememberSaveable {
         mutableIntStateOf(0)

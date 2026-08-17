@@ -132,7 +132,8 @@ fun BottomNavigationOrchestrator(
                 onTabSelected = { index ->
                     if (isSearchActive) {
                         onSearchActiveChange(false)
-                    } else if (effectiveCollapse > 0.4f) {
+                    }
+                    if (effectiveCollapse > 0.4f) {
                         onExpandRequested?.invoke()
                     } else {
                         onTabSelected(index)

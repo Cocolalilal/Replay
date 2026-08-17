@@ -146,6 +146,7 @@ private fun LiquidBottomTabs(
                         val target = damped.targetValue.roundToInt().coerceIn(0, tabs.lastIndex)
                         currentIndex.intValue = target
                         damped.animateToValue(target.toFloat())
+                        onTabSelected(target)
                     }
                 },
                 onDrag = { damped, _, dragAmount ->
@@ -327,7 +328,7 @@ private fun LiquidBottomTabs(
                             .fillMaxHeight()
                             .clip(Capsule())
                             .semantics { role = Role.Tab }
-                            .pointerInput(index) {
+                            .pointerInput(index, onTabSelected) {
                                 detectTapGestures(
                                     onPress = {
                                         scope.launch {

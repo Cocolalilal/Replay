@@ -221,8 +221,8 @@ actual fun LiquidGlassAppBottomNavigationBar(
                 searchViewModel.setSearchFieldTapped(true)
             },
             onExpandRequested = {
-                isManuallyExpanded = !isManuallyExpanded
-                Logger.d(TAG, "manual expand toggled -> $isManuallyExpanded")
+                isManuallyExpanded = true
+                Logger.d(TAG, "manual expand requested -> $isManuallyExpanded")
             }
         )
     }
