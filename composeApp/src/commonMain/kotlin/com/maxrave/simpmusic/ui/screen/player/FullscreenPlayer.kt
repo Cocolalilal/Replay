@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -177,9 +178,7 @@ fun FullscreenPlayer(
         }
     }
 
-    var shouldShowSubtitle by rememberSaveable {
-        mutableStateOf(true)
-    }
+    val shouldShowSubtitle by sharedViewModel.showVideoSubtitles.collectAsStateWithLifecycle()
 
     Box {
         MediaPlayerViewWithSubtitle(
@@ -691,7 +690,7 @@ fun FullscreenPlayer(
                                                     CircleShape,
                                                 ),
                                         onClick = {
-                                            shouldShowSubtitle = !shouldShowSubtitle
+                                            sharedViewModel.setShowVideoSubtitles(!shouldShowSubtitle)
                                         },
                                     ) {
                                         Crossfade(shouldShowSubtitle) {

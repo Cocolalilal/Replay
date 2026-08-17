@@ -528,14 +528,18 @@ fun NowPlayingScreenContent(
     var isSliding by rememberSaveable {
         mutableStateOf(false)
     }
+    val initialCur = if (timelineState.current > 0L) timelineState.current else mediaPlayerHandler.getProgress()
+    val initialTot = if (timelineState.total > 0L) timelineState.total else mediaPlayerHandler.getPlayerDuration()
     var sliderValue by rememberSaveable {
-        mutableFloatStateOf(0f)
+        mutableFloatStateOf(if (initialTot > 0L && initialCur > 0L) initialCur.toFloat() * 100 / initialTot.toFloat() else 0f)
     }
     LaunchedEffect(key1 = timelineState, key2 = isSliding) {
         if (!isSliding) {
+            val livePos = if (timelineState.current > 0L) timelineState.current else mediaPlayerHandler.getProgress()
+            val liveTotal = if (timelineState.total > 0L) timelineState.total else mediaPlayerHandler.getPlayerDuration()
             sliderValue =
-                if (timelineState.total > 0L) {
-                    timelineState.current.toFloat() * 100 / timelineState.total.toFloat()
+                if (liveTotal > 0L && livePos > 0L) {
+                    livePos.toFloat() * 100 / liveTotal.toFloat()
                 } else {
                     0f
                 }
@@ -1097,9 +1101,7 @@ fun NowPlayingScreenContent(
                                         visible = screenDataState.isVideo && shouldShowVideo,
                                         modifier = Modifier.align(Alignment.Center),
                                     ) {
-                                        var internalShowSubtitle by rememberSaveable {
-                                            mutableStateOf(true)
-                                        }
+                                        val internalShowSubtitle by sharedViewModel.showVideoSubtitles.collectAsStateWithLifecycle()
                                         Box(
                                             modifier =
                                                 Modifier
@@ -1225,7 +1227,7 @@ fun NowPlayingScreenContent(
                                                             if (screenDataState.lyricsData != null) {
                                                                 IconButton(
                                                                     onClick = {
-                                                                        internalShowSubtitle = !internalShowSubtitle
+                                                                        sharedViewModel.setShowVideoSubtitles(!internalShowSubtitle)
                                                                     },
                                                                     Modifier.align(Alignment.BottomEnd),
                                                                 ) {

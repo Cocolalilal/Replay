@@ -227,8 +227,10 @@ fun ReferenceNowPlayingLayout(
 
     // Seek state, in fractions (0f..1f). The held target keeps the thumb where the user
     // dropped it until real playback catches up (same thresholds as PixelPlayer's bar).
+    val initialCur = if (timelineState.current > 0L) timelineState.current else mediaPlayerHandler.getProgress()
+    val initialTot = if (timelineState.total > 0L) timelineState.total else mediaPlayerHandler.getPlayerDuration()
     val initialProgress =
-        if (timelineState.total > 0L) timelineState.current.toFloat() / timelineState.total.toFloat() else 0f
+        if (initialTot > 0L && initialCur > 0L) initialCur.toFloat() / initialTot.toFloat() else 0f
     var isSliding by rememberSaveable { mutableStateOf(false) }
     var sliderValue by rememberSaveable { mutableFloatStateOf(initialProgress) }
     var targetSeekFraction by rememberSaveable { mutableFloatStateOf(-1f) }
@@ -237,9 +239,11 @@ fun ReferenceNowPlayingLayout(
 
     LaunchedEffect(timelineState, isSliding) {
         if (!isSliding) {
+            val livePos = if (timelineState.current > 0L) timelineState.current else mediaPlayerHandler.getProgress()
+            val liveTotal = if (timelineState.total > 0L) timelineState.total else mediaPlayerHandler.getPlayerDuration()
             val actualProgress =
-                if (timelineState.total > 0L) {
-                    timelineState.current.toFloat() / timelineState.total.toFloat()
+                if (liveTotal > 0L && livePos > 0L) {
+                    livePos.toFloat() / liveTotal.toFloat()
                 } else {
                     0f
                 }
@@ -257,9 +261,11 @@ fun ReferenceNowPlayingLayout(
         if (currentVideoId != null && currentVideoId != previousVideoId) {
             previousVideoId = currentVideoId
             targetSeekFraction = -1f
+            val livePos = if (timelineState.current > 0L) timelineState.current else mediaPlayerHandler.getProgress()
+            val liveTotal = if (timelineState.total > 0L) timelineState.total else mediaPlayerHandler.getPlayerDuration()
             val actualProgress =
-                if (timelineState.total > 0L) {
-                    timelineState.current.toFloat() / timelineState.total.toFloat()
+                if (liveTotal > 0L && livePos > 0L) {
+                    livePos.toFloat() / liveTotal.toFloat()
                 } else {
                     0f
                 }
@@ -687,10 +693,11 @@ private fun ReferenceInlineVideo(
     onFullscreen: () -> Unit,
     onBackward: () -> Unit,
     onForward: () -> Unit,
+    sharedViewModel: SharedViewModel = koinInject(),
     modifier: Modifier = Modifier,
 ) {
     var showOverlay by rememberSaveable { mutableStateOf(true) }
-    var showSubtitle by rememberSaveable { mutableStateOf(true) }
+    val showSubtitle by sharedViewModel.showVideoSubtitles.collectAsStateWithLifecycle()
     LaunchedEffect(showOverlay) {
         if (showOverlay) {
             delay(3_500)
@@ -795,7 +802,7 @@ private fun ReferenceInlineVideo(
                         icon = if (showSubtitle) SimpIcons.SubtitlesOff else SimpIcons.Subtitles,
                         tint = ReferenceText,
                         contentDescription = if (showSubtitle) "Hide captions" else "Show captions",
-                        onClick = { showSubtitle = !showSubtitle },
+                        onClick = { sharedViewModel.setShowVideoSubtitles(!showSubtitle) },
                         modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp),
                     )
                 }

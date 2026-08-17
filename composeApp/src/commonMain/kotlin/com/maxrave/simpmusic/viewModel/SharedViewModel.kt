@@ -202,9 +202,31 @@ class SharedViewModel(
     private val _shareSavedLyrics: MutableStateFlow<Boolean> = MutableStateFlow(true)
     val shareSavedLyrics: StateFlow<Boolean> get() = _shareSavedLyrics
 
+    val showVideoSubtitles: StateFlow<Boolean> =
+        dataStoreManager.showVideoSubtitles
+            .map { it == TRUE }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setShowVideoSubtitles(show: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setShowVideoSubtitles(show)
+        }
+    }
+
     init {
         viewModelScope.launch {
             log("SharedViewModel init")
+            val initProgress = mediaPlayerHandler.getProgress()
+            val initDuration = mediaPlayerHandler.getPlayerDuration()
+            if (initProgress > 0L || initDuration > 0L) {
+                _timeline.update {
+                    it.copy(
+                        current = initProgress,
+                        total = initDuration,
+                        loading = false,
+                    )
+                }
+            }
             if (dataStoreManager.appVersion.first() != VersionManager.getVersionName()) {
                 dataStoreManager.resetOpenAppTime()
                 dataStoreManager.setAppVersion(

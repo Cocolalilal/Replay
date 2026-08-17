@@ -207,7 +207,10 @@ private fun LiquidBottomTabs(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 tabs.forEachIndexed { index, tab ->
-                    val isSelected = currentIndex == index
+                    val tabPosition = if (isLtr) drag.value else (tabs.size - 1 - drag.value)
+                    val distance = kotlin.math.abs(tabPosition - index)
+                    val selectionWeight = (1f - distance).coerceIn(0f, 1f)
+                    val itemColor = androidx.compose.ui.graphics.lerp(inactiveColor, activeColor, selectionWeight)
                     val itemAlpha = (1f - collapseProgress * 2.5f).fastCoerceIn(0f, 1f)
                     Box(
                         modifier = Modifier
@@ -226,15 +229,15 @@ private fun LiquidBottomTabs(
                                 Icon(
                                     imageVector = tab.icon,
                                     contentDescription = tab.title,
-                                    tint = if (isSelected) activeColor else inactiveColor,
+                                    tint = itemColor,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = tab.title,
-                                    color = if (isSelected) activeColor else inactiveColor,
+                                    color = itemColor,
                                     fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                    fontWeight = if (selectionWeight > 0.5f) FontWeight.SemiBold else FontWeight.Medium,
                                     maxLines = 1
                                 )
                             }
@@ -280,6 +283,8 @@ private fun LiquidBottomTabs(
                         backdrop = tabsBackdrop,
                         shape = { Capsule() },
                         effects = {
+                            val blurRadius = lerp(4f, 16f, floatAmount).dp.toPx()
+                            blur(blurRadius)
                             if (floatAmount > 0.05f) {
                                 val lensRadius = lerp(8f, 26f, floatAmount).dp.toPx()
                                 val lensDepth = lerp(10f, 32f, floatAmount).dp.toPx()
