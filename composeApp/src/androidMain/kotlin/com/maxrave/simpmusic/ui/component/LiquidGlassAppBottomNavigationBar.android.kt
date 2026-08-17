@@ -121,7 +121,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
         }
     }
 
-    val targetCollapse = if (isShowMiniPlayer || isManuallyExpanded || lastLiveAtTop) 0f else 1f
+    val targetCollapse = if (isManuallyExpanded || lastLiveAtTop) 0f else 1f
     val scrollCollapseProgress by animateFloatAsState(
         targetValue = targetCollapse,
         animationSpec = spring(dampingRatio = 0.88f, stiffness = 500f),
