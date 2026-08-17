@@ -49,6 +49,7 @@ sentry.properties
 /apk_backups/
 /decompiled_app/
 /decompiled_dev/
+/decompiled_res/
 /decompiled_src/
 /replay_dev/
 
