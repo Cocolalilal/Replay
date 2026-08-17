@@ -1,7 +1,7 @@
 package com.maxrave.simpmusic.ui.component
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -116,11 +116,11 @@ actual fun LiquidGlassAppBottomNavigationBar(
         }
     }
 
-    val targetCollapse = if (isSearchActive || isManuallyExpanded || lastLiveAtTop) 0f else 1f
+    val targetCollapse = if (isShowMiniPlayer || isManuallyExpanded || lastLiveAtTop) 0f else 1f
     val scrollCollapseProgress by animateFloatAsState(
         targetValue = targetCollapse,
-        animationSpec = tween(durationMillis = 280),
-        label = "bottomNavCollapse"
+        animationSpec = spring(dampingRatio = 0.88f, stiffness = 500f),
+        label = "scrollCollapseProgress"
     )
 
     fun selectTab(index: Int) {
@@ -154,7 +154,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
         modifier = Modifier
             .fillMaxWidth()
             .padding(WindowInsets.navigationBars.asPaddingValues())
-            .padding(bottom = 8.dp)
+            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
             .imePadding()
     ) {
         BottomNavigationOrchestrator(

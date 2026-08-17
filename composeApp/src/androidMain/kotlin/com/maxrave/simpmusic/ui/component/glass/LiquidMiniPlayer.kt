@@ -134,18 +134,18 @@ fun LiquidMiniPlayer(
                         val velocityY = velocityTracker.calculateVelocity().y
                         if (dismissOffsetY.value > 100f || velocityY > 800f) {
                             scope.launch {
-                                dismissOffsetY.animateTo(350f, spring(stiffness = 400f, dampingRatio = 0.8f))
+                                dismissOffsetY.animateTo(300f, spring(stiffness = 400f, dampingRatio = 0.8f))
                                 onDismiss()
                             }
                         } else {
                             scope.launch {
-                                dismissOffsetY.animateTo(0f, spring(stiffness = 500f, dampingRatio = 0.7f))
+                                dismissOffsetY.animateTo(0f, spring(stiffness = 600f, dampingRatio = 0.7f))
                             }
                         }
                     },
                     onDragCancel = {
                         scope.launch {
-                            dismissOffsetY.animateTo(0f, spring(stiffness = 500f, dampingRatio = 0.7f))
+                            dismissOffsetY.animateTo(0f, spring(stiffness = 600f, dampingRatio = 0.7f))
                         }
                     },
                     onDrag = { change, dragAmount ->

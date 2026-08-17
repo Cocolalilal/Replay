@@ -88,7 +88,7 @@ private fun LiquidBottomTabs(
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val isDark = isSystemInDarkTheme()
     val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = 0.18f)
-    val activeColor = Color(0xFFFA2D48)
+    val activeColor = Color(0xFF82B1FF)
     val inactiveColor = Color.White.copy(alpha = 0.84f)
 
     var currentIndex by remember {
