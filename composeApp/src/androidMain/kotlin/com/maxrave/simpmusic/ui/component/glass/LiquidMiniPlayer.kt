@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +42,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.lerp
 import coil3.compose.AsyncImage
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -108,13 +108,13 @@ fun LiquidMiniPlayer(
             .fillMaxWidth()
             .offset { IntOffset(0, dismissOffsetY.value.roundToInt()) }
             .graphicsLayer {
-                alpha = 1f - (dismissOffsetY.value / 300f).coerceIn(0f, 1f)
+                val alphaVal = (1f - (dismissOffsetY.value / 250f)).fastCoerceIn(0f, 1f)
+                val stretch = (dismissOffsetY.value / 600f).fastCoerceIn(0f, 0.22f)
+                alpha = alphaVal
+                scaleY = 1f + stretch
+                scaleX = 1f - (0.5f * stretch)
             }
             .scale(pressScale)
-            .elasticGlassTouch(
-                enabled = false,
-                dragEnabled = false,
-            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -131,9 +131,10 @@ fun LiquidMiniPlayer(
                 detectDragGestures(
                     onDragStart = { velocityTracker.resetTracking() },
                     onDragEnd = {
-                        if (dismissOffsetY.value > 120f) {
+                        val velocityY = velocityTracker.calculateVelocity().y
+                        if (dismissOffsetY.value > 100f || velocityY > 800f) {
                             scope.launch {
-                                dismissOffsetY.animateTo(400f, spring(stiffness = 400f, dampingRatio = 0.8f))
+                                dismissOffsetY.animateTo(350f, spring(stiffness = 400f, dampingRatio = 0.8f))
                                 onDismiss()
                             }
                         } else {
@@ -148,11 +149,10 @@ fun LiquidMiniPlayer(
                         }
                     },
                     onDrag = { change, dragAmount ->
-                        if (dragAmount.y > 0 || dismissOffsetY.value > 0) {
-                            change.consume()
-                            scope.launch {
-                                dismissOffsetY.snapTo((dismissOffsetY.value + dragAmount.y).coerceAtLeast(0f))
-                            }
+                        change.consume()
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
+                        scope.launch {
+                            dismissOffsetY.snapTo((dismissOffsetY.value + dragAmount.y).coerceAtLeast(0f))
                         }
                     }
                 )
@@ -228,7 +228,10 @@ fun LiquidMiniPlayer(
                     modifier = Modifier
                         .size(width = btnWidth, height = 38.dp)
                         .graphicsLayer {
-                            alpha = 1f - inlineProgress
+                            val btnAlpha = (1f - (inlineProgress * 2f)).fastCoerceIn(0f, 1f)
+                            alpha = btnAlpha
+                            scaleX = 1f - inlineProgress
+                            scaleY = 1f - inlineProgress
                             clip = false
                         }
                         .clip(CircleShape)
@@ -274,7 +277,10 @@ fun LiquidMiniPlayer(
                     modifier = Modifier
                         .size(width = btnWidth, height = 38.dp)
                         .graphicsLayer {
-                            alpha = 1f - inlineProgress
+                            val btnAlpha = (1f - (inlineProgress * 2f)).fastCoerceIn(0f, 1f)
+                            alpha = btnAlpha
+                            scaleX = 1f - inlineProgress
+                            scaleY = 1f - inlineProgress
                             clip = false
                         }
                         .clip(CircleShape)

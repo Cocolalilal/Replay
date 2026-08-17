@@ -1,4 +1,4 @@
-﻿package com.maxrave.simpmusic.ui.component.glass
+package com.maxrave.simpmusic.ui.component.glass
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -94,7 +95,7 @@ fun BottomNavigationOrchestrator(
     val effectiveCollapse = maxOf(searchProgress, rawCollapse).fastCoerceIn(0f, 1f)
 
     // Height follows the same springs as the collapse/presence animations so the
-    // bar can never hard-cut between 145.dp and 56.dp mid-transition.
+    // bar transitions smoothly between expanded and collapsed states.
     val orchestratorHeight = 56.dp + 89.dp * miniPlayerPresence * (1f - rawCollapse)
 
     BoxWithConstraints(
@@ -143,12 +144,12 @@ fun BottomNavigationOrchestrator(
             )
         }
 
-        if (effectiveCollapse < 0.99f || searchProgress > 0.01f) {
-            val searchWidthPx = lerp(searchButtonWidthPx, totalWidthPx - searchButtonWidthPx - spacingPx, searchProgress)
+        if (effectiveCollapse >= 0.99f || searchProgress > 0.01f) {
+            val searchWidthPx = lerp(searchButtonWidthPx, (totalWidthPx - searchButtonWidthPx) - spacingPx, searchProgress)
             val searchXPx = lerp(totalWidthPx - searchButtonWidthPx, searchButtonWidthPx + spacingPx, searchProgress)
-            val searchAlpha = (1f - rawCollapse * 2f).fastCoerceIn(0f, 1f)
+            val searchAlpha = (1f - (2f * rawCollapse)).fastCoerceIn(0f, 1f)
 
-            if (searchAlpha > 0f || searchProgress > 0f) {
+            if (searchAlpha > 0f || isSearchActive) {
                 Box(
                     modifier = Modifier
                         .offset { IntOffset(searchXPx.roundToInt(), bottomRowYPx.roundToInt()) }
@@ -156,8 +157,8 @@ fun BottomNavigationOrchestrator(
                         .height(56.dp)
                         .graphicsLayer {
                             alpha = if (isSearchActive) 1f else searchAlpha
-                            scaleX = if (isSearchActive) 1f else (1f - rawCollapse * 0.5f)
-                            scaleY = if (isSearchActive) 1f else (1f - rawCollapse * 0.5f)
+                            scaleX = if (isSearchActive) 1f else (1f - (rawCollapse * 0.5f))
+                            scaleY = if (isSearchActive) 1f else (1f - (0.5f * rawCollapse))
                         }
                 ) {
                     SearchFieldOrCircle(
@@ -201,12 +202,12 @@ fun BottomNavigationOrchestrator(
                     artist = trackArtist,
                     artworkUrl = artworkUrl,
                     isPlaying = isPlaying,
-                    isInline = rawCollapse > 0.4f,
                     onPlayPauseToggle = onPlayPauseToggle,
                     onPreviousTrack = onPreviousTrack,
                     onNextTrack = onNextTrack,
                     onExpandFullPlayer = onExpandFullPlayer,
-                    onDismiss = onDismissMiniPlayer
+                    onDismiss = onDismissMiniPlayer,
+                    isInline = rawCollapse > 0.4f
                 )
             }
         }
@@ -223,20 +224,24 @@ private fun SearchFieldOrCircle(
     onSearchSubmit: (String) -> Unit,
     onSearchFieldTapped: () -> Unit,
     onCircleClick: () -> Unit,
-    onCloseClick: () -> Unit
+    onCloseClick: () -> Unit,
 ) {
     val isDark = isSystemInDarkTheme()
-    // Low-alpha tint lets the content behind the glass drive the perceived color
-    // (content-adaptive tint), while keeping the dark/light baseline.
-    val containerColor = if (isDark) Color(0xFF1E1E1E).copy(alpha = 0.18f) else Color(0xFFFAFAFA).copy(alpha = 0.18f)
+    val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = 0.18f)
     val textColor = if (isDark) Color.White else Color.Black
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .elasticGlassTouch(onTap = {
-                if (!isSearchActive) onCircleClick()
-            })
+            .elasticGlassTouch(
+                enabled = true,
+                dragEnabled = false,
+                onTap = {
+                    if (!isSearchActive) {
+                        onCircleClick()
+                    }
+                }
+            )
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { Capsule() },
@@ -273,7 +278,10 @@ private fun SearchFieldOrCircle(
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart
+                ) {
                     if (searchText.isEmpty()) {
                         Text(
                             text = "Search songs, artists...",
@@ -281,23 +289,26 @@ private fun SearchFieldOrCircle(
                             fontSize = 14.sp
                         )
                     }
+                    val textStyle = TextStyle(
+                        color = textColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal
+                    )
                     BasicTextField(
                         value = searchText,
                         onValueChange = onSearchTextChange,
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            color = textColor,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { onSearchSubmit(searchText) }),
                         modifier = Modifier
                             .fillMaxWidth()
                             .onFocusChanged { focusState ->
-                                if (focusState.isFocused) onSearchFieldTapped()
-                            }
+                                if (focusState.isFocused) {
+                                    onSearchFieldTapped()
+                                }
+                            },
+                        textStyle = textStyle,
+                        cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSearchSubmit(searchText) })
                     )
                 }
                 if (searchText.isNotEmpty()) {

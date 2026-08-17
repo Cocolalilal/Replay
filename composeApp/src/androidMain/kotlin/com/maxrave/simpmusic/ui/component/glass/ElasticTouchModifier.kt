@@ -11,9 +11,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.util.fastCoerceIn
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 fun Modifier.elasticGlassTouch(
     enabled: Boolean = true,
@@ -66,8 +69,10 @@ fun Modifier.elasticGlassTouch(
         }
         .pointerInput(dragEnabled) {
             if (dragEnabled) {
+                var totalDrag = Offset.Zero
                 detectDragGestures(
                     onDragStart = {
+                        totalDrag = Offset.Zero
                         isDragging = true
                         scope.launch {
                             scaleX.animateTo(0.96f, springSpec)
@@ -86,17 +91,32 @@ fun Modifier.elasticGlassTouch(
                     onDragCancel = {
                         isDragging = false
                         scope.launch {
-                            translateX.animateTo(0f, releaseSpec)
-                            translateY.animateTo(0f, releaseSpec)
-                            scaleX.animateTo(1f, releaseSpec)
-                            scaleY.animateTo(1f, releaseSpec)
+                            translateX.animateTo(0f, springSpec)
+                            translateY.animateTo(0f, springSpec)
+                            scaleX.animateTo(1f, springSpec)
+                            scaleY.animateTo(1f, springSpec)
                         }
                     },
                     onDrag = { change, dragAmount ->
                         change.consume()
+                        totalDrag += dragAmount
+
+                        val dampedX = (totalDrag.x * 0.12f).fastCoerceIn(-18f, 18f)
+                        val dampedY = (totalDrag.y * 0.12f).fastCoerceIn(-18f, 18f)
+
+                        val stretchFactorX = (abs(totalDrag.x) / 500f).fastCoerceIn(0f, 0.09f)
+                        val compressFactorX = (abs(totalDrag.y) / 800f).fastCoerceIn(0f, 0.04f)
+                        val dragStretchX = 1f + stretchFactorX - compressFactorX
+
+                        val stretchFactorY = (abs(totalDrag.y) / 500f).fastCoerceIn(0f, 0.09f)
+                        val compressFactorY = (abs(totalDrag.x) / 800f).fastCoerceIn(0f, 0.04f)
+                        val dragStretchY = 1f + stretchFactorY - compressFactorY
+
                         scope.launch {
-                            translateX.snapTo(translateX.value + dragAmount.x * 0.4f)
-                            translateY.snapTo(translateY.value + dragAmount.y * 0.4f)
+                            translateX.animateTo(dampedX, springSpec)
+                            translateY.animateTo(dampedY, springSpec)
+                            scaleX.animateTo(dragStretchX, springSpec)
+                            scaleY.animateTo(dragStretchY, springSpec)
                         }
                     }
                 )

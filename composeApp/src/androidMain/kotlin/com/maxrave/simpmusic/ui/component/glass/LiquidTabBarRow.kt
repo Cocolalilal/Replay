@@ -43,7 +43,6 @@ import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
-import com.maxrave.simpmusic.ui.component.DampedDragAnimation
 import com.maxrave.simpmusic.ui.icon.Home
 import com.maxrave.simpmusic.ui.icon.LibraryMusic
 import com.maxrave.simpmusic.ui.icon.SimpIcons
@@ -117,24 +116,24 @@ private fun LiquidBottomTabs(
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
                 pressedScale = 1.15f,
-                onDragStarted = {
+                onDragStarted = { _, _ ->
                     draggedFlag[0] = false
                 },
-                onDragStopped = {
+                onDragStopped = { damped ->
                     if (draggedFlag[0]) {
-                        val target = targetValue.roundToInt().coerceIn(0, tabs.lastIndex)
+                        val target = damped.targetValue.roundToInt().coerceIn(0, tabs.lastIndex)
                         currentIndex = target
-                        animateToValue(target.toFloat())
+                        damped.animateToValue(target.toFloat())
                     }
                 },
-                onDrag = { _, dragAmount ->
+                onDrag = { damped, _, dragAmount ->
                     if (dragAmount.x != 0f) {
                         draggedFlag[0] = true
                     }
-                    val currentTarget = targetValue
+                    val currentTarget = damped.targetValue
                     val newTarget = (currentTarget + (dragAmount.x / liveTabWidthPx.floatValue) * if (isLtr) 1f else -1f)
                         .fastCoerceIn(0f, (tabs.size - 1).toFloat())
-                    updateValue(newTarget)
+                    damped.updateValue(newTarget)
                 }
             )
         }
