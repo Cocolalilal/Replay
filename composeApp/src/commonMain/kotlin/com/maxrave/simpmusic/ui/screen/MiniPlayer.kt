@@ -420,8 +420,9 @@ fun MiniPlayer(
                                 contentDescription = null,
                                 contentScale = ContentScale.FillWidth,
                                 onSuccess = {
-                                    bitmap =
-                                        it.result.image.toImageBitmap()
+                                    val bm = it.result.image.toImageBitmap()
+                                    bitmap = bm
+                                    sharedViewModel.setBitmap(bm)
                                 },
                                 modifier =
                                     Modifier
@@ -652,8 +653,9 @@ fun MiniPlayer(
                             contentDescription = null,
                             contentScale = ContentScale.FillWidth,
                             onSuccess = {
-                                bitmap =
-                                    it.result.image.toImageBitmap()
+                                val bm = it.result.image.toImageBitmap()
+                                bitmap = bm
+                                sharedViewModel.setBitmap(bm)
                             },
                             modifier =
                                 Modifier

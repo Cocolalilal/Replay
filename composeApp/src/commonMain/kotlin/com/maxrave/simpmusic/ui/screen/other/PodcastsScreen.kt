@@ -41,6 +41,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -106,11 +107,33 @@ fun PodcastScreen(
     viewModel: PodcastViewModel = koinViewModel(),
     podcastId: String,
     navController: NavController,
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isFavorite by viewModel.isFavorite.collectAsStateWithLifecycle()
 
     val lazyState = rememberLazyListState()
+    val prevScrollPosition = rememberSaveable {
+        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
+    }
+    LaunchedEffect(lazyState) {
+        snapshotFlow {
+            val idx = lazyState.firstVisibleItemIndex
+            val off = lazyState.firstVisibleItemScrollOffset
+            Triple(idx == 0 && off == 0, idx, off)
+        }.collect { (isAtTop, idx, off) ->
+            val position = idx + (off / 10000.0f)
+            val direction = if (position > prevScrollPosition.floatValue) {
+                -1
+            } else if (position < prevScrollPosition.floatValue) {
+                1
+            } else {
+                0
+            }
+            prevScrollPosition.floatValue = position
+            onScrolling(isAtTop, direction)
+        }
+    }
     val firstItemVisible by remember {
         derivedStateOf {
             lazyState.firstVisibleItemIndex == 0

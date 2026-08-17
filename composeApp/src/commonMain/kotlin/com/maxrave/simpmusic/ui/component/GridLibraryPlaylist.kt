@@ -32,6 +32,8 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,7 +73,7 @@ internal inline fun <reified T> GridLibraryPlaylist(
     contentPadding: PaddingValues,
     data: LocalResource<List<T>>,
     emptyText: StringResource,
-    noinline onScrolling: (onTop: Boolean) -> Unit = { _ -> },
+    noinline onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
     noinline createNewPlaylist: (() -> Unit)? = null,
     noinline onReload: () -> Unit,
 ) {
@@ -79,15 +81,25 @@ internal inline fun <reified T> GridLibraryPlaylist(
     val state = rememberLazyGridState()
     val isScrollingUp by state.isScrollingUp()
 
+    val prevScrollPosition = rememberSaveable {
+        mutableFloatStateOf(state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / 10000.0f)
+    }
     LaunchedEffect(state) {
-        snapshotFlow { state.firstVisibleItemIndex }
-            .collect {
-                if (it <= 1) {
-                    onScrolling.invoke(true)
-                } else {
-                    onScrolling.invoke(isScrollingUp)
-                }
+        snapshotFlow {
+            val idx = state.firstVisibleItemIndex
+            val off = state.firstVisibleItemScrollOffset
+            Pair(idx == 0 && off == 0, idx + (off / 10000.0f))
+        }.collect { (isAtTop, position) ->
+            val direction = if (position > prevScrollPosition.floatValue) {
+                -1
+            } else if (position < prevScrollPosition.floatValue) {
+                1
+            } else {
+                0
             }
+            prevScrollPosition.floatValue = position
+            onScrolling(isAtTop, direction)
+        }
     }
     val pullToRefreshState = rememberPullToRefreshState()
     PullToRefreshBox(

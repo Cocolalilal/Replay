@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,7 +30,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,8 +79,33 @@ import simpmusic.composeapp.generated.resources.singles
 fun NotificationScreen(
     navController: NavController,
     viewModel: NotificationViewModel = koinViewModel(),
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val listNotification by viewModel.listNotification.collectAsStateWithLifecycle()
+    val lazyState = rememberLazyListState()
+
+    val prevScrollPosition = rememberSaveable {
+        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
+    }
+    LaunchedEffect(lazyState) {
+        snapshotFlow {
+            val idx = lazyState.firstVisibleItemIndex
+            val off = lazyState.firstVisibleItemScrollOffset
+            Triple(idx == 0 && off == 0, idx, off)
+        }.collect { (isAtTop, idx, off) ->
+            val position = idx + (off / 10000.0f)
+            val direction = if (position > prevScrollPosition.floatValue) {
+                -1
+            } else if (position < prevScrollPosition.floatValue) {
+                1
+            } else {
+                0
+            }
+            prevScrollPosition.floatValue = position
+            onScrolling(isAtTop, direction)
+        }
+    }
+
     Column {
         TopAppBar(
             title = {
@@ -102,6 +132,7 @@ fun NotificationScreen(
                 }
             } else if (it.isNotEmpty()) {
                 LazyColumn(
+                    state = lazyState,
                     modifier = Modifier.padding(15.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {

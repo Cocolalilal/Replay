@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -28,10 +29,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -101,6 +104,7 @@ fun LibraryDynamicPlaylistScreen(
     viewModel: LibraryDynamicPlaylistViewModel = koinViewModel(),
     analyticsViewModel: AnalyticsViewModel = koinViewModel(),
     sharedViewModel: SharedViewModel = koinInject(),
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val nowPlayingVideoId by viewModel.nowPlayingVideoId.collectAsStateWithLifecycle()
 
@@ -125,6 +129,29 @@ fun LibraryDynamicPlaylistScreen(
         rememberHazeState(
             blurEnabled = true,
         )
+
+    val lazyState = rememberLazyListState()
+    val prevScrollPosition = rememberSaveable {
+        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
+    }
+    LaunchedEffect(lazyState) {
+        snapshotFlow {
+            val idx = lazyState.firstVisibleItemIndex
+            val off = lazyState.firstVisibleItemScrollOffset
+            Triple(idx == 0 && off == 0, idx, off)
+        }.collect { (isAtTop, idx, off) ->
+            val position = idx + (off / 10000.0f)
+            val direction = if (position > prevScrollPosition.floatValue) {
+                -1
+            } else if (position < prevScrollPosition.floatValue) {
+                1
+            } else {
+                0
+            }
+            prevScrollPosition.floatValue = position
+            onScrolling(isAtTop, direction)
+        }
+    }
 
     LaunchedEffect(query) {
         Logger.w("LibraryDynamicPlaylistScreen", "Check query: $query")
@@ -154,6 +181,7 @@ fun LibraryDynamicPlaylistScreen(
     }
 
     LazyColumn(
+        state = lazyState,
         modifier = Modifier.hazeSource(hazeState),
         contentPadding = innerPadding,
     ) {

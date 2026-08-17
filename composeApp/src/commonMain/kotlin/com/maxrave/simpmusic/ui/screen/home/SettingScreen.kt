@@ -60,12 +60,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -385,6 +387,7 @@ fun SettingScreen(
     navController: NavController,
     viewModel: SettingsViewModel = koinViewModel(),
     sharedViewModel: SharedViewModel = koinInject(),
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val platformContext = LocalPlatformContext.current
     val pl = com.mohamedrejeb.calf.core.LocalPlatformContext.current
@@ -557,7 +560,31 @@ fun SettingScreen(
         viewModel.getThumbCacheSize(platformContext)
     }
 
+    val lazyState = rememberLazyListState()
+    val prevScrollPosition = rememberSaveable {
+        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
+    }
+    LaunchedEffect(lazyState) {
+        snapshotFlow {
+            val idx = lazyState.firstVisibleItemIndex
+            val off = lazyState.firstVisibleItemScrollOffset
+            Triple(idx == 0 && off == 0, idx, off)
+        }.collect { (isAtTop, idx, off) ->
+            val position = idx + (off / 10000.0f)
+            val direction = if (position > prevScrollPosition.floatValue) {
+                -1
+            } else if (position < prevScrollPosition.floatValue) {
+                1
+            } else {
+                0
+            }
+            prevScrollPosition.floatValue = position
+            onScrolling(isAtTop, direction)
+        }
+    }
+
     LazyColumn(
+        state = lazyState,
         contentPadding = innerPadding,
         modifier =
             Modifier

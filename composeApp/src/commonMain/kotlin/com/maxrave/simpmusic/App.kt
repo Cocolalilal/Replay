@@ -34,6 +34,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -342,6 +343,12 @@ fun App(viewModel: SharedViewModel = koinInject()) {
     var isScrolledToTop by rememberSaveable {
         mutableStateOf(false)
     }
+    var lastScrollDirection by rememberSaveable {
+        mutableIntStateOf(0)
+    }
+    var scrollEpoch by rememberSaveable {
+        mutableIntStateOf(0)
+    }
     val isTablet = windowSize.isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)
     val isTabletLandscape = isTablet && currentOrientation() == Orientation.LANDSCAPE
 
@@ -396,6 +403,8 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                                     viewModel = viewModel,
                                     onOpenNowPlaying = { isShowNowPlaylistScreen = true },
                                     isScrolledToTop = isScrolledToTop,
+                                    scrollDirection = lastScrollDirection,
+                                    scrollEpoch = scrollEpoch,
                                 ) { klass ->
                                     viewModel.reloadDestination(klass)
                                 }
@@ -461,8 +470,10 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                                     showNowPlayingSheet = {
                                         isShowNowPlaylistScreen = true
                                     },
-                                    onScrolling = {
-                                        isScrolledToTop = it
+                                    onScrolling = { isAtTop, direction ->
+                                        isScrolledToTop = isAtTop
+                                        lastScrollDirection = direction
+                                        scrollEpoch++
                                     },
                                 )
                             }

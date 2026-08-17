@@ -31,7 +31,7 @@ fun AppNavigationGraph(
     hideNavBar: () -> Unit = { },
     showNavBar: (shouldShowNowPlayingSheet: Boolean) -> Unit = { },
     showNowPlayingSheet: () -> Unit = {},
-    onScrolling: (onTop: Boolean) -> Unit = {},
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     NavHost(
         navController,
@@ -84,16 +84,19 @@ fun AppNavigationGraph(
         homeScreenGraph(
             innerPadding = innerPadding,
             navController = navController,
+            onScrolling = onScrolling,
         )
         // Library screen graph
         libraryScreenGraph(
             innerPadding = innerPadding,
             navController = navController,
+            onScrolling = onScrolling,
         )
         // List screen graph
         listScreenGraph(
             innerPadding = innerPadding,
             navController = navController,
+            onScrolling = onScrolling,
         )
         // Login screen graph
         loginScreenGraph(

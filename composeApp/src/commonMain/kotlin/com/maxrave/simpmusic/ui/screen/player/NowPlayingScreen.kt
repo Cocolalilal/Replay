@@ -465,13 +465,31 @@ fun NowPlayingScreenContent(
         mutableStateOf(Color.White)
     }
 
+    val platformContext = LocalPlatformContext.current
+
+    LaunchedEffect(screenDataState.thumbnailURL) {
+        val thumb = screenDataState.thumbnailURL
+        if (!thumb.isNullOrEmpty()) {
+            val request = ImageRequest.Builder(platformContext)
+                .data(thumb)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .diskCacheKey(thumb + "BIGGER")
+                .build()
+            val result = coil3.SingletonImageLoader.get(platformContext).execute(request)
+            if (result is coil3.request.SuccessResult) {
+                val bm = result.image.toImageBitmap()
+                paletteState.generate(bm)
+                sharedViewModel.setBitmap(bm)
+            }
+        }
+    }
+
     LaunchedEffect(screenDataState) {
         Logger.d(TAG, "ScreenDataState: $screenDataState")
         showHideMiddleLayout = screenDataState.animatedArtworkData == null
-        snapshotFlow { screenDataState.bitmap }.collectLatest {
-            if (it != null) {
-                paletteState.generate(it)
-            }
+        val bm = screenDataState.bitmap
+        if (bm != null) {
+            paletteState.generate(bm)
         }
     }
 
@@ -528,21 +546,18 @@ fun NowPlayingScreenContent(
     var isSliding by rememberSaveable {
         mutableStateOf(false)
     }
-    val initialCur = if (timelineState.current > 0L) timelineState.current else mediaPlayerHandler.getProgress()
+    val initialCur = if (timelineState.current >= 0L) timelineState.current else mediaPlayerHandler.getProgress()
     val initialTot = if (timelineState.total > 0L) timelineState.total else mediaPlayerHandler.getPlayerDuration()
     var sliderValue by rememberSaveable {
-        mutableFloatStateOf(if (initialTot > 0L && initialCur > 0L) initialCur.toFloat() * 100 / initialTot.toFloat() else 0f)
+        mutableFloatStateOf(if (initialTot > 0L && initialCur >= 0L) (initialCur.toFloat() * 100 / initialTot.toFloat()).coerceIn(0f, 100f) else 0f)
     }
     LaunchedEffect(key1 = timelineState, key2 = isSliding) {
         if (!isSliding) {
-            val livePos = if (timelineState.current > 0L) timelineState.current else mediaPlayerHandler.getProgress()
+            val livePos = if (timelineState.current >= 0L) timelineState.current else mediaPlayerHandler.getProgress()
             val liveTotal = if (timelineState.total > 0L) timelineState.total else mediaPlayerHandler.getPlayerDuration()
-            sliderValue =
-                if (liveTotal > 0L && livePos > 0L) {
-                    livePos.toFloat() * 100 / liveTotal.toFloat()
-                } else {
-                    0f
-                }
+            if (liveTotal > 0L && livePos >= 0L) {
+                sliderValue = (livePos.toFloat() * 100 / liveTotal.toFloat()).coerceIn(0f, 100f)
+            }
         }
     }
 

@@ -314,6 +314,17 @@ class SharedViewModel(
                 }.collectLatest { state ->
                     Logger.w(tag, "NowPlayingState is $state")
                     _nowPlayingState.value = state
+                    val currentProg = mediaPlayerHandler.getProgress()
+                    val currentDur = mediaPlayerHandler.getPlayerDuration()
+                    if (currentProg >= 0L || currentDur > 0L) {
+                        _timeline.update {
+                            it.copy(
+                                current = if (currentProg >= 0L) currentProg else it.current,
+                                total = if (currentDur > 0L) currentDur else it.total,
+                                loading = false,
+                            )
+                        }
+                    }
                     state.songEntity?.let { track ->
                         _nowPlayingScreenData.value =
                             NowPlayingScreenData(

@@ -26,14 +26,43 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 import simpmusic.composeapp.generated.resources.*
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
+
 @Composable
 fun MoodScreen(
     navController: NavController,
     viewModel: MoodViewModel = koinViewModel(),
     params: String?,
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val moodData by viewModel.moodsMomentObject.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
+    val lazyState = rememberLazyListState()
+
+    val prevScrollPosition = rememberSaveable {
+        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
+    }
+    LaunchedEffect(lazyState) {
+        snapshotFlow {
+            val idx = lazyState.firstVisibleItemIndex
+            val off = lazyState.firstVisibleItemScrollOffset
+            Triple(idx == 0 && off == 0, idx, off)
+        }.collect { (isAtTop, idx, off) ->
+            val position = idx + (off / 10000.0f)
+            val direction = if (position > prevScrollPosition.floatValue) {
+                -1
+            } else if (position < prevScrollPosition.floatValue) {
+                1
+            } else {
+                0
+            }
+            prevScrollPosition.floatValue = position
+            onScrolling(isAtTop, direction)
+        }
+    }
 
     LaunchedEffect(key1 = params) {
         if (params != null) {
@@ -60,6 +89,7 @@ fun MoodScreen(
         )
         AnimatedVisibility(visible = !loading) {
             LazyColumn(
+                state = lazyState,
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(moodData?.items ?: emptyList()) { item ->

@@ -50,6 +50,8 @@ actual fun LiquidGlassAppBottomNavigationBar(
     backdrop: PlatformBackdrop,
     viewModel: SharedViewModel,
     isScrolledToTop: Boolean,
+    scrollDirection: Int,
+    scrollEpoch: Int,
     onOpenNowPlaying: () -> Unit,
     reloadDestinationIfNeeded: (KClass<*>) -> Unit,
 ) {
@@ -77,10 +79,13 @@ actual fun LiquidGlassAppBottomNavigationBar(
     val routeAtTop = remember { mutableStateMapOf<String, Boolean>() }
     var lastLiveAtTop by remember { mutableStateOf(isScrolledToTop) }
 
-    LaunchedEffect(isScrolledToTop) {
+    LaunchedEffect(isScrolledToTop, scrollDirection, scrollEpoch) {
+        if (scrollDirection < 0) {
+            isManuallyExpanded = false
+        }
         lastLiveAtTop = isScrolledToTop
         routeAtTop[currentRouteKey] = isScrolledToTop
-        Logger.d(TAG, "scroll: atTop=$isScrolledToTop route=$currentRouteKey manual=$isManuallyExpanded lastLive=$lastLiveAtTop")
+        Logger.d(TAG, "scroll: atTop=$isScrolledToTop dir=$scrollDirection epoch=$scrollEpoch route=$currentRouteKey manual=$isManuallyExpanded lastLive=$lastLiveAtTop")
     }
 
     LaunchedEffect(nowPlayingData) {

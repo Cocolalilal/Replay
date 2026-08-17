@@ -21,6 +21,7 @@ import com.maxrave.simpmusic.ui.screen.other.CreditScreen
 fun NavGraphBuilder.homeScreenGraph(
     innerPadding: PaddingValues,
     navController: NavController,
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     composable<CreditDestination> {
         CreditScreen(
@@ -33,29 +34,34 @@ fun NavGraphBuilder.homeScreenGraph(
         MoodScreen(
             navController = navController,
             params = params,
+            onScrolling = onScrolling,
         )
     }
     composable<NotificationDestination> {
         NotificationScreen(
             navController = navController,
+            onScrolling = onScrolling,
         )
     }
     composable<RecentlySongsDestination> {
         RecentlySongsScreen(
             navController = navController,
             innerPadding = innerPadding,
+            onScrolling = onScrolling,
         )
     }
     composable<SettingsDestination> {
         SettingScreen(
             navController = navController,
             innerPadding = innerPadding,
+            onScrolling = onScrolling,
         )
     }
     composable<AnalyticsDestination> {
         AnalyticsScreen(
             navController = navController,
             innerPadding = innerPadding,
+            onScrolling = onScrolling,
         )
     }
 }

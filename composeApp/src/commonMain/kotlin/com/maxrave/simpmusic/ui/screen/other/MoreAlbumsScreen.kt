@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -24,6 +25,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -58,9 +62,32 @@ fun MoreAlbumsScreen(
     id: String? = null,
     type: String? = null,
     viewModel: MoreAlbumsViewModel = koinViewModel(),
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val hazeState = rememberHazeState()
+    val gridState = rememberLazyGridState()
+
+    val prevScrollPosition = rememberSaveable {
+        mutableFloatStateOf(gridState.firstVisibleItemIndex + gridState.firstVisibleItemScrollOffset / 10000.0f)
+    }
+    LaunchedEffect(gridState) {
+        snapshotFlow {
+            val idx = gridState.firstVisibleItemIndex
+            val off = gridState.firstVisibleItemScrollOffset
+            Pair(idx == 0 && off == 0, idx + (off / 10000.0f))
+        }.collect { (isAtTop, position) ->
+            val direction = if (position > prevScrollPosition.floatValue) {
+                -1
+            } else if (position < prevScrollPosition.floatValue) {
+                1
+            } else {
+                0
+            }
+            prevScrollPosition.floatValue = position
+            onScrolling(isAtTop, direction)
+        }
+    }
 
     LaunchedEffect(id, type) {
         Logger.w("MoreAlbumsScreen", "id: $id, type: $type")
@@ -85,6 +112,7 @@ fun MoreAlbumsScreen(
                 val data = state.albumItems
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
+                    state = gridState,
                     modifier =
                         Modifier
                             .fillMaxSize()

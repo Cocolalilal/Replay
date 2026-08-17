@@ -59,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -211,7 +212,7 @@ private val listOfHomeChip =
 @ExperimentalFoundationApi
 @Composable
 fun HomeScreen(
-    onScrolling: (onTop: Boolean) -> Unit = {},
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
     viewModel: HomeViewModel =
         koinViewModel(),
     sharedViewModel: SharedViewModel =
@@ -293,15 +294,26 @@ fun HomeScreen(
             blurEnabled = true,
         )
 
+    val prevScrollPosition = rememberSaveable {
+        mutableFloatStateOf(scrollState.firstVisibleItemIndex + scrollState.firstVisibleItemScrollOffset / 10000.0f)
+    }
     LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.firstVisibleItemIndex }
-            .collect {
-                if (it <= 1) {
-                    onScrolling.invoke(true)
-                } else {
-                    onScrolling.invoke(isScrollingUp)
-                }
+        snapshotFlow {
+            val idx = scrollState.firstVisibleItemIndex
+            val off = scrollState.firstVisibleItemScrollOffset
+            Triple(idx == 0 && off == 0, idx, off)
+        }.collect { (isAtTop, idx, off) ->
+            val position = idx + (off / 10000.0f)
+            val direction = if (position > prevScrollPosition.floatValue) {
+                -1
+            } else if (position < prevScrollPosition.floatValue) {
+                1
+            } else {
+                0
             }
+            prevScrollPosition.floatValue = position
+            onScrolling(isAtTop, direction)
+        }
     }
 
     val onRefresh: () -> Unit = {

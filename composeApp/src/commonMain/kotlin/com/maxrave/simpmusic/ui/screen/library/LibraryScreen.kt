@@ -41,9 +41,11 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -118,7 +120,7 @@ fun LibraryScreen(
     innerPadding: PaddingValues,
     viewModel: LibraryViewModel = koinViewModel(),
     navController: NavController,
-    onScrolling: (onTop: Boolean) -> Unit = {},
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val density = LocalDensity.current
 
@@ -203,15 +205,26 @@ fun LibraryScreen(
             LibraryChipType.YOUR_LIBRARY -> {
                 val state = rememberLazyListState()
                 val isScrollingUp by state.isScrollingUp()
+                val prevScrollPosition = rememberSaveable {
+                    mutableFloatStateOf(state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / 10000.0f)
+                }
                 LaunchedEffect(state) {
-                    snapshotFlow { state.firstVisibleItemIndex }
-                        .collect {
-                            if (it <= 1) {
-                                onScrolling.invoke(true)
-                            } else {
-                                onScrolling.invoke(isScrollingUp)
-                            }
+                    snapshotFlow {
+                        val idx = state.firstVisibleItemIndex
+                        val off = state.firstVisibleItemScrollOffset
+                        Triple(idx == 0 && off == 0, idx, off)
+                    }.collect { (isAtTop, idx, off) ->
+                        val position = idx + (off / 10000.0f)
+                        val direction = if (position > prevScrollPosition.floatValue) {
+                            -1
+                        } else if (position < prevScrollPosition.floatValue) {
+                            1
+                        } else {
+                            0
                         }
+                        prevScrollPosition.floatValue = position
+                        onScrolling(isAtTop, direction)
+                    }
                 }
                 LazyColumn(
                     contentPadding =
