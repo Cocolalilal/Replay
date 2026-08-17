@@ -43,3 +43,12 @@ sentry.properties
 /desktopApp/generated.conveyor.conf
 # Conveyor output directory
 /output/
+
+# Extraction & Backup Tools
+/.tools/
+/apk_backups/
+/decompiled_app/
+/decompiled_dev/
+/decompiled_src/
+/replay_dev/
+

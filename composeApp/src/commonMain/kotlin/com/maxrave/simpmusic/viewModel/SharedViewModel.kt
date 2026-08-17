@@ -498,57 +498,6 @@ class SharedViewModel(
         }
     }
 
-<<<<<<< Updated upstream
-    private fun getCanvas(
-        videoId: String,
-        duration: Int,
-    ) {
-        Logger.w(tag, "Start getCanvas: $videoId $duration")
-//        canvasJob?.cancel()
-        viewModelScope.launch {
-            if (dataStoreManager.spotifyCanvas.first() == TRUE) {
-                lyricsCanvasRepository.getCanvas(dataStoreManager, videoId, duration).cancellable().collect { response ->
-                    val data = response.data
-                    when (response) {
-                        is Resource.Success if (data != null && nowPlayingState.value?.mediaItem?.mediaId == videoId) -> {
-                            _canvas.value = data
-                            _nowPlayingScreenData.update {
-                                it.copy(
-                                    canvasData =
-                                        NowPlayingScreenData.CanvasData(
-                                            isVideo = data.isVideo,
-                                            url = data.canvasUrl,
-                                        ),
-                                )
-                            }
-                            // Save canvas video url
-                            if (data.isVideo) lyricsCanvasRepository.updateCanvasUrl(videoId, data.canvasUrl)
-                            // Save canvas thumb url
-                            data.canvasThumbUrl?.let { lyricsCanvasRepository.updateCanvasThumbUrl(videoId, it) }
-                        }
-
-                        else -> {
-                            log("Get canvas error: ${response.message}", LogLevel.WARN)
-                            nowPlayingState.value?.songEntity?.canvasUrl?.let { url ->
-                                _nowPlayingScreenData.update {
-                                    it.copy(
-                                        canvasData =
-                                            NowPlayingScreenData.CanvasData(
-                                                isVideo = url.contains(".mp4"),
-                                                url = url,
-                                            ),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-=======
->>>>>>> Stashed changes
     fun getString(key: String): String? = runBlocking { dataStoreManager.getString(key).first() }
 
     fun putString(

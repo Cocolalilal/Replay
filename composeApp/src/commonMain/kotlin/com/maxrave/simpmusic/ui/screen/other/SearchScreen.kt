@@ -910,96 +910,6 @@ fun SearchScreen(
                                     blurEnabled = true
                                 }
                             },
-<<<<<<< Updated upstream
-                        ).padding(vertical = 10.dp),
-            ) {
-        // Search Bar with Animated Placeholder
-        SearchBar(
-            inputField = {
-                SearchBarDefaults.InputField(
-                    query = searchText,
-                    onQueryChange = { newText ->
-                        searchText = newText
-                    },
-                    onSearch = { query ->
-                        if (query.isNotEmpty()) {
-                            isSearchSubmitted = true
-                            focusManager.clearFocus()
-                            searchViewModel.insertSearchHistory(query)
-                            when (searchScreenState.searchType) {
-                                SearchType.ALL -> searchViewModel.searchAll(query)
-                                SearchType.SONGS -> searchViewModel.searchSongs(query)
-                                SearchType.VIDEOS -> searchViewModel.searchVideos(query)
-                                SearchType.ALBUMS -> searchViewModel.searchAlbums(query)
-                                SearchType.ARTISTS -> searchViewModel.searchArtists(query)
-                                SearchType.PLAYLISTS -> searchViewModel.searchPlaylists(query)
-                                SearchType.FEATURED_PLAYLISTS -> searchViewModel.searchFeaturedPlaylist(query)
-                                SearchType.PODCASTS -> searchViewModel.searchPodcast(query)
-                            }
-                        }
-                    },
-                    expanded = false,
-                    onExpandedChange = {},
-                    enabled = true,
-                    placeholder = {
-                        // Animated placeholder text
-                        AnimatedContent(
-                            targetState = currentPlaceholderIndex,
-                            transitionSpec = {
-                                (
-                                    fadeIn(animationSpec = tween(500)) +
-                                        slideInVertically { height -> height }
-                                ).togetherWith(
-                                    fadeOut(animationSpec = tween(500)) +
-                                        slideOutVertically { height -> -height },
-                                )
-                            },
-                            label = "placeholder_animation",
-                        ) { index ->
-                            Text(
-                                text = placeholderTexts[index],
-                                style = typo().labelMedium,
-                            )
-                        }
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = SimpIcons.Search,
-                            contentDescription = "Search",
-                        )
-                    },
-                    trailingIcon = {
-                        // X button only shows when there's text
-                        if (searchText.isNotEmpty()) {
-                            IconButton(
-                                modifier = Modifier.clip(CircleShape),
-                                onClick = {
-                                    searchText = ""
-                                    isSearchSubmitted = false
-                                },
-                            ) {
-                                Icon(
-                                    imageVector = SimpIcons.Close,
-                                    contentDescription = "Clear search",
-                                )
-                            }
-                        }
-                    },
-                )
-            },
-            expanded = false,
-            onExpandedChange = {},
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-                    .onFocusChanged {
-                        isFocused = it.isFocused
-                    }.padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(8.dp),
-            content = {},
-        )
-=======
                         ),
             ) {
                 // Fixed top bar (title + status bar inset) so content never slides under
@@ -1017,7 +927,6 @@ fun SearchScreen(
                             containerColor = Color.Transparent,
                         ),
                 )
->>>>>>> Stashed changes
                 // Filter chips ride along inside the blurred block instead of sitting in the
                 // results branch. That way searchBarHeight covers them too, results scroll
                 // underneath the whole thing, and the glass has something to blur.

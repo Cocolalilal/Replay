@@ -211,7 +211,6 @@ class LibraryViewModel(
         }
     }
 
-<<<<<<< Updated upstream
     fun getFavoritePodcasts() {
         viewModelScope.launch {
             podcastRepository.getFavoritePodcasts().collectLatest { podcasts ->
@@ -221,12 +220,8 @@ class LibraryViewModel(
         }
     }
 
-    fun getCanvasSong() {
-        _listCanvasSong.value = LocalResource.Loading()
-=======
     fun getAnimatedArtworkSongs() {
         _listAnimatedArtworkSongs.value = LocalResource.Loading()
->>>>>>> Stashed changes
         viewModelScope.launch {
             songRepository.getAnimatedArtworkSongs(max = 5).collect { data ->
                 _listAnimatedArtworkSongs.value = LocalResource.Success(data)

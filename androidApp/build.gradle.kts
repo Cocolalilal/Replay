@@ -20,7 +20,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.maxrave.simpmusic"
+        applicationId = "cocolalilal.replay.music"
         minSdk = 26
         targetSdk = 36
         versionCode =
@@ -83,6 +83,12 @@ android {
 
     buildTypes {
         release {
+            // Signed with the standard debug keystore (~/.android/debug.keystore): this fork's
+            // installed base (cocolalilal.replay.music) was debug-signed with that exact key, so
+            // switching to any other key would break updates. Do NOT change without migrating
+            // the installed app first. (The personal keystore ~/.android/personal-release.keystore
+            // is for NEW apps that have no installs yet.)
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -191,8 +197,8 @@ sentry {
                 null
             }
         authToken.set(token ?: "")
-        includeProguardMapping.set(true)
-        autoUploadProguardMapping.set(true)
+        includeProguardMapping.set(!token.isNullOrEmpty())
+        autoUploadProguardMapping.set(!token.isNullOrEmpty())
     } else {
         includeProguardMapping.set(false)
         autoUploadProguardMapping.set(false)
