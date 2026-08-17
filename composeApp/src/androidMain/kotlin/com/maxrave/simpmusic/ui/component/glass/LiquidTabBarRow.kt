@@ -1,12 +1,16 @@
 package com.maxrave.simpmusic.ui.component.glass
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -24,8 +28,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -42,6 +50,7 @@ import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -54,6 +63,8 @@ import com.kyant.shapes.Capsule
 import com.maxrave.simpmusic.ui.icon.Home
 import com.maxrave.simpmusic.ui.icon.LibraryMusic
 import com.maxrave.simpmusic.ui.icon.SimpIcons
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -95,196 +106,192 @@ private fun LiquidBottomTabs(
     val scope = rememberCoroutineScope()
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val isDark = isSystemInDarkTheme()
-    val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = 0.18f)
-    val activeColor = Color(0xFF82B1FF)
-    val inactiveColor = Color.White.copy(alpha = 0.84f)
+    val containerColor = Color(if (isDark) 0xFF1E1E1E else 0xFFFAFAFA).copy(alpha = 0.18f)
+    val unselectedContentColor = Color(0xFF82BEFF)
+    val selectedContentColor = Color.White.copy(alpha = 0.84f)
 
-    var currentIndex by remember {
+    val currentIndex = remember {
         mutableIntStateOf(selectedTabIndex.coerceIn(0, tabs.lastIndex))
     }
-    val draggedFlag = remember { booleanArrayOf(false) }
-    val tabsBackdrop = rememberLayerBackdrop()
-    val tapPulse = remember { Animatable(0f) }
+    val isDragging = remember { booleanArrayOf(false) }
+    val contentBackdrop = rememberLayerBackdrop()
+    val touchAnimatable = remember { Animatable(0f) }
 
     BoxWithConstraints(
         modifier = modifier.graphicsLayer { clip = false }
     ) {
         val totalWidthPx = constraints.maxWidth.toFloat()
         val totalHeightPx = constraints.maxHeight.toFloat()
-        val tabCount = tabs.size
-        val tabWidthPx = if (tabCount > 0) totalWidthPx / tabCount else 0f
-        val liveTabWidthPx = remember { mutableFloatStateOf(tabWidthPx) }
-        liveTabWidthPx.floatValue = tabWidthPx
+        val tabCount = tabs.size.toFloat()
+        val liveTabWidthPx = if (tabCount > 0) totalWidthPx / tabCount else 0f
+        val tabWidthState = remember { mutableFloatStateOf(liveTabWidthPx) }
+
+        LaunchedEffect(liveTabWidthPx) {
+            tabWidthState.floatValue = liveTabWidthPx
+        }
 
         val drag = remember(scope, tabCount) {
             DampedDragAnimation(
                 animationScope = scope,
-                initialValue = currentIndex.toFloat(),
-                valueRange = 0f..(tabCount - 1).toFloat(),
+                initialValue = selectedTabIndex.toFloat(),
+                valueRange = 0f..(tabs.size - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
                 pressedScale = 1.15f,
                 onDragStarted = { _, _ ->
-                    draggedFlag[0] = false
+                    isDragging[0] = false
                 },
                 onDragStopped = { damped ->
-                    if (draggedFlag[0]) {
+                    if (isDragging[0]) {
                         val target = damped.targetValue.roundToInt().coerceIn(0, tabs.lastIndex)
-                        currentIndex = target
+                        currentIndex.intValue = target
                         damped.animateToValue(target.toFloat())
                     }
                 },
                 onDrag = { damped, _, dragAmount ->
                     if (dragAmount.x != 0f) {
-                        draggedFlag[0] = true
+                        isDragging[0] = true
                     }
-                    val currentTarget = damped.targetValue
-                    val newTarget = (currentTarget + (dragAmount.x / liveTabWidthPx.floatValue) * if (isLtr) 1f else -1f)
-                        .fastCoerceIn(0f, (tabs.size - 1).toFloat())
+                    val delta = (dragAmount.x / tabWidthState.floatValue) * (if (isLtr) 1f else -1f)
+                    val newTarget = (damped.targetValue + delta).coerceIn(0f, (tabs.size - 1).toFloat())
                     damped.updateValue(newTarget)
                 }
             )
         }
 
-        LaunchedEffect(selectedTabIndex) {
-            if (selectedTabIndex in tabs.indices && selectedTabIndex != currentIndex) {
-                currentIndex = selectedTabIndex
-                drag.animateToValue(selectedTabIndex.toFloat())
-            }
+        LaunchedEffect(selectedTabIndex, tabs) {
+            currentIndex.intValue = selectedTabIndex
+            drag.animateToValue(selectedTabIndex.toFloat())
         }
 
-        val floatAmount = maxOf(drag.pressProgress, tapPulse.value)
-        val pillWidthPx = tabWidthPx - with(density) { 8.dp.toPx() }
-        val pillHeightPx = totalHeightPx - with(density) { 8.dp.toPx() }
-        val selectorX = if (isLtr) drag.value * tabWidthPx + with(density) { 4.dp.toPx() } else (tabCount - 1 - drag.value) * tabWidthPx + with(density) { 4.dp.toPx() }
-        val selectorOffsetYPx = with(density) { 4.dp.toPx() }
-        val selectionAlpha = (1f - collapseProgress * 2.5f).fastCoerceIn(0f, 1f)
+        LaunchedEffect(drag, onTabSelected) {
+            // When settled or selected
+        }
 
-        // 1. Container Backdrop capsule background
+        val selectorX = if (isLtr) {
+            (drag.value * liveTabWidthPx) + with(density) { 4.dp.toPx() }
+        } else {
+            totalWidthPx - ((drag.value + 1f) * liveTabWidthPx) - with(density) { 4.dp.toPx() }
+        }
+        val selectorWidthPx = liveTabWidthPx - with(density) { 8.dp.toPx() }
+        val selectorHeightPx = totalHeightPx - with(density) { 8.dp.toPx() }
+        val selectorOffsetYPx = (totalHeightPx - selectorHeightPx) / 2f
+
+        val floatAmount = ((drag.pressProgress * (1f - collapseProgress)) + touchAnimatable.value).fastCoerceIn(0f, 1f)
+        val textAlpha = (1f - (2.5f * collapseProgress)).fastCoerceIn(0f, 1f)
+        val pillAlpha = (1f - (2f * collapseProgress)).fastCoerceIn(0f, 1f)
+
+        // 1. Container Backdrop capsule background with contentBackdrop
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    val fadeProgress = ((collapseProgress * 2f) - 0.8f) * 2f
-                    alpha = (alpha * lerp(1f, fadeProgress.fastCoerceIn(0f, 1f), collapseProgress))
-                    scaleX *= (1f + 0.03f * floatAmount)
-                    scaleY *= (1f + 0.02f * floatAmount)
+                    val fadeVal = ((collapseProgress * 2f) - 0.8f) * 2f
+                    alpha *= lerp(1f, fadeVal.fastCoerceIn(0f, 1f), collapseProgress)
+                    scaleX *= 1f + 0.03f * floatAmount
+                    scaleY *= 1f + 0.02f * floatAmount
                 }
                 .elasticGlassTouch(
-                    enabled = true,
+                    enabled = collapseProgress > 0.4f,
                     dragEnabled = false,
                     onTap = {
                         if (collapseProgress > 0.4f) {
-                            onTabSelected(currentIndex)
+                            onTabSelected(currentIndex.intValue)
                         }
                     }
                 )
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { Capsule() },
-                    effects = {
-                        vibrancy()
-                        blur(7.dp.toPx())
-                        lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
-                    },
-                    highlight = { Highlight.Default.copy(alpha = 0.80f) },
-                    shadow = { Shadow(alpha = 0.35f) },
-                    innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
-                    onDrawSurface = { drawRect(containerColor) }
-                )
-        )
-
-        // 2. Tabs items rendered into tabsBackdrop (so the selection bubble can refract them)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(tabsBackdrop)
+                .layerBackdrop(contentBackdrop)
         ) {
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                tabs.forEachIndexed { index, tab ->
-                    val tabPosition = if (isLtr) drag.value else (tabs.size - 1 - drag.value)
-                    val distance = kotlin.math.abs(tabPosition - index)
-                    val selectionWeight = (1f - distance).coerceIn(0f, 1f)
-                    val itemColor = androidx.compose.ui.graphics.lerp(inactiveColor, activeColor, selectionWeight)
-                    val itemAlpha = (1f - collapseProgress * 2.5f).fastCoerceIn(0f, 1f)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (collapseProgress < 0.4f) {
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { Capsule() },
+                        effects = {
+                            vibrancy()
+                            blur(7.dp.toPx())
+                            lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
+                        },
+                        highlight = { Highlight.Default.copy(alpha = 0.80f) },
+                        shadow = { Shadow(alpha = 0.35f) },
+                        innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
+                        onDrawSurface = { drawRect(containerColor) }
+                    )
+            )
+
+            // 2. Tab items (text and icon) rendered into contentBackdrop
+            if (textAlpha > 0f) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(textAlpha),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    tabs.forEachIndexed { index, tab ->
+                        val dist = abs(index.toFloat() - drag.value)
+                        val progress = (1f - dist).fastCoerceIn(0f, 1f)
+                        val tabColor = lerp(unselectedContentColor, selectedContentColor, progress)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Row(
-                                modifier = Modifier
-                                    .graphicsLayer { alpha = itemAlpha }
-                                    .padding(horizontal = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
                                     imageVector = tab.icon,
                                     contentDescription = tab.title,
-                                    tint = itemColor,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(22.dp),
+                                    tint = tabColor
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(Modifier.width(6.dp))
                                 Text(
                                     text = tab.title,
-                                    color = itemColor,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (selectionWeight > 0.5f) FontWeight.SemiBold else FontWeight.Medium,
-                                    maxLines = 1
+                                    color = tabColor,
+                                    fontSize = 14.sp
                                 )
                             }
-                        } else if (index == currentIndex) {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = tab.title,
-                                tint = activeColor,
-                                modifier = Modifier.size(26.dp)
-                            )
                         }
                     }
                 }
             }
         }
 
-        // 3. Sliding indicator pill (placed OVER tabsBackdrop to refract text & icons when moving/pressed, and subtle glass when resting)
-        if (selectionAlpha > 0.01f) {
+        // 3. Floating Selection Bubble: Combines app backdrop and tab contentBackdrop to refract text & icons behind it
+        if (pillAlpha > 0f) {
+            val combinedBackdrop = rememberCombinedBackdrop(backdrop, contentBackdrop)
             Box(
                 modifier = Modifier
                     .offset { IntOffset(selectorX.roundToInt(), selectorOffsetYPx.roundToInt()) }
                     .layout { measurable, _ ->
                         val velocity = (drag.velocity / 10f) * (1f - collapseProgress)
-                        val stretch = (0.25f * velocity).fastCoerceIn(-0.12f, 0.12f)
+                        val clampedVelocity = (0.25f * velocity).fastCoerceIn(-0.12f, 0.12f)
                         val floatGrowX = 1f + 0.28f * floatAmount
                         val floatGrowY = 1f + 0.45f * floatAmount
-                        val sx = floatGrowX * (1f + stretch)
-                        val sy = floatGrowY * (1f - 0.5f * stretch)
-                        val w = (pillWidthPx * sx).roundToInt()
-                        val h = (pillHeightPx * sy).roundToInt()
-                        val placeable = measurable.measure(Constraints.fixed(w, h))
-                        layout(pillWidthPx.roundToInt(), pillHeightPx.roundToInt()) {
-                            val offsetX = (pillWidthPx.roundToInt() - w) / 2
-                            val offsetY = (pillHeightPx.roundToInt() - h) / 2
-                            placeable.placeRelative(offsetX, offsetY)
+                        val stretchX = floatGrowX * (1f + clampedVelocity)
+                        val stretchY = floatGrowY * (1f - 0.5f * clampedVelocity)
+                        val targetW = (selectorWidthPx * stretchX).roundToInt()
+                        val targetH = (selectorHeightPx * stretchY).roundToInt()
+                        val placeable = measurable.measure(Constraints.fixed(targetW, targetH))
+                        layout(selectorWidthPx.roundToInt(), selectorHeightPx.roundToInt()) {
+                            placeable.placeRelative(
+                                (selectorWidthPx.roundToInt() - targetW) / 2,
+                                (selectorHeightPx.roundToInt() - targetH) / 2
+                            )
                         }
                     }
                     .graphicsLayer {
-                        alpha = selectionAlpha
+                        alpha = pillAlpha
                         clip = false
                     }
                     .drawBackdrop(
-                        backdrop = tabsBackdrop,
+                        backdrop = combinedBackdrop,
                         shape = { Capsule() },
                         effects = {
-                            val blurRadius = lerp(4f, 16f, floatAmount).dp.toPx()
-                            blur(blurRadius)
                             if (floatAmount > 0.05f) {
                                 val lensRadius = lerp(8f, 26f, floatAmount).dp.toPx()
                                 val lensDepth = lerp(10f, 32f, floatAmount).dp.toPx()
@@ -305,27 +312,65 @@ private fun LiquidBottomTabs(
         }
 
         // 4. Interactive touch layer for tabs
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(drag.modifier),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            tabs.forEachIndexed { index, _ ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxSize()
-                        .semantics { role = Role.Tab }
-                        .elasticGlassTouch(
-                            enabled = true,
-                            dragEnabled = false,
-                            onTap = {
-                                currentIndex = index
-                                drag.animateToValue(index.toFloat())
-                                onTabSelected(index)
+        if (textAlpha > 0f) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(textAlpha)
+                    .then(drag.modifier),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEachIndexed { index, _ ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(Capsule())
+                            .semantics { role = Role.Tab }
+                            .pointerInput(index) {
+                                detectTapGestures(
+                                    onPress = {
+                                        scope.launch {
+                                            touchAnimatable.animateTo(1f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                        }
+                                        tryAwaitRelease()
+                                        scope.launch {
+                                            touchAnimatable.animateTo(0f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                        }
+                                    },
+                                    onTap = {
+                                        currentIndex.intValue = index
+                                        scope.launch {
+                                            drag.animateToValue(index.toFloat())
+                                        }
+                                        onTabSelected(index)
+                                    }
+                                )
                             }
-                        )
+                    )
+                }
+            }
+        }
+
+        // 5. Collapsed state single icon
+        if (collapseProgress > 0.4f) {
+            val currentTab = tabs.getOrNull(currentIndex.intValue) ?: tabs[0]
+            val singleIconAlpha = ((collapseProgress * 2f) - 0.8f).fastCoerceIn(0f, 1f)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(singleIconAlpha)
+                    .clickable(
+                        enabled = collapseProgress > 0.4f,
+                        onClick = { onTabSelected(currentIndex.intValue) }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = currentTab.icon,
+                    contentDescription = currentTab.title,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
