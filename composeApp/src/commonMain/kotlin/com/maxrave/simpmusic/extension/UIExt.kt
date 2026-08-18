@@ -8,10 +8,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -315,11 +317,16 @@ fun NonLazyGrid(
     columns: Int,
     itemCount: Int,
     modifier: Modifier = Modifier,
+    horizontalSpacing: Dp = 0.dp,
+    verticalSpacing: Dp = 0.dp,
     content:
         @Composable()
         (Int) -> Unit,
 ) {
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(verticalSpacing),
+    ) {
         var rows = (itemCount / columns)
         if (itemCount.mod(columns) > 0) {
             rows += 1
@@ -328,13 +335,12 @@ fun NonLazyGrid(
         for (rowId in 0 until rows) {
             val firstIndex = rowId * columns
 
-            Row {
+            Row(horizontalArrangement = Arrangement.spacedBy(horizontalSpacing)) {
                 for (columnId in 0 until columns) {
                     val index = firstIndex + columnId
                     Box(
                         modifier =
                             Modifier
-                                .fillMaxWidth()
                                 .weight(1f),
                     ) {
                         if (index < itemCount) {

@@ -38,6 +38,7 @@ import com.maxrave.domain.utils.toSongEntity
 import com.maxrave.domain.utils.toTrack
 import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.pagination.PagingActions
+import com.maxrave.simpmusic.util.CustomCoverHelper
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -269,48 +270,8 @@ class LocalPlaylistViewModel(
     fun getSuggestions(playlistId: Long) {
         loading.value = true
         viewModelScope.launch {
-            localPlaylistRepository.getSuggestionsTrackForPlaylist(playlistId).collectLatestResource(
-                onSuccess = { res ->
-                    val reloadParams = res?.first
-                    val songs = res?.second
-                    if (reloadParams != null && songs != null) {
-                        _uiState.update {
-                            it.copy(
-                                suggestions =
-                                    LocalPlaylistState.SuggestionSongs(
-                                        reloadParams = reloadParams,
-                                        songs = songs,
-                                    ),
-                            )
-                        }
-                    } else {
-                        _uiState.update {
-                            it.copy(
-                                suggestions = null,
-                            )
-                        }
-                    }
-                    loading.value = false
-                },
-                onError = { e ->
-                    makeToast(e)
-                    loading.value = false
-                    _uiState.update {
-                        it.copy(
-                            suggestions = null,
-                        )
-                    }
-                },
-            )
-        }
-    }
-
-    fun reloadSuggestion() {
-        loading.value = true
-        viewModelScope.launch {
-            val param = uiState.value.suggestions?.reloadParams
-            if (param != null) {
-                localPlaylistRepository.reloadSuggestionPlaylist(param).collectLatestResource(
+            try {
+                localPlaylistRepository.getSuggestionsTrackForPlaylist(playlistId).collectLatestResource(
                     onSuccess = { res ->
                         val reloadParams = res?.first
                         val songs = res?.second
@@ -333,12 +294,62 @@ class LocalPlaylistViewModel(
                         }
                         loading.value = false
                     },
-                    onError = {
-                        _uiState.update { it.copy(suggestions = null) }
-                        makeToast(getString(Res.string.error))
+                    onError = { e ->
+                        makeToast(e)
                         loading.value = false
+                        _uiState.update {
+                            it.copy(
+                                suggestions = null,
+                            )
+                        }
                     },
                 )
+            } catch (e: Exception) {
+                loading.value = false
+            }
+        }
+    }
+
+    fun reloadSuggestion() {
+        loading.value = true
+        viewModelScope.launch {
+            try {
+                val param = uiState.value.suggestions?.reloadParams
+                if (param != null) {
+                    localPlaylistRepository.reloadSuggestionPlaylist(param).collectLatestResource(
+                        onSuccess = { res ->
+                            val reloadParams = res?.first
+                            val songs = res?.second
+                            if (reloadParams != null && songs != null) {
+                                _uiState.update {
+                                    it.copy(
+                                        suggestions =
+                                            LocalPlaylistState.SuggestionSongs(
+                                                reloadParams = reloadParams,
+                                                songs = songs,
+                                            ),
+                                    )
+                                }
+                            } else {
+                                _uiState.update {
+                                    it.copy(
+                                        suggestions = null,
+                                    )
+                                }
+                            }
+                            loading.value = false
+                        },
+                        onError = {
+                            _uiState.update { it.copy(suggestions = null) }
+                            makeToast(getString(Res.string.error))
+                            loading.value = false
+                        },
+                    )
+                } else {
+                    loading.value = false
+                }
+            } catch (e: Exception) {
+                loading.value = false
             }
         }
     }
@@ -451,6 +462,46 @@ class LocalPlaylistViewModel(
                         hideLoadingDialog()
                     },
                 )
+        }
+    }
+
+    fun updatePlaylistThumbnail(
+        bytes: ByteArray?,
+        id: Long,
+    ) {
+        showLoadingDialog(message = getString(Res.string.updating))
+        viewModelScope.launch {
+            if (bytes != null) {
+                val savedPath = CustomCoverHelper.saveCustomCover("local_$id", bytes, dataStoreManager)
+                localPlaylistRepository
+                    .updateThumbnailLocalPlaylist(id, savedPath, getString(Res.string.updated))
+                    .collectResource(
+                        onSuccess = {
+                            makeToast(it)
+                            updatePlaylistState(id)
+                            hideLoadingDialog()
+                        },
+                        onError = {
+                            makeToast(it)
+                            hideLoadingDialog()
+                        },
+                    )
+            } else {
+                CustomCoverHelper.removeCustomCover("local_$id", dataStoreManager)
+                localPlaylistRepository
+                    .updateThumbnailLocalPlaylist(id, "", getString(Res.string.updated))
+                    .collectResource(
+                        onSuccess = {
+                            makeToast(it)
+                            updatePlaylistState(id)
+                            hideLoadingDialog()
+                        },
+                        onError = {
+                            makeToast(it)
+                            hideLoadingDialog()
+                        },
+                    )
+            }
         }
     }
 

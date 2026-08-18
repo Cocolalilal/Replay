@@ -837,6 +837,14 @@ class SharedViewModel(
                     mediaPlayerHandler.onPlayerEvent(PlayerEvent.Shuffle)
                 }
 
+                UIEvent.ShuffleQueue -> {
+                    mediaPlayerHandler.shuffleQueue()
+                }
+
+                is UIEvent.SwapQueue -> {
+                    mediaPlayerHandler.swap(uiEvent.from, uiEvent.to)
+                }
+
                 UIEvent.ToggleLike -> {
                     Logger.w(tag, "ToggleLike")
                     mediaPlayerHandler.onPlayerEvent(PlayerEvent.ToggleLike)
@@ -1944,6 +1952,13 @@ sealed class UIEvent {
     data object Stop : UIEvent()
 
     data object Shuffle : UIEvent()
+
+    data object ShuffleQueue : UIEvent()
+
+    data class SwapQueue(
+        val from: Int,
+        val to: Int,
+    ) : UIEvent()
 
     data object Repeat : UIEvent()
 

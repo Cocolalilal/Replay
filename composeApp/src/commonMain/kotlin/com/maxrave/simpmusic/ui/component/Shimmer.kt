@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,20 +24,36 @@ import com.maxrave.simpmusic.extension.shimmer
 import com.maxrave.simpmusic.ui.theme.LocalAppColors
 
 @Composable
+fun HomeHeroShimmer() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(240.dp)
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(LocalAppColors.current.shimmerBackground)
+            .shimmer(),
+    )
+}
+
+@Composable
 fun HomeItemShimmer() {
-    Column {
+    Column(Modifier.padding(vertical = 8.dp)) {
         Box(
             Modifier
-                .width(150.dp)
-                .height(36.dp)
-                .padding(vertical = 8.dp)
-                .background(
-                    color = LocalAppColors.current.shimmerBackground,
-                ).clip(RoundedCornerShape(10))
+                .width(180.dp)
+                .height(24.dp)
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(LocalAppColors.current.shimmerBackground)
                 .shimmer(),
         )
-        LazyRow(userScrollEnabled = false) {
-            items(10) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            Modifier.padding(horizontal = 16.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        ) {
+            repeat(3) {
                 PlaylistShimmer()
             }
         }
@@ -46,40 +63,32 @@ fun HomeItemShimmer() {
 @Composable
 fun PlaylistShimmer() {
     Column(
-        Modifier
-            .height(270.dp)
-            .padding(10.dp),
+        Modifier.width(150.dp),
     ) {
         Box(
             Modifier
-                .size(160.dp)
-                .clip(
-                    RoundedCornerShape(10),
-                ).background(
-                    color = LocalAppColors.current.shimmerBackground,
-                ).shimmer(),
+                .size(150.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(LocalAppColors.current.shimmerBackground)
+                .shimmer(),
         )
-        Spacer(modifier = Modifier.size(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Box(
             Modifier
-                .width(130.dp)
-                .height(18.dp)
-                .clip(
-                    RoundedCornerShape(10),
-                ).background(
-                    color = LocalAppColors.current.shimmerBackground,
-                ).shimmer(),
+                .width(120.dp)
+                .height(14.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(LocalAppColors.current.shimmerBackground)
+                .shimmer(),
         )
-        Spacer(modifier = Modifier.size(10.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Box(
             Modifier
-                .width(130.dp)
-                .height(18.dp)
-                .clip(
-                    RoundedCornerShape(10),
-                ).background(
-                    color = LocalAppColors.current.shimmerBackground,
-                ).shimmer(),
+                .width(80.dp)
+                .height(12.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(LocalAppColors.current.shimmerBackground)
+                .shimmer(),
         )
     }
 }
@@ -88,36 +97,37 @@ fun PlaylistShimmer() {
 fun QuickPicksShimmerItem() {
     Row(
         Modifier
-            .height(70.dp)
-            .padding(10.dp),
+            .fillMaxWidth()
+            .height(56.dp)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(10))
+                .size(48.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(LocalAppColors.current.shimmerBackground)
                 .shimmer(),
         )
+        Spacer(modifier = Modifier.width(12.dp))
         Column(
-            Modifier
-                .padding(start = 10.dp)
-                .wrapContentHeight(align = Alignment.CenterVertically)
-                .align(Alignment.CenterVertically),
+            Modifier.weight(1f),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         ) {
             Box(
                 Modifier
-                    .width(300.dp)
-                    .height(21.dp)
-                    .clip(RoundedCornerShape(10))
+                    .fillMaxWidth(0.7f)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(4.dp))
                     .background(LocalAppColors.current.shimmerBackground)
                     .shimmer(),
             )
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Box(
                 Modifier
-                    .width(260.dp)
-                    .height(21.dp)
-                    .clip(RoundedCornerShape(10))
+                    .fillMaxWidth(0.45f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
                     .background(LocalAppColors.current.shimmerBackground)
                     .shimmer(),
             )
@@ -127,21 +137,32 @@ fun QuickPicksShimmerItem() {
 
 @Composable
 fun QuickPicksShimmer() {
-    Column {
-        Box(
-            Modifier
-                .width(150.dp)
-                .height(36.dp)
-                .padding(vertical = 8.dp)
-                .background(
-                    color = LocalAppColors.current.shimmerBackground,
-                ).clip(RoundedCornerShape(10))
-                .shimmer(),
-        )
-        LazyColumn(userScrollEnabled = false) {
-            items(4) {
-                QuickPicksShimmerItem()
-            }
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .width(140.dp)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(LocalAppColors.current.shimmerBackground)
+                    .shimmer(),
+            )
+            Box(
+                Modifier
+                    .width(72.dp)
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(LocalAppColors.current.shimmerBackground)
+                    .shimmer(),
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        repeat(4) {
+            QuickPicksShimmerItem()
         }
     }
 }
@@ -149,14 +170,12 @@ fun QuickPicksShimmer() {
 @Composable
 fun HomeShimmer() {
     Column(
-        Modifier.padding(horizontal = 15.dp),
+        Modifier.padding(vertical = 12.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(24.dp),
     ) {
+        HomeHeroShimmer()
         QuickPicksShimmer()
-        LazyColumn(userScrollEnabled = false) {
-            items(10) {
-                HomeItemShimmer()
-            }
-        }
+        HomeItemShimmer()
     }
 }
 

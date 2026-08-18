@@ -41,6 +41,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -105,11 +106,13 @@ import com.maxrave.simpmusic.getPlatform
 import com.maxrave.simpmusic.ui.component.CenterLoadingBox
 import com.maxrave.simpmusic.ui.component.DescriptionView
 import com.maxrave.simpmusic.ui.component.EndOfPage
+import com.maxrave.simpmusic.ui.component.GradientHeartIcon
 import com.maxrave.simpmusic.ui.component.HeartCheckBox
 import com.maxrave.simpmusic.ui.component.LiquidGlassIconButton
 import com.maxrave.simpmusic.ui.component.LoadingDialog
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.PlaylistBottomSheet
+import com.maxrave.simpmusic.util.resolvePlaylistCover
 import com.maxrave.simpmusic.ui.component.RippleIconButton
 import com.maxrave.simpmusic.ui.component.SongFullWidthItems
 import com.maxrave.simpmusic.ui.component.liquidGlass
@@ -163,8 +166,16 @@ import simpmusic.composeapp.generated.resources.error
 import simpmusic.composeapp.generated.resources.no_description
 import simpmusic.composeapp.generated.resources.playlist
 import simpmusic.composeapp.generated.resources.radio
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.simpmusic.ui.component.SuggestItems
+import simpmusic.composeapp.generated.resources.reload
 import simpmusic.composeapp.generated.resources.search
+import simpmusic.composeapp.generated.resources.suggest
 import simpmusic.composeapp.generated.resources.unlimited
+import androidx.compose.ui.text.font.FontWeight
+import com.maxrave.common.Config
+import com.maxrave.domain.mediaservice.handler.PlaylistType
+import com.maxrave.domain.mediaservice.handler.QueueData
 
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -174,13 +185,12 @@ fun PlaylistScreen(
     playlistId: String,
     isYourYouTubePlaylist: Boolean,
     navController: NavController,
-    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
+    onScrolling: (isAtTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
-    // Home shelves navigate with the browseEndpoint id, which is "VL" + the playlist id
-    // (HomeParser reads title.runs[0].navigationEndpoint.browseEndpoint.browseId). Every radio
-    // prefix check and the watch endpoint expect the bare id, so normalise once on the way in
-    // rather than stripping "VL" again at each consumer.
-    val id = playlistId.removePrefix("VL")
+    val id = if (playlistId.startsWith("VL")) playlistId.removePrefix("VL") else playlistId
+    var isDownloaded by rememberSaveable { mutableStateOf(false) }
+    var isSavedToLocal by rememberSaveable { mutableStateOf(false) }
+
     val tag = "PlaylistScreen"
 
     val composition by rememberLottieComposition {
@@ -195,6 +205,29 @@ fun PlaylistScreen(
     val liked by viewModel.liked.collectAsStateWithLifecycle()
     val tracks by viewModel.tracks.collectAsStateWithLifecycle()
     val tracksListState by viewModel.tracksListState.collectAsStateWithLifecycle()
+
+    val dataStoreManager: DataStoreManager = koinInject()
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+    val customCoverUri = remember(customCoversMap, id, playlistId) {
+        resolvePlaylistCover(id, null, customCoversMap)
+            ?: resolvePlaylistCover(playlistId, null, customCoversMap)
+    }
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val isLoadingSuggestions by viewModel.isLoadingSuggestions.collectAsStateWithLifecycle()
+
+    LaunchedEffect(id) {
+        viewModel.getSuggestions(id)
+    }
 
     var showSearchBar by rememberSaveable { mutableStateOf(false) }
     var searchBarHeightPx by remember { mutableStateOf(0) }
@@ -469,6 +502,9 @@ fun PlaylistScreen(
                                     Column(
                                         horizontalAlignment = Alignment.Start,
                                     ) {
+                                        val isLikedSongs = id == "LM" || id == "VLLM" || id == "favorite_songs" || data.id == "LM" || data.id == "VLLM" || data.id == "favorite_songs" || (data.title.contains("Liked", ignoreCase = true) && !data.isRadio)
+                                        val displayTitle = if (isLikedSongs) "Liked Songs" else data.title
+                                        val activeThumbnail = customCoverUri ?: data.thumbnail
                                         if (isMobilePortrait) {
                                             // Apple Music-style: edge-to-edge artwork + liquid glass buttons.
                                             // Glass buttons MUST be siblings of the backdrop source (not children)
@@ -482,26 +518,35 @@ fun PlaylistScreen(
                                             ) {
                                                 // Inner Box — backdrop SOURCE (artwork + overlays only, NO glass)
                                                 Box(modifier = Modifier.fillMaxSize().layerBackdrop(artworkBackdrop)) {
-                                                    AsyncImage(
-                                                        model =
-                                                            ImageRequest
-                                                                .Builder(LocalPlatformContext.current)
-                                                                .data(data.thumbnail)
-                                                                .diskCachePolicy(CachePolicy.ENABLED)
-                                                                .memoryCachePolicy(CachePolicy.ENABLED)
-                                                                .diskCacheKey(data.thumbnail)
-                                                                .memoryCacheKey(data.thumbnail)
-                                                                .crossfade(false)
-                                                                .build(),
-                                                        placeholder = rememberHolderPainter(),
-                                                        error = rememberHolderPainter(),
-                                                        contentDescription = null,
-                                                        contentScale = ContentScale.Crop,
-                                                        onSuccess = {
-                                                            bitmap = it.result.image.toImageBitmap()
-                                                        },
-                                                        modifier = Modifier.fillMaxSize(),
-                                                    )
+                                                    if (customCoverUri == null && (isLikedSongs || activeThumbnail.isNullOrEmpty())) {
+                                                        Box(
+                                                            modifier = Modifier.fillMaxSize().background(Color(0xFF141416)),
+                                                            contentAlignment = Alignment.Center,
+                                                        ) {
+                                                            GradientHeartIcon(size = 96.dp)
+                                                        }
+                                                    } else {
+                                                        AsyncImage(
+                                                            model =
+                                                                ImageRequest
+                                                                    .Builder(LocalPlatformContext.current)
+                                                                    .data(activeThumbnail)
+                                                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                                                    .memoryCachePolicy(CachePolicy.ENABLED)
+                                                                    .diskCacheKey(activeThumbnail)
+                                                                    .memoryCacheKey(activeThumbnail)
+                                                                    .crossfade(false)
+                                                                    .build(),
+                                                            placeholder = rememberHolderPainter(),
+                                                            error = rememberHolderPainter(),
+                                                            contentDescription = null,
+                                                            contentScale = ContentScale.Crop,
+                                                            onSuccess = {
+                                                                bitmap = it.result.image.toImageBitmap()
+                                                            },
+                                                            modifier = Modifier.fillMaxSize(),
+                                                        )
+                                                    }
                                                     // Scrim spans 70% of the artwork (not a fixed 200dp): the
                                                     // shorter the ramp, the steeper the alpha, and a steep ramp
                                                     // is what makes the fade read as an edge. See
@@ -524,7 +569,7 @@ fun PlaylistScreen(
                                                         horizontalAlignment = Alignment.CenterHorizontally,
                                                     ) {
                                                         Text(
-                                                            text = data.title,
+                                                            text = displayTitle,
                                                             style = typo().titleLarge,
                                                             color = Color.White,
                                                             maxLines = 2,
@@ -634,29 +679,43 @@ fun PlaylistScreen(
                                                 }
                                             }
                                         } else {
-                                            AsyncImage(
-                                                model =
-                                                    ImageRequest
-                                                        .Builder(LocalPlatformContext.current)
-                                                        .data(data.thumbnail)
-                                                        .diskCachePolicy(CachePolicy.ENABLED)
-                                                        .diskCacheKey(data.thumbnail)
-                                                        .crossfade(true)
-                                                        .build(),
-                                                placeholder = rememberHolderPainter(),
-                                                error = rememberHolderPainter(),
-                                                contentDescription = null,
-                                                contentScale = ContentScale.FillHeight,
-                                                onSuccess = {
-                                                    bitmap = it.result.image.toImageBitmap()
-                                                },
-                                                modifier =
-                                                    Modifier
-                                                        .height(artworkSizeDp.dp)
-                                                        .wrapContentWidth()
-                                                        .align(Alignment.CenterHorizontally)
-                                                        .clip(RoundedCornerShape(8.dp)),
-                                            )
+                                            if (customCoverUri == null && (isLikedSongs || activeThumbnail.isNullOrEmpty())) {
+                                                Box(
+                                                    modifier =
+                                                        Modifier
+                                                            .size(artworkSizeDp.dp)
+                                                            .align(Alignment.CenterHorizontally)
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .background(Color(0xFF141416)),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    GradientHeartIcon(size = 72.dp)
+                                                }
+                                            } else {
+                                                AsyncImage(
+                                                    model =
+                                                        ImageRequest
+                                                            .Builder(LocalPlatformContext.current)
+                                                            .data(activeThumbnail)
+                                                            .diskCachePolicy(CachePolicy.ENABLED)
+                                                            .diskCacheKey(activeThumbnail)
+                                                            .crossfade(true)
+                                                            .build(),
+                                                    placeholder = rememberHolderPainter(),
+                                                    error = rememberHolderPainter(),
+                                                    contentDescription = null,
+                                                    contentScale = ContentScale.FillHeight,
+                                                    onSuccess = {
+                                                        bitmap = it.result.image.toImageBitmap()
+                                                    },
+                                                    modifier =
+                                                        Modifier
+                                                            .height(artworkSizeDp.dp)
+                                                            .wrapContentWidth()
+                                                            .align(Alignment.CenterHorizontally)
+                                                            .clip(RoundedCornerShape(8.dp)),
+                                                )
+                                            }
                                         }
                                         Box(
                                             modifier =
@@ -668,8 +727,8 @@ fun PlaylistScreen(
                                                 if (!isMobilePortrait) {
                                                     Spacer(modifier = Modifier.size(25.dp))
                                                     Text(
-                                                        text = data.title,
-                                                        style = typo().titleMedium,
+                                                        text = displayTitle,
+                                                        style = typo().titleLarge.copy(fontSize = 24.sp),
                                                         color = Color.White,
                                                         maxLines = 2,
                                                     )
@@ -697,7 +756,7 @@ fun PlaylistScreen(
                                                             ) {
                                                                 Text(
                                                                     text = data.author.name,
-                                                                    style = typo().labelSmall,
+                                                                    style = typo().titleSmall,
                                                                     color = Color.White,
                                                                 )
                                                             }
@@ -1093,6 +1152,71 @@ fun PlaylistScreen(
                             }
                         }
                     }
+                    if (!showSearchBar && (suggestions != null || isLoadingSuggestions)) {
+                        item(key = "playlist_suggestions_section") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        text = stringResource(Res.string.suggest),
+                                        style = typo().titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    TextButton(
+                                        onClick = { viewModel.reloadSuggestions() },
+                                    ) {
+                                        Text(
+                                            text = stringResource(Res.string.reload),
+                                            color = Color(0xFF8BA7C4),
+                                            style = typo().bodySmall,
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                if (isLoadingSuggestions && suggestions == null) {
+                                    CenterLoadingBox(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(100.dp),
+                                    )
+                                } else {
+                                    suggestions?.songs?.forEach { track ->
+                                        SuggestItems(
+                                            forceDark = true,
+                                            track = track,
+                                            isPlaying = playingTrack?.videoId == track.videoId,
+                                            onClickListener = {
+                                                val firstTrack = track
+                                                val videoId = track.videoId
+                                                sharedViewModel.setQueueData(
+                                                    QueueData.Data(
+                                                        listTracks = arrayListOf(firstTrack),
+                                                        firstPlayedTrack = firstTrack,
+                                                        playlistId = "RDAMVM$videoId",
+                                                        playlistName = "\"${track.title}\" Radio",
+                                                        playlistType = PlaylistType.RADIO,
+                                                        continuation = null,
+                                                    ),
+                                                )
+                                                sharedViewModel.loadMediaItem(firstTrack, Config.SONG_CLICK)
+                                            },
+                                            onAddClickListener = {
+                                                viewModel.addSuggestionTrack(id, track)
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     when (tracksListState) {
                         ListState.IDLE -> {
                             // DO NOTHING
@@ -1227,6 +1351,7 @@ fun PlaylistScreen(
 
                 if (itemBottomSheetShow && currentItem != null) {
                     val track = currentItem?.toSongEntity() ?: return@Crossfade
+                    val videoId = currentItem?.videoId ?: ""
                     NowPlayingBottomSheet(
                         onDismiss = {
                             itemBottomSheetShow = false
@@ -1234,6 +1359,17 @@ fun PlaylistScreen(
                         },
                         navController = navController,
                         song = track,
+                        onDelete =
+                            if (isYourYouTubePlaylist && !data.isRadio) {
+                                {
+                                    viewModel.removeTrackFromPlaylist(
+                                        playlistId = data.id,
+                                        videoId = videoId,
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                     )
                 }
                 if (playlistBottomSheetShow) {
@@ -1250,6 +1386,11 @@ fun PlaylistScreen(
                         playlistId = data.id,
                         playlistName = data.title,
                         isYourYouTubePlaylist = isYourYouTubePlaylist && !data.isRadio,
+                        onDelete = {
+                            viewModel.deletePlaylist(data.id) {
+                                navController.navigateUp()
+                            }
+                        },
                         onSaveToLocal = {
                             viewModel.getFullTracks { track ->
                                 viewModel.saveToLocal(track)

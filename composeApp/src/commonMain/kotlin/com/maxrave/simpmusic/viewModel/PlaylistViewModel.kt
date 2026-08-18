@@ -171,6 +171,8 @@ class PlaylistViewModel(
         }
     }
 
+    private var likedSongsLiveJob: Job? = null
+
     private fun resetData() {
         _uiState.value = Loading
         _playlistEntity.value = null
@@ -178,10 +180,41 @@ class PlaylistViewModel(
         _listColors.value = emptyList()
         checkDownloadedPlaylist?.cancel()
         checkDownloadedPlaylist = null
+        likedSongsLiveJob?.cancel()
+        likedSongsLiveJob = null
+    }
+
+    private fun observeLikedSongsLive(id: String) {
+        likedSongsLiveJob?.cancel()
+        if (id == "LM" || id == "VLLM" || id == "favorite_songs") {
+            likedSongsLiveJob = viewModelScope.launch {
+                songRepository.getLikedSongs().collectLatest { likedEntities ->
+                    val liveTracks = likedEntities
+                        .filter { it.favoriteAt != null && it.favoriteAt != Config.REMOVED_SONG_DATE_TIME }
+                        .map { it.toTrack() }
+                    if (liveTracks.isNotEmpty()) {
+                        _tracks.value = liveTracks
+                        _uiState.update { current ->
+                            val currentData = current.data
+                            if (current is Success && currentData != null) {
+                                Success(
+                                    data = currentData.copy(
+                                        trackCount = liveTracks.size,
+                                    ),
+                                )
+                            } else {
+                                current
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun getData(id: String) {
         resetData()
+        observeLikedSongsLive(id)
         viewModelScope.launch {
             // Check radio
             if (id.isRadioPlaylistId()) {
@@ -674,6 +707,115 @@ class PlaylistViewModel(
                         }
                     }
                 }
+        }
+    }
+
+    fun removeTrackFromPlaylist(
+        playlistId: String,
+        videoId: String,
+        setVideoId: String? = null,
+    ) {
+        viewModelScope.launch {
+            playlistRepository.removeTrackFromPlaylist(playlistId, videoId, setVideoId.orEmpty()).collectLatest { res ->
+                if (res is Resource.Success) {
+                    _tracks.update { it.filterNot { t -> t.videoId == videoId } }
+                    makeToast("Song removed from playlist")
+                } else if (res is Resource.Error) {
+                    makeToast(res.message ?: "Failed to remove song")
+                }
+            }
+        }
+    }
+
+    fun editPlaylistDetails(
+        playlistId: String,
+        title: String? = null,
+        description: String? = null,
+        privacyStatus: String? = null,
+    ) {
+        viewModelScope.launch {
+            playlistRepository.editPlaylist(playlistId, title, description, privacyStatus).collectLatest { res ->
+                if (res is Resource.Success) {
+                    getData(playlistId)
+                    makeToast("Playlist updated")
+                } else if (res is Resource.Error) {
+                    makeToast(res.message ?: "Failed to update playlist")
+                }
+            }
+        }
+    }
+
+    fun deletePlaylist(
+        playlistId: String,
+        onDeleted: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            playlistRepository.deletePlaylist(playlistId).collectLatest { res ->
+                if (res is Resource.Success) {
+                    makeToast("Playlist deleted")
+                    onDeleted()
+                } else if (res is Resource.Error) {
+                    makeToast(res.message ?: "Failed to delete playlist")
+                }
+            }
+        }
+    }
+
+    private val _suggestions = MutableStateFlow<LocalPlaylistState.SuggestionSongs?>(null)
+    val suggestions: StateFlow<LocalPlaylistState.SuggestionSongs?> = _suggestions
+
+    private val _isLoadingSuggestions = MutableStateFlow(false)
+    val isLoadingSuggestions: StateFlow<Boolean> = _isLoadingSuggestions
+
+    private var lastPlaylistIdForSuggestions: String? = null
+
+    fun getSuggestions(playlistId: String) {
+        lastPlaylistIdForSuggestions = playlistId
+        _isLoadingSuggestions.value = true
+        viewModelScope.launch {
+            try {
+                playlistRepository.getPlaylistSuggestions(playlistId).collectLatest { res ->
+                    when (res) {
+                        is Resource.Success -> {
+                            val data = res.data
+                            val reloadParams = data?.first
+                            val songs = data?.second
+                            if (songs != null) {
+                                _suggestions.value = LocalPlaylistState.SuggestionSongs(reloadParams ?: "", songs)
+                            } else {
+                                _suggestions.value = null
+                            }
+                            _isLoadingSuggestions.value = false
+                        }
+                        is Resource.Error -> {
+                            _isLoadingSuggestions.value = false
+                            _suggestions.value = null
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                _isLoadingSuggestions.value = false
+            }
+        }
+    }
+
+    fun reloadSuggestions() {
+        val pid = lastPlaylistIdForSuggestions ?: return
+        getSuggestions(pid)
+    }
+
+    fun addSuggestionTrack(playlistId: String, track: Track) {
+        viewModelScope.launch {
+            playlistRepository.addTrackToPlaylist(playlistId, track.videoId).collectLatest { res ->
+                if (res is Resource.Success) {
+                    val current = _suggestions.value
+                    if (current != null) {
+                        val remaining = current.songs.filterNot { it.videoId == track.videoId }
+                        _suggestions.value = current.copy(songs = remaining)
+                    }
+                    getFullTracks {}
+                }
+            }
         }
     }
 

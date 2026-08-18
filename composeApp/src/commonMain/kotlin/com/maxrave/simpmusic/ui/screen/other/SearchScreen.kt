@@ -9,7 +9,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -111,6 +113,7 @@ import com.maxrave.simpmusic.ui.component.Chip
 import com.maxrave.simpmusic.ui.component.EndOfPage
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.PlaylistFullWidthItems
+import com.maxrave.simpmusic.ui.component.ReplayConfirmationDialog
 import com.maxrave.simpmusic.ui.component.ShimmerSearchItem
 import com.maxrave.simpmusic.ui.component.SimpMusicChartButton
 import com.maxrave.simpmusic.ui.component.SongFullWidthItems
@@ -173,13 +176,7 @@ fun SearchScreen(
     val moodArtwork by searchViewModel.moodArtwork.collectAsStateWithLifecycle()
 
     var searchUIType by rememberSaveable { mutableStateOf(SearchUIType.EMPTY) }
-    var searchText by rememberSaveable { mutableStateOf("") }
     var isSearchSubmitted by rememberSaveable { mutableStateOf(false) }
-    var isExpanded by rememberSaveable { mutableStateOf(false) }
-
-    val focusRequester = remember { FocusRequester() }
-
-    var isFocused by rememberSaveable { mutableStateOf(false) }
 
     // The bar floats OVER the content (a Box, not a Column) so there is something behind it to
     // blur — same arrangement HomeScreen uses. Each branch owns a scroll state, hoisted here so
@@ -213,68 +210,16 @@ fun SearchScreen(
         }
     }
 
-    val searchForString = stringResource(Res.string.search_for)
-    val songString = stringResource(Res.string.song).lowercase()
-    val artistString = stringResource(Res.string.artists).lowercase()
-    val albumString = stringResource(Res.string.albums).lowercase()
-    val playlistString = stringResource(Res.string.playlists).lowercase()
-    val videoString = stringResource(Res.string.videos).lowercase()
-    val podcastString = stringResource(Res.string.podcasts).lowercase()
-
-    // Animated Placeholder
-    val placeholderTexts =
-        remember {
-            listOf(
-                "$searchForString $songString...",
-                "$searchForString $artistString...",
-                "$searchForString $albumString...",
-                "$searchForString $playlistString...",
-                "$searchForString $videoString...",
-                "$searchForString $podcastString...",
-            )
-        }
-
-    var currentPlaceholderIndex by remember { mutableIntStateOf(0) }
-
-    // Animate placeholder - pause when focused
-    LaunchedEffect(isFocused) {
-        while (!isFocused) {
-            delay(3000) // Change every 3 seconds
-            currentPlaceholderIndex = (currentPlaceholderIndex + 1) % placeholderTexts.size
-        }
-    }
-
     var sheetSong by remember { mutableStateOf<SongEntity?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
     val currentVideoId by searchViewModel.nowPlayingVideoId.collectAsStateWithLifecycle()
     val chipRowState = rememberScrollState()
     val pullToRefreshState = rememberPullToRefreshState()
+    var showClearHistoryDialog by remember { mutableStateOf(false) }
 
     val onMoreClick: (SongEntity) -> Unit = { song ->
         sheetSong = song
         showBottomSheet = true
-    }
-
-    LaunchedEffect(searchText) {
-        if (isFocused) {
-            isSearchSubmitted = false
-            isExpanded = true
-        }
-        if (searchText.isNotEmpty() && isFocused) {
-            searchViewModel.suggestQuery(searchText)
-        }
-    }
-
-    LaunchedEffect(isSearchSubmitted) {
-        if (isSearchSubmitted) {
-            isExpanded = false
-        }
-    }
-
-    LaunchedEffect(isFocused) {
-        if (isFocused) {
-            isExpanded = true
-        }
     }
 
     // The bar itself lives in the liquid-glass bottom navigation, not on this screen, so the
@@ -302,6 +247,18 @@ fun SearchScreen(
             },
             navController = navController,
             song = sheetSong,
+        )
+    }
+
+    if (showClearHistoryDialog) {
+        ReplayConfirmationDialog(
+            title = stringResource(Res.string.clear_search_history),
+            message = "Are you sure you want to clear your entire search history? This action cannot be undone.",
+            confirmText = "Clear",
+            onConfirm = {
+                searchViewModel.deleteSearchHistory()
+            },
+            onDismiss = { showClearHistoryDialog = false },
         )
     }
 
@@ -357,11 +314,19 @@ fun SearchScreen(
                                         }
 
                                         is PlaylistsResult -> {
-                                            navController.navigate(
-                                                PlaylistDestination(
-                                                    item.browseId,
-                                                ),
-                                            )
+                                            if (item.resultType == "Podcast") {
+                                                navController.navigate(
+                                                    PodcastDestination(
+                                                        item.browseId,
+                                                    ),
+                                                )
+                                            } else {
+                                                navController.navigate(
+                                                    PlaylistDestination(
+                                                        item.browseId,
+                                                    ),
+                                                )
+                                            }
                                         }
                                     }
                                 },
@@ -380,16 +345,7 @@ fun SearchScreen(
                                                 focusManager.clearFocus()
                                                 isSearchSubmitted = true
                                                 searchViewModel.insertSearchHistory(suggestion)
-                                                when (searchScreenState.searchType) {
-                                                    SearchType.ALL -> searchViewModel.searchAll(suggestion)
-                                                    SearchType.SONGS -> searchViewModel.searchSongs(suggestion)
-                                                    SearchType.VIDEOS -> searchViewModel.searchVideos(suggestion)
-                                                    SearchType.ALBUMS -> searchViewModel.searchAlbums(suggestion)
-                                                    SearchType.ARTISTS -> searchViewModel.searchArtists(suggestion)
-                                                    SearchType.PLAYLISTS -> searchViewModel.searchPlaylists(suggestion)
-                                                    SearchType.FEATURED_PLAYLISTS -> searchViewModel.searchFeaturedPlaylist(suggestion)
-                                                    SearchType.PODCASTS -> searchViewModel.searchPodcast(suggestion)
-                                                }
+                                                searchViewModel.searchAll(suggestion)
                                             },
                                         ).padding(horizontal = 12.dp, vertical = 2.dp)
                                         .clip(RoundedCornerShape(8.dp)),
@@ -403,7 +359,6 @@ fun SearchScreen(
                                 IconButton(
                                     onClick = {
                                         searchViewModel.setSearchBarQuery(suggestion)
-                                        focusRequester.requestFocus()
                                     },
                                 ) {
                                     Icon(
@@ -446,7 +401,7 @@ fun SearchScreen(
                                                     .background(MaterialTheme.colorScheme.background),
                                         ) {
                                             TextButton(
-                                                onClick = { searchViewModel.deleteSearchHistory() },
+                                                onClick = { showClearHistoryDialog = true },
                                             ) {
                                                 Text(
                                                     text = stringResource(Res.string.clear_search_history),
@@ -467,16 +422,7 @@ fun SearchScreen(
                                                 focusManager.clearFocus()
                                                 isSearchSubmitted = true
                                                 searchViewModel.insertSearchHistory(historyItem)
-                                                when (searchScreenState.searchType) {
-                                                    SearchType.ALL -> searchViewModel.searchAll(historyItem)
-                                                    SearchType.SONGS -> searchViewModel.searchSongs(historyItem)
-                                                    SearchType.VIDEOS -> searchViewModel.searchVideos(historyItem)
-                                                    SearchType.ALBUMS -> searchViewModel.searchAlbums(historyItem)
-                                                    SearchType.ARTISTS -> searchViewModel.searchArtists(historyItem)
-                                                    SearchType.PLAYLISTS -> searchViewModel.searchPlaylists(historyItem)
-                                                    SearchType.FEATURED_PLAYLISTS -> searchViewModel.searchFeaturedPlaylist(historyItem)
-                                                    SearchType.PODCASTS -> searchViewModel.searchPodcast(historyItem)
-                                                }
+                                                searchViewModel.searchAll(historyItem)
                                             }.padding(horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
@@ -494,7 +440,6 @@ fun SearchScreen(
                                     IconButton(
                                         onClick = {
                                             searchViewModel.setSearchBarQuery(historyItem)
-                                            focusRequester.requestFocus()
                                         },
                                     ) {
                                         Icon(
@@ -517,98 +462,138 @@ fun SearchScreen(
                 SearchUIType.EMPTY -> {
                     val mood = moodAndGenres
                     if (mood == null) {
-                        // First run only: the repository serves its cached copy before hitting the
-                        // network, so this spinner is never seen again after the first fetch.
                         CenterLoadingBox(Modifier.fillMaxSize())
                     } else {
-                        // Capped and centred: on a wide desktop window the grid would otherwise
-                        // span the whole width, stretching four tiles into long bars. 1100.dp
-                        // keeps a tile near 250.dp, which is its natural size.
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.TopCenter,
                         ) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(moodGridColumns),
-                            modifier =
-                                Modifier
-                                    .fillMaxHeight()
-                                    .widthIn(max = 1100.dp)
-                                    .padding(horizontal = 16.dp),
-                            state = moodGridState,
-                            contentPadding = PaddingValues(top = searchBarHeight),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                Column(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            // Breathing room on both sides of this block: above it
-                                            // sits the floating search bar, below it the tile grid.
-                                            .padding(top = 36.dp, bottom = 20.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(moodGridColumns),
+                                modifier =
+                                    Modifier
+                                        .fillMaxHeight()
+                                        .widthIn(max = 1100.dp)
+                                        .padding(horizontal = 16.dp),
+                                state = moodGridState,
+                                contentPadding = PaddingValues(top = searchBarHeight),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                if (searchHistory.isNotEmpty()) {
+                                    item(span = { GridItemSpan(maxLineSpan) }) {
+                                        Column(
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 16.dp, bottom = 8.dp),
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(
+                                                    text = "Recent Searches",
+                                                    style = typo().titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                                TextButton(
+                                                    onClick = {
+                                                        searchViewModel.deleteSearchHistory()
+                                                    },
+                                                ) {
+                                                    Text(
+                                                        text = stringResource(Res.string.clear_search_history),
+                                                        color = Color(0xFF8BA7C4),
+                                                        style = typo().bodySmall,
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Row(
+                                                modifier =
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .horizontalScroll(rememberScrollState()),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                searchHistory.take(8).forEach { queryText ->
+                                                    Box(
+                                                        modifier =
+                                                            Modifier
+                                                                .clip(RoundedCornerShape(50))
+                                                                .background(Color(0xFF15181C))
+                                                                .border(BorderStroke(1.dp, Color(0xFF242830)), RoundedCornerShape(50))
+                                                                .clickable {
+                                                                    searchViewModel.setSearchBarQuery(queryText)
+                                                                    focusManager.clearFocus()
+                                                                    isSearchSubmitted = true
+                                                                    searchViewModel.insertSearchHistory(queryText)
+                                                                    searchViewModel.searchAll(queryText)
+                                                                }
+                                                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = SimpIcons.History,
+                                                                contentDescription = null,
+                                                                tint = Color(0xFF8BA7C4),
+                                                                modifier = Modifier.size(14.dp),
+                                                            )
+                                                            Text(
+                                                                text = queryText,
+                                                                style = typo().bodyMedium,
+                                                                color = Color.White,
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                item(span = { GridItemSpan(maxLineSpan) }) {
                                     Text(
-                                        text = stringResource(Res.string.everything_you_need),
+                                        text = "Browse Categories",
                                         style = typo().titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth(),
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        modifier = Modifier.padding(top = if (searchHistory.isNotEmpty()) 12.dp else 24.dp, bottom = 4.dp),
                                     )
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Text(
-                                        text = stringResource(Res.string.search_for_songs_artists_albums_playlists_and_more),
-                                        style = typo().bodyMedium,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    SimpMusicChartButton(
-                                        modifier = Modifier.padding(top = 10.dp),
-                                    ) {
-                                        uriHandler.openUri("https://chart.simpmusic.org")
+                                }
+                                mood.sections.forEachIndexed { index, section ->
+                                    if (index > 0) {
+                                        item(span = { GridItemSpan(maxLineSpan) }) {
+                                            Text(
+                                                text = section.title,
+                                                style = typo().titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onBackground,
+                                                modifier = Modifier.padding(top = 12.dp),
+                                            )
+                                        }
+                                    }
+                                    items(section.items, key = { "${section.title}/${it.params}" }) { item ->
+                                        LaunchedEffect(item.params) {
+                                            searchViewModel.loadMoodArtwork(item.params)
+                                        }
+                                        MoodCategoryCard(
+                                            title = item.title,
+                                            artworkUrl = moodArtwork[item.params],
+                                        ) {
+                                            navController.navigate(MoodDestination(item.params))
+                                        }
                                     }
                                 }
-                            }
-                            mood.sections.forEachIndexed { index, section ->
-                                // First section runs straight on from the header block above it,
-                                // so its own heading would just be a second title in a row.
-                                if (index > 0) {
-                                    item(span = { GridItemSpan(maxLineSpan) }) {
-                                        Text(
-                                            // Section titles come from YouTube already localised,
-                                            // so there is no string resource to pick here.
-                                            text = section.title,
-                                            style = typo().titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onBackground,
-                                            modifier = Modifier.padding(top = 8.dp),
-                                        )
-                                    }
-                                }
-                                // Key must include the section: every section lives in this ONE
-                                // grid, and "For you" repeats categories that also appear under
-                                // Moods or Genres, so params alone collides.
-                                items(section.items, key = { "${section.title}/${it.params}" }) { item ->
-                                    // LazyVerticalGrid only composes tiles inside the viewport, so
-                                    // putting the request here IS the laziness — a category the
-                                    // user never scrolls to never costs a browse.
-                                    LaunchedEffect(item.params) {
-                                        searchViewModel.loadMoodArtwork(item.params)
-                                    }
-                                    MoodCategoryCard(
-                                        title = item.title,
-                                        artworkUrl = moodArtwork[item.params],
-                                    ) {
-                                        navController.navigate(MoodDestination(item.params))
-                                    }
+                                item(span = { GridItemSpan(maxLineSpan) }) {
+                                    EndOfPage()
                                 }
                             }
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                EndOfPage()
-                            }
-                        }
                         }
                     }
                 }

@@ -106,9 +106,9 @@ private fun LiquidBottomTabs(
     val scope = rememberCoroutineScope()
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val isDark = isSystemInDarkTheme()
-    val containerColor = Color(if (isDark) 0xFF1E1E1E else 0xFFFAFAFA).copy(alpha = 0.18f)
+    val containerColor = Color(if (isDark) 0xFF1E1E1E else 0xFFFAFAFA).copy(alpha = if (isDark) 0.38f else 0.45f)
     val activeColor = Color(0xFF82BEFF)
-    val inactiveColor = Color.White.copy(alpha = 0.84f)
+    val inactiveColor = if (isDark) Color.White.copy(alpha = 0.84f) else Color.Black.copy(alpha = 0.75f)
 
     val currentIndex = remember {
         mutableIntStateOf(selectedTabIndex.coerceIn(0, tabs.lastIndex))
@@ -138,19 +138,23 @@ private fun LiquidBottomTabs(
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
                 pressedScale = 1.15f,
-                onDragStarted = { _, _ ->
+                onDragStarted = { damped, downOffset ->
                     isDragging[0] = false
+                    val touchedVal = if (isLtr) {
+                        (downOffset.x / tabWidthState.floatValue).coerceIn(0f, (tabs.size - 1).toFloat())
+                    } else {
+                        ((totalWidthPx - downOffset.x) / tabWidthState.floatValue - 1f).coerceIn(0f, (tabs.size - 1).toFloat())
+                    }
+                    damped.updateValue(touchedVal)
                 },
                 onDragStopped = { damped ->
-                    if (isDragging[0]) {
-                        val target = damped.targetValue.roundToInt().coerceIn(0, tabs.lastIndex)
-                        currentIndex.intValue = target
-                        damped.animateToValue(target.toFloat())
-                        onTabSelected(target)
-                    }
+                    val target = damped.targetValue.roundToInt().coerceIn(0, tabs.lastIndex)
+                    currentIndex.intValue = target
+                    damped.animateToValue(target.toFloat())
+                    onTabSelected(target)
                 },
                 onDrag = { damped, _, dragAmount ->
-                    if (dragAmount.x != 0f) {
+                    if (abs(dragAmount.x) > 0.5f) {
                         isDragging[0] = true
                     }
                     val delta = (dragAmount.x / tabWidthState.floatValue) * (if (isLtr) 1f else -1f)
@@ -370,7 +374,7 @@ private fun LiquidBottomTabs(
                 Icon(
                     imageVector = currentTab.icon,
                     contentDescription = currentTab.title,
-                    tint = Color.White,
+                    tint = if (isDark) Color.White else Color.Black,
                     modifier = Modifier.size(24.dp)
                 )
             }

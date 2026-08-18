@@ -137,6 +137,10 @@ import com.maxrave.simpmusic.ui.component.liquidGlass
 import com.maxrave.simpmusic.ui.component.painterPlaylistThumbnail
 import com.maxrave.simpmusic.ui.component.playlistTitleGradient
 import com.maxrave.simpmusic.ui.component.rememberDragDropState
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.simpmusic.util.CustomCoverHelper
+import com.maxrave.simpmusic.util.resolvePlaylistCover
+import org.koin.compose.koinInject
 import com.maxrave.simpmusic.ui.icon.ArrowBackIosNew
 import com.maxrave.simpmusic.ui.icon.DownloadForOffline
 import com.maxrave.simpmusic.ui.icon.MoreVert
@@ -384,13 +388,32 @@ fun LocalPlaylistScreen(
     var bitmap by remember {
         mutableStateOf<ImageBitmap?>(null)
     }
-    // Track which thumbnail we've already extracted a palette from.
-    // Prevents palette flash when LazyColumn recycles the header item on scroll —
-    // AsyncImage re-mount fires onSuccess again, but we skip the regenerate.
+    val dataStoreManager: DataStoreManager = koinInject()
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+    val currentThumbnail = remember(uiState.thumbnail, uiState.id, customCoversMap) {
+        resolvePlaylistCover("local_${uiState.id}", uiState.thumbnail, customCoversMap)
+            ?: resolvePlaylistCover(uiState.id.toString(), uiState.thumbnail, customCoversMap)
+            ?: uiState.thumbnail
+    }
+    val hasCustomCover = remember(currentThumbnail, uiState.thumbnail, customCoversMap, uiState.id) {
+        CustomCoverHelper.hasCustomCover("local_${uiState.id}", customCoversMap)
+            || CustomCoverHelper.hasCustomCover(uiState.id.toString(), customCoversMap)
+            || !uiState.thumbnail.isNullOrBlank()
+    }
+
     var paletteGeneratedFor by remember {
         mutableStateOf<String?>(null)
     }
-    val currentThumbnail = uiState.thumbnail
 
     LaunchedEffect(bitmap) {
         val bm = bitmap
@@ -589,11 +612,11 @@ fun LocalPlaylistScreen(
                                         model =
                                             ImageRequest
                                                 .Builder(LocalPlatformContext.current)
-                                                .data(uiState.thumbnail)
+                                                .data(currentThumbnail)
                                                 .diskCachePolicy(CachePolicy.ENABLED)
                                                 .memoryCachePolicy(CachePolicy.ENABLED)
-                                                .diskCacheKey(uiState.thumbnail)
-                                                .memoryCacheKey(uiState.thumbnail)
+                                                .diskCacheKey(currentThumbnail)
+                                                .memoryCacheKey(currentThumbnail)
                                                 .crossfade(false)
                                                 .build(),
                                         placeholder = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
@@ -753,9 +776,9 @@ fun LocalPlaylistScreen(
                                 model =
                                     ImageRequest
                                         .Builder(LocalPlatformContext.current)
-                                        .data(uiState.thumbnail)
+                                        .data(currentThumbnail)
                                         .diskCachePolicy(CachePolicy.ENABLED)
-                                        .diskCacheKey(uiState.thumbnail)
+                                        .diskCacheKey(currentThumbnail)
                                         .crossfade(550)
                                         .build(),
                                 placeholder = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
@@ -1409,13 +1432,18 @@ fun LocalPlaylistScreen(
             onDismiss = { playlistBottomSheetShow = false },
             title = uiState.title,
             ytPlaylistId = uiState.ytPlaylistId,
+            hasCustomCover = hasCustomCover,
             onEditTitle =
                 { newTitle ->
                     viewModel.updatePlaylistTitle(newTitle, uiState.id)
                 },
             onEditThumbnail =
-                { thumbUri ->
-                    viewModel.updatePlaylistThumbnail(thumbUri, uiState.id)
+                { imageBytes ->
+                    viewModel.updatePlaylistThumbnail(imageBytes, uiState.id)
+                },
+            onRemoveThumbnail =
+                {
+                    viewModel.updatePlaylistThumbnail(null as ByteArray?, uiState.id)
                 },
             onAddToQueue = {
                 viewModel.addAllToQueue()

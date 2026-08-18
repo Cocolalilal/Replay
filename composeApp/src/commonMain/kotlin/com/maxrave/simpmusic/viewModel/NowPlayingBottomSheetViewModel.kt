@@ -399,6 +399,14 @@ class NowPlayingBottomSheetViewModel(
                             }
                         }
                 }
+
+                is NowPlayingBottomSheetUIEvent.NotInterested -> {
+                    makeToast("Feedback submitted: Not interested")
+                }
+
+                is NowPlayingBottomSheetUIEvent.DontRecommendArtist -> {
+                    makeToast("Feedback submitted: Don't recommend ${ev.artistName}")
+                }
             }
         }
     }
@@ -465,4 +473,12 @@ sealed class NowPlayingBottomSheetUIEvent {
     ) : NowPlayingBottomSheetUIEvent()
 
     data object Share : NowPlayingBottomSheetUIEvent()
+
+    data class NotInterested(
+        val videoId: String,
+    ) : NowPlayingBottomSheetUIEvent()
+
+    data class DontRecommendArtist(
+        val artistName: String,
+    ) : NowPlayingBottomSheetUIEvent()
 }

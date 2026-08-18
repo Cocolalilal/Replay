@@ -128,16 +128,19 @@ enum class BackgroundMode {
     QUEUE,
 }
 
+private const val CLOCK_CYCLE_SECONDS = 6300.0 // LCM(18s, 15s, 21s) * 10 for exact 1.7 harmonic loop
+
 @Composable
 private fun rememberTwistClock(running: Boolean): State<Float> {
     val seconds = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(running) {
         if (!running) return@LaunchedEffect
-        val base = seconds.floatValue
+        val base = seconds.floatValue.toDouble()
         val startNanos = System.nanoTime()
         while (isActive) {
             withFrameNanos { frameNanos ->
-                seconds.floatValue = base + (frameNanos - startNanos) / 1_000_000_000f
+                val elapsed = (frameNanos - startNanos) / 1_000_000_000.0
+                seconds.floatValue = ((base + elapsed) % CLOCK_CYCLE_SECONDS).toFloat()
             }
         }
     }
@@ -199,8 +202,7 @@ private fun TwistedArtworkLayer(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                val phase = (clock.value / periodSeconds) % 1.0f
-                val angle = phase * 2.0 * PI
+                val angle = (clock.value / periodSeconds) * (2.0 * PI)
                 rotationZ = (sin(angle).toFloat() * swing) + baseRotation
                 translationX = cos(1.7 * angle).toFloat() * driftAmplitudePx
                 translationY = sin(angle).toFloat() * driftAmplitudePx

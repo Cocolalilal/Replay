@@ -2,16 +2,20 @@ package com.maxrave.simpmusic.ui.screen.home
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.calculateTargetValue
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.splineBasedDecay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.snapping.SnapLayoutInfoProvider
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
@@ -24,9 +28,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -38,6 +50,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.carousel.CarouselDefaults
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -77,15 +90,18 @@ import com.maxrave.common.Config
 import com.maxrave.domain.data.model.browse.album.Track
 import com.maxrave.domain.data.model.home.Content
 import com.maxrave.domain.data.model.home.HomeItem
+import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.mediaservice.handler.PlaylistType
 import com.maxrave.domain.mediaservice.handler.QueueData
 import com.maxrave.domain.utils.connectArtists
 import com.maxrave.domain.utils.toSongEntity
 import com.maxrave.domain.utils.toTrack
+import com.maxrave.simpmusic.util.resolvePlaylistCover
 import com.maxrave.simpmusic.ui.component.EndOfPage
 import com.maxrave.simpmusic.ui.component.HomeShimmer
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.OfflineErrorState
+import com.maxrave.simpmusic.ui.component.PlaylistBottomSheet
 import com.maxrave.simpmusic.ui.component.ReplayTopBar
 import com.maxrave.simpmusic.ui.icon.CloudOff
 import com.maxrave.simpmusic.ui.icon.Favorite
@@ -98,6 +114,7 @@ import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.PlaylistDestination
 import com.maxrave.simpmusic.ui.navigation.destination.login.LoginDestination
+import com.maxrave.simpmusic.ui.navigation.destination.list.PodcastDestination
 import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistType
 import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
 import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
@@ -106,6 +123,7 @@ import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.HomeViewModel
 import com.maxrave.simpmusic.viewModel.ListState
 import com.maxrave.simpmusic.viewModel.SharedViewModel
+import com.maxrave.simpmusic.viewModel.UIEvent
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -136,8 +154,21 @@ fun HomeScreen(
     val nowPlayingData by sharedViewModel.nowPlayingState.collectAsStateWithLifecycle()
     val controllerState by sharedViewModel.controllerState.collectAsStateWithLifecycle()
 
+    val dataStoreManager: DataStoreManager = koinInject()
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
     val pullToRefreshState = rememberPullToRefreshState()
-    var isRefreshing by remember { mutableStateOf(false) }
+    val isRefreshing = isRetrying
 
     val currentNowPlayingVideoId = nowPlayingData?.songEntity?.videoId ?: nowPlayingData?.track?.videoId
     val isPlaying = controllerState.isPlaying
@@ -186,17 +217,7 @@ fun HomeScreen(
     }
 
     val onRefresh: () -> Unit = {
-        isRefreshing = true
         viewModel.retryHome()
-    }
-
-    LaunchedEffect(loading) {
-        if (!loading) {
-            isRefreshing = false
-            coroutineScope.launch {
-                pullToRefreshState.animateToHidden()
-            }
-        }
     }
 
     val shouldStartPaginate = remember {
@@ -212,8 +233,10 @@ fun HomeScreen(
         }
     }
 
-    // Modal bottom sheet state for long-click track options
+    // Modal bottom sheet state for long-click track & item options
     var selectedTrackForSheet by remember { mutableStateOf<Track?>(null) }
+    var selectedItemForSheet by remember { mutableStateOf<Content?>(null) }
+
     if (selectedTrackForSheet != null) {
         NowPlayingBottomSheet(
             onDismiss = { selectedTrackForSheet = null },
@@ -222,8 +245,29 @@ fun HomeScreen(
         )
     }
 
-    val surfaceOutlineColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
-    val carouselOutlineStroke = BorderStroke(2.5.dp, surfaceOutlineColor)
+    if (selectedItemForSheet != null) {
+        val sheetItem = selectedItemForSheet!!
+        val browseId = sheetItem.browseId.orEmpty()
+        if (browseId.isNotEmpty()) {
+            PlaylistBottomSheet(
+                onDismiss = { selectedItemForSheet = null },
+                playlistId = browseId,
+                playlistName = sheetItem.title,
+                thumbnailUrl = sheetItem.thumbnails.lastOrNull()?.url,
+                isYourYouTubePlaylist = false,
+            )
+        }
+    }
+
+    val handleItemLongClick: (Content) -> Unit = { item ->
+        val vid = item.videoId.orEmpty()
+        val browse = item.browseId.orEmpty()
+        if (vid.isNotEmpty()) {
+            selectedTrackForSheet = item.toTrack()
+        } else if (browse.isNotEmpty()) {
+            selectedItemForSheet = item
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -362,16 +406,19 @@ fun HomeScreen(
                             }
                         }
 
-                        // 1. Hero Carousel (WITH 2.5dp OUTLINE - Official M3 Multi-Browse Carousel)
+                        // 1. Hero Carousel (WITH Solid Outline & Long Click - Official M3 Multi-Browse Carousel)
                         if (featuredItems.isNotEmpty()) {
                             item(key = "hero_carousel") {
                                 Material3MultiBrowseCarousel(
                                     items = featuredItems,
-                                    outlineStroke = carouselOutlineStroke,
+                                    customCoversMap = customCoversMap,
                                     onItemClick = { item ->
                                         val vid = item.videoId
                                         val browse = item.browseId
-                                        if (!vid.isNullOrEmpty()) {
+                                        val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid == null)
+                                        if (isLiked) {
+                                            navController.navigate(LibraryDynamicPlaylistDestination(LibraryDynamicPlaylistType.LikedSongs.toStringParams()))
+                                        } else if (!vid.isNullOrEmpty()) {
                                             val firstTrack = item.toTrack()
                                             viewModel.setQueueData(
                                                 QueueData.Data(
@@ -394,6 +441,7 @@ fun HomeScreen(
                                             }
                                         }
                                     },
+                                    onItemLongClick = handleItemLongClick,
                                 )
                             }
                         }
@@ -405,15 +453,29 @@ fun HomeScreen(
                                     homeItem = quickPicksData,
                                     currentPlayingVideoId = currentNowPlayingVideoId,
                                     isPlaying = isPlaying,
+                                    customCoversMap = customCoversMap,
                                     onPlayAllClick = {
-                                        viewModel.playAllQuickPicks(quickPicksData)
+                                        if (isPlaying) {
+                                            sharedViewModel.onUIEvent(UIEvent.PlayPause)
+                                        } else {
+                                            val currentVid = currentNowPlayingVideoId
+                                            val isCurrentInQuickPicks = quickPicksData.contents.any { it?.videoId == currentVid }
+                                            if (isCurrentInQuickPicks && !currentVid.isNullOrEmpty()) {
+                                                sharedViewModel.onUIEvent(UIEvent.PlayPause)
+                                            } else {
+                                                viewModel.playAllQuickPicks(quickPicksData)
+                                            }
+                                        }
                                     },
                                     onTrackClick = { item ->
                                         val vid = item.videoId.orEmpty()
-                                        if (vid.isNotEmpty()) {
+                                        val browse = item.browseId.orEmpty()
+                                        val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid.isEmpty())
+                                        if (isLiked) {
+                                            navController.navigate(LibraryDynamicPlaylistDestination(LibraryDynamicPlaylistType.LikedSongs.toStringParams()))
+                                        } else if (vid.isNotEmpty()) {
                                             viewModel.playQuickPickTrack(quickPicksData, item)
-                                        } else if (!item.browseId.isNullOrEmpty()) {
-                                            val browse = item.browseId.orEmpty()
+                                        } else if (browse.isNotEmpty()) {
                                             if (browse.startsWith("VL") || browse.startsWith("PL")) {
                                                 navController.navigate(PlaylistDestination(browse, isYourYouTubePlaylist = false))
                                             } else if (browse.startsWith("UC") || browse.startsWith("FEmusic_library_privately_owned_artist")) {
@@ -423,11 +485,7 @@ fun HomeScreen(
                                             }
                                         }
                                     },
-                                    onTrackLongClick = { item ->
-                                        if (!item.videoId.isNullOrEmpty()) {
-                                            selectedTrackForSheet = item.toTrack()
-                                        }
-                                    },
+                                    onTrackLongClick = handleItemLongClick,
                                 )
                             }
                         }
@@ -436,10 +494,14 @@ fun HomeScreen(
                         items(lowerSections, key = { it.title + it.hashCode() }) { section ->
                             SectionCarousel(
                                 section = section,
+                                customCoversMap = customCoversMap,
                                 onItemClick = { item ->
                                     val browse = item.browseId.orEmpty()
                                     val vid = item.videoId.orEmpty()
-                                    if (browse.isNotEmpty()) {
+                                    val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid.isEmpty())
+                                    if (isLiked) {
+                                        navController.navigate(LibraryDynamicPlaylistDestination(LibraryDynamicPlaylistType.LikedSongs.toStringParams()))
+                                    } else if (browse.isNotEmpty()) {
                                         if (browse.startsWith("VL") || browse.startsWith("PL")) {
                                             navController.navigate(
                                                 PlaylistDestination(
@@ -467,6 +529,7 @@ fun HomeScreen(
                                         viewModel.loadMediaItem(track, Config.SONG_CLICK)
                                     }
                                 },
+                                onItemLongClick = handleItemLongClick,
                             )
                         }
 
@@ -480,158 +543,515 @@ fun HomeScreen(
     }
 }
 
+private data class CarouselItemVisuals(
+    val x: Float,
+    val width: Float,
+    val alpha: Float,
+    val darkenAlpha: Float,
+    val overlayAlpha: Float,
+    val zIndex: Float,
+    val heightScale: Float,
+)
+
 /**
- * Official Material 3 Multi-Browse Carousel
+ * Physics-Driven 1:1 Square Multi-Browse Carousel:
+ * - Mathematical 1:1 Perfect Square focal entry.
+ * - Multi-item momentum fling physics with spline decay and magnetic spring settling.
+ * - Dynamic continuous dimming: 100% brightness (focal) -> 80% (2nd) -> 60% (3rd & beyond).
+ * - Smooth tuck-under scale and alpha fade on left exit with edge boundary fade on right.
+ * - Seamless symmetric transition at end of list.
+ * - Solid #15181C outline container with 0 peeking.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Material3MultiBrowseCarousel(
     items: List<Content>,
-    outlineStroke: BorderStroke,
+    customCoversMap: Map<String, String> = emptyMap(),
     onItemClick: (Content) -> Unit,
+    onItemLongClick: (Content) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (items.isEmpty()) return
+
     val coroutineScope = rememberCoroutineScope()
-    val carouselState = rememberCarouselState { items.size }
+    val density = LocalDensity.current
     val cardShape = RoundedCornerShape(24.dp)
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clipToBounds(),
+            .padding(horizontal = 16.dp),
     ) {
         val screenWidth = maxWidth
-        val preferredItemWidth = (screenWidth * 0.58f).coerceIn(190.dp, 270.dp)
-        val cardHeight = (preferredItemWidth * 1.14f).coerceIn(215.dp, 280.dp)
+        val screenWidthPx = with(density) { screenWidth.toPx() }
 
-        HorizontalMultiBrowseCarousel(
-            state = carouselState,
-            preferredItemWidth = preferredItemWidth,
-            itemSpacing = 8.dp,
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(cardHeight),
-        ) { index ->
-            val item = items[index]
-            val artworkUrl = item.thumbnails.lastOrNull()?.url.orEmpty()
+        // Focal item width = height for a mathematically perfect square (1:1 aspect ratio)
+        // Scaled proportionally so 3 entries (Focal, Medium, Small peek) are always visible simultaneously
+        val focalWidth = (screenWidth * 0.58f).coerceIn(195.dp, 235.dp)
+        val cardHeight = focalWidth
+        val spacing = 8.dp
 
-            val info = carouselItemDrawInfo
-            val sizeFraction = if (info.maxSize > info.minSize) {
-                ((info.size - info.minSize) / (info.maxSize - info.minSize)).coerceIn(0f, 1f)
-            } else 1f
-            val overlayAlpha = if (sizeFraction > 0.5f) (sizeFraction - 0.5f) / 0.5f else 0f
-            // Smoothly dims: 100% brightness at full size, 80% at medium, 60% at small
-            val darkenAlpha = (1f - sizeFraction) * 0.40f
+        val focalWidthPx = with(density) { focalWidth.toPx() }
+        val spacingPx = with(density) { spacing.toPx() }
+        val stepPx = focalWidthPx + spacingPx
 
-            val browse = item.browseId
-            val badgeText = when {
-                browse?.startsWith("VL") == true || browse?.startsWith("PL") == true -> "Playlist"
-                browse?.startsWith("UC") == true || browse?.startsWith("FEmusic_library_privately_owned_artist") == true -> "Artist"
-                browse?.startsWith("MPRE") == true || browse?.startsWith("FEmusic_library_privately_owned_release") == true -> "Album"
-                item.videoId != null -> "New Release!"
-                else -> "Featured"
-            }
+        val minimizedWidthPx = focalWidthPx * 0.36f
+        val trailingWidthPx = focalWidthPx * 0.18f
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .maskClip(cardShape)
-                    .maskBorder(outlineStroke, cardShape)
-                    .background(Color(0xFF141416))
-                    .clickable {
-                        if (carouselState.currentItem != index) {
-                            coroutineScope.launch {
-                                carouselState.animateScrollToItem(index)
-                            }
-                        }
-                        onItemClick(item)
-                    },
-            ) {
-                // Full Artwork with smooth GPU scaling
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalPlatformContext.current)
-                        .data(artworkUrl)
-                        .crossfade(true)
-                        .diskCachePolicy(CachePolicy.ENABLED)
-                        .build(),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+        val maxOffset = (items.size - 1) * stepPx
+        val scrollOffset = remember { Animatable(0f) }
+        val velocityTracker = remember { VelocityTracker() }
+
+        val progress = (scrollOffset.value / stepPx).coerceIn(0f, (items.size - 1).toFloat())
+
+        // Continuous helper function for keyline layout & interpolation
+        fun getItemVisuals(index: Int): CarouselItemVisuals {
+            val count = items.size
+            if (count <= 1) {
+                return CarouselItemVisuals(
+                    x = 0f,
+                    width = focalWidthPx,
+                    alpha = 1f,
+                    darkenAlpha = 0f,
+                    overlayAlpha = 1f,
+                    zIndex = 100f,
+                    heightScale = 1f,
                 )
-
-                // Dynamic dimming: 80% brightness for 2nd option, 60% for 3rd (minimized) option
-                if (darkenAlpha > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = darkenAlpha)),
+            }
+            if (count == 2) {
+                val u = progress.coerceIn(0f, 1f)
+                val w0 = focalWidthPx + (minimizedWidthPx - focalWidthPx) * u
+                val w1 = minimizedWidthPx + (focalWidthPx - minimizedWidthPx) * u
+                return if (index == 0) {
+                    CarouselItemVisuals(
+                        x = 0f,
+                        width = w0,
+                        alpha = 1f,
+                        darkenAlpha = 0.20f * u,
+                        overlayAlpha = if (u <= 0.5f) (1f - u * 2f).coerceIn(0f, 1f) else 0f,
+                        zIndex = 85f + 15f * (1f - u),
+                        heightScale = 1f,
+                    )
+                } else {
+                    CarouselItemVisuals(
+                        x = w0 + spacingPx,
+                        width = w1,
+                        alpha = 1f,
+                        darkenAlpha = 0.20f * (1f - u),
+                        overlayAlpha = if (u >= 0.5f) (u * 2f - 1f).coerceIn(0f, 1f) else 0f,
+                        zIndex = 85f + 15f * u,
+                        heightScale = 1f,
                     )
                 }
+            }
 
-                if (overlayAlpha > 0f) {
-                    // Dark Bottom Gradient
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(cardHeight * 0.5f)
-                            .align(Alignment.BottomCenter)
-                            .graphicsLayer { alpha = overlayAlpha }
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.Black.copy(alpha = 0.85f),
-                                    ),
-                                ),
-                            ),
+            // count >= 3
+            val shiftStartProgress = (count - 3).toFloat()
+            if (progress <= shiftStartProgress) {
+                val d = index - progress
+                return when {
+                    d < -1f -> CarouselItemVisuals(
+                        x = 0f,
+                        width = focalWidthPx * 0.4f,
+                        alpha = 0f,
+                        darkenAlpha = 0.40f,
+                        overlayAlpha = 0f,
+                        zIndex = 55f,
+                        heightScale = 0.65f,
                     )
-
-                    // Top-Right Pill Badge
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 12.dp, end = 12.dp)
-                            .graphicsLayer { alpha = overlayAlpha }
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.Black.copy(alpha = 0.65f))
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)), RoundedCornerShape(50))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    ) {
-                        Text(
-                            text = badgeText,
-                            fontFamily = itemSubtitleFontFamily(),
-                            fontSize = 11.sp,
-                            color = Color.White,
+                    d in -1f..0f -> CarouselItemVisuals(
+                        x = 0f,
+                        width = focalWidthPx * (1f + d * 0.6f),
+                        alpha = (1f + d * 1.5f).coerceIn(0f, 1f),
+                        darkenAlpha = (-d * 0.40f).coerceIn(0f, 0.40f),
+                        overlayAlpha = if (d >= -0.5f) (1f + d * 2f).coerceIn(0f, 1f) else 0f,
+                        zIndex = 55f + (1f + d).coerceIn(0f, 1f) * 15f,
+                        heightScale = (1f + d * 0.35f).coerceIn(0.65f, 1f),
+                    )
+                    d in 0f..1f -> CarouselItemVisuals(
+                        x = (focalWidthPx + spacingPx) * d,
+                        width = focalWidthPx + (minimizedWidthPx - focalWidthPx) * d,
+                        alpha = 1f,
+                        darkenAlpha = 0.20f * d,
+                        overlayAlpha = if (d <= 0.5f) (1f - d * 2f).coerceIn(0f, 1f) else 0f,
+                        zIndex = 85f + 15f * (1f - d),
+                        heightScale = 1f,
+                    )
+                    d in 1f..2f -> CarouselItemVisuals(
+                        x = (focalWidthPx + spacingPx) + (minimizedWidthPx + spacingPx) * (d - 1f),
+                        width = minimizedWidthPx + (trailingWidthPx - minimizedWidthPx) * (d - 1f),
+                        alpha = 1f,
+                        darkenAlpha = 0.20f + 0.20f * (d - 1f),
+                        overlayAlpha = 0f,
+                        zIndex = 70f + 15f * (2f - d),
+                        heightScale = 1f,
+                    )
+                    d in 2f..3f -> CarouselItemVisuals(
+                        x = (focalWidthPx + spacingPx) + (minimizedWidthPx + spacingPx),
+                        width = (trailingWidthPx * (3f - d)).coerceIn(0f, trailingWidthPx),
+                        alpha = (3f - d).coerceIn(0f, 1f),
+                        darkenAlpha = 0.40f,
+                        overlayAlpha = 0f,
+                        zIndex = 70f,
+                        heightScale = (0.65f + 0.35f * (3f - d)).coerceIn(0.65f, 1f),
+                    )
+                    else -> CarouselItemVisuals(
+                        x = (focalWidthPx + spacingPx) + (minimizedWidthPx + spacingPx),
+                        width = 0f,
+                        alpha = 0f,
+                        darkenAlpha = 0.40f,
+                        overlayAlpha = 0f,
+                        zIndex = 55f,
+                        heightScale = 0.65f,
+                    )
+                }
+            } else {
+                // End shift transition
+                val shift = (progress - shiftStartProgress).coerceIn(0f, 2f)
+                if (index < count - 3) {
+                    return CarouselItemVisuals(
+                        x = 0f,
+                        width = focalWidthPx * 0.4f,
+                        alpha = 0f,
+                        darkenAlpha = 0.40f,
+                        overlayAlpha = 0f,
+                        zIndex = 55f,
+                        heightScale = 0.65f,
+                    )
+                }
+                if (shift <= 1f) {
+                    val u = shift
+                    val wN3 = focalWidthPx + (minimizedWidthPx - focalWidthPx) * u
+                    val wN2 = minimizedWidthPx + (focalWidthPx - minimizedWidthPx) * u
+                    return when (index) {
+                        count - 3 -> CarouselItemVisuals(
+                            x = 0f,
+                            width = wN3,
+                            alpha = 1f,
+                            darkenAlpha = 0.20f * u,
+                            overlayAlpha = if (u <= 0.5f) (1f - u * 2f).coerceIn(0f, 1f) else 0f,
+                            zIndex = 85f + 15f * (1f - u),
+                            heightScale = 1f,
+                        )
+                        count - 2 -> CarouselItemVisuals(
+                            x = wN3 + spacingPx,
+                            width = wN2,
+                            alpha = 1f,
+                            darkenAlpha = 0.20f * (1f - u),
+                            overlayAlpha = if (u >= 0.5f) (u * 2f - 1f).coerceIn(0f, 1f) else 0f,
+                            zIndex = 85f + 15f * u,
+                            heightScale = 1f,
+                        )
+                        count - 1 -> CarouselItemVisuals(
+                            x = wN3 + spacingPx + wN2 + spacingPx,
+                            width = trailingWidthPx,
+                            alpha = 1f,
+                            darkenAlpha = 0.40f,
+                            overlayAlpha = 0f,
+                            zIndex = 70f,
+                            heightScale = 1f,
+                        )
+                        else -> CarouselItemVisuals(
+                            x = wN3 + spacingPx + wN2 + spacingPx,
+                            width = 0f,
+                            alpha = 0f,
+                            darkenAlpha = 0.40f,
+                            overlayAlpha = 0f,
+                            zIndex = 55f,
+                            heightScale = 0.65f,
                         )
                     }
+                } else {
+                    val v = shift - 1f
+                    val wN3 = minimizedWidthPx + (trailingWidthPx - minimizedWidthPx) * v
+                    val wN2 = focalWidthPx + (minimizedWidthPx - focalWidthPx) * v
+                    val wN1 = trailingWidthPx + (focalWidthPx - trailingWidthPx) * v
+                    return when (index) {
+                        count - 3 -> CarouselItemVisuals(
+                            x = 0f,
+                            width = wN3,
+                            alpha = 1f,
+                            darkenAlpha = 0.20f + 0.20f * v,
+                            overlayAlpha = 0f,
+                            zIndex = 70f + 15f * (1f - v),
+                            heightScale = 1f,
+                        )
+                        count - 2 -> CarouselItemVisuals(
+                            x = wN3 + spacingPx,
+                            width = wN2,
+                            alpha = 1f,
+                            darkenAlpha = 0.20f * v,
+                            overlayAlpha = if (v <= 0.5f) (1f - v * 2f).coerceIn(0f, 1f) else 0f,
+                            zIndex = 85f + 15f * (1f - v),
+                            heightScale = 1f,
+                        )
+                        count - 1 -> CarouselItemVisuals(
+                            x = wN3 + spacingPx + wN2 + spacingPx,
+                            width = wN1,
+                            alpha = 1f,
+                            darkenAlpha = 0.40f * (1f - v),
+                            overlayAlpha = if (v >= 0.5f) (v * 2f - 1f).coerceIn(0f, 1f) else 0f,
+                            zIndex = 70f + 30f * v,
+                            heightScale = 1f,
+                        )
+                        else -> CarouselItemVisuals(
+                            x = wN3 + spacingPx + wN2 + spacingPx,
+                            width = 0f,
+                            alpha = 0f,
+                            darkenAlpha = 0.40f,
+                            overlayAlpha = 0f,
+                            zIndex = 55f,
+                            heightScale = 0.65f,
+                        )
+                    }
+                }
+            }
+        }
 
-                    // Bottom-Left Title and Subtitle Overlay
-                    Column(
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(cardHeight)
+                .pointerInput(items.size, stepPx) {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            velocityTracker.resetTracking()
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            velocityTracker.addPointerInputChange(change)
+                            coroutineScope.launch {
+                                val newOffset = (scrollOffset.value - dragAmount).coerceIn(0f, maxOffset)
+                                scrollOffset.snapTo(newOffset)
+                            }
+                        },
+                        onDragEnd = {
+                            val velocity = velocityTracker.calculateVelocity().x
+                            val currentOffset = scrollOffset.value
+                            coroutineScope.launch {
+                                val decay = splineBasedDecay<Float>(density)
+                                val targetOffset = decay.calculateTargetValue(currentOffset, -velocity)
+                                val targetIndex = (targetOffset / stepPx).roundToInt().coerceIn(0, items.lastIndex)
+                                scrollOffset.animateTo(
+                                    targetValue = targetIndex * stepPx,
+                                    initialVelocity = -velocity,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                            }
+                        },
+                        onDragCancel = {
+                            val currentOffset = scrollOffset.value
+                            val targetIndex = (currentOffset / stepPx).roundToInt().coerceIn(0, items.lastIndex)
+                            coroutineScope.launch {
+                                scrollOffset.animateTo(
+                                    targetValue = targetIndex * stepPx,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                },
+        ) {
+            // Render visible items
+            val currentFocalIndex = (scrollOffset.value / stepPx).roundToInt().coerceIn(0, items.lastIndex)
+            val minVisibleIndex = (currentFocalIndex - 3).coerceAtLeast(0)
+            val maxVisibleIndex = (currentFocalIndex + 3).coerceAtMost(items.lastIndex)
+
+            for (index in minVisibleIndex..maxVisibleIndex) {
+                val item = items[index]
+                val visuals = getItemVisuals(index)
+
+                val itemX = visuals.x
+                val itemW = visuals.width
+                val itemAlpha = visuals.alpha
+                val darkenAlpha = visuals.darkenAlpha
+                val zIndex = visuals.zIndex
+                val heightScale = visuals.heightScale
+                val overlayAlpha = visuals.overlayAlpha
+
+                if (itemAlpha > 0.01f && itemW > 0.5f) {
+                    val browse = item.browseId
+                    val vid = item.videoId
+                    val customCover = resolvePlaylistCover(browse, null, customCoversMap)
+                    val artworkUrl = customCover ?: item.thumbnails.lastOrNull()?.url.orEmpty()
+                    val isLikedMusic = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid == null)
+                    val displayTitle = if (isLikedMusic) "Liked Songs" else item.title
+
+                    val badgeText = when {
+                        isLikedMusic -> "Playlist"
+                        browse?.startsWith("VL") == true || browse?.startsWith("PL") == true -> "Playlist"
+                        browse?.startsWith("UC") == true || browse?.startsWith("FEmusic_library_privately_owned_artist") == true -> "Artist"
+                        browse?.startsWith("MPRE") == true || browse?.startsWith("FEmusic_library_privately_owned_release") == true -> "Album"
+                        vid != null -> "New Release!"
+                        else -> "Featured"
+                    }
+
+                    val itemWidthDp = with(density) { itemW.toDp() }
+                    val itemXDp = with(density) { itemX.toDp() }
+
+                    val isCurrentFocal = abs(progress - index) < 0.35f
+
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(horizontal = 16.dp, vertical = 14.dp)
-                            .graphicsLayer { alpha = overlayAlpha },
+                            .offset(x = itemXDp)
+                            .width(itemWidthDp)
+                            .height(cardHeight)
+                            .zIndex(zIndex)
+                            .graphicsLayer {
+                                alpha = itemAlpha
+                                scaleY = heightScale
+                            }
+                            .clip(cardShape)
+                            .background(Color(0xFF15181C))
+                            .padding(2.5.dp)
+                            .clip(RoundedCornerShape(21.5.dp))
+                            .background(Color(0xFF141416))
+                            .combinedClickable(
+                                onClick = {
+                                    if (isCurrentFocal) {
+                                        onItemClick(item)
+                                    } else {
+                                        coroutineScope.launch {
+                                            scrollOffset.animateTo(
+                                                targetValue = index * stepPx,
+                                                animationSpec = spring(
+                                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                                    stiffness = Spring.StiffnessMediumLow,
+                                                ),
+                                            )
+                                        }
+                                    }
+                                },
+                                onLongClick = {
+                                    onItemLongClick(item)
+                                },
+                            ),
                     ) {
-                        Text(
-                            text = item.title,
-                            fontFamily = sectionTitleFontFamily(),
-                            fontSize = 22.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        val artistText = item.artists?.map { it.name }?.connectArtists() ?: item.description.orEmpty()
-                        Text(
-                            text = artistText,
-                            fontFamily = itemSubtitleFontFamily(),
-                            fontSize = 14.sp,
-                            color = Color.White.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        // Full Artwork with smooth GPU scaling
+                        if (customCover != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalPlatformContext.current)
+                                    .data(customCover)
+                                    .crossfade(true)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .build(),
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else if (isLikedMusic) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(
+                                                Color(0xFF8B001F), // Dark crimson
+                                                Color(0xFFFF5A75), // Vibrant coral
+                                            ),
+                                        ),
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = SimpIcons.Favorite,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(72.dp),
+                                )
+                            }
+                        } else {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalPlatformContext.current)
+                                    .data(artworkUrl)
+                                    .crossfade(true)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .build(),
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+
+                        // Dynamic dimming: 100% (focal) -> 80% (2nd) -> 60% (3rd)
+                        if (darkenAlpha > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = darkenAlpha)),
+                            )
+                        }
+
+                        if (overlayAlpha > 0f) {
+                            // Dark Bottom Gradient
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(cardHeight * 0.5f)
+                                    .align(Alignment.BottomCenter)
+                                    .graphicsLayer { alpha = overlayAlpha }
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.85f),
+                                            ),
+                                        ),
+                                    ),
+                            )
+
+                            // Top-Right Pill Badge
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 12.dp, end = 12.dp)
+                                    .graphicsLayer { alpha = overlayAlpha }
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.Black.copy(alpha = 0.65f))
+                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)), RoundedCornerShape(50))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                            ) {
+                                Text(
+                                    text = badgeText,
+                                    fontFamily = itemSubtitleFontFamily(),
+                                    fontSize = 11.sp,
+                                    color = Color.White,
+                                )
+                            }
+
+                            // Bottom-Left Title and Subtitle Overlay
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                                    .graphicsLayer { alpha = overlayAlpha },
+                            ) {
+                                Text(
+                                    text = displayTitle,
+                                    fontFamily = sectionTitleFontFamily(),
+                                    fontSize = 22.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                val artistText = item.artists?.map { it.name }?.connectArtists() ?: item.description.orEmpty()
+                                Text(
+                                    text = if (isLikedMusic) "Auto playlist" else artistText,
+                                    fontFamily = itemSubtitleFontFamily(),
+                                    fontSize = 14.sp,
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -648,6 +1068,7 @@ fun QuickPicksSection(
     homeItem: HomeItem,
     currentPlayingVideoId: String?,
     isPlaying: Boolean,
+    customCoversMap: Map<String, String> = emptyMap(),
     onPlayAllClick: () -> Unit,
     onTrackClick: (Content) -> Unit,
     onTrackLongClick: (Content) -> Unit,
@@ -722,6 +1143,7 @@ fun QuickPicksSection(
                                 isSelected = isSelected,
                                 isFirstInGroup = isFirstInGroup,
                                 isLastInGroup = isLastInGroup,
+                                customCoversMap = customCoversMap,
                                 onCardClick = { onTrackClick(item) },
                                 onCardLongClick = { onTrackLongClick(item) },
                             )
@@ -740,11 +1162,13 @@ private fun QuickPickCard(
     isSelected: Boolean,
     isFirstInGroup: Boolean,
     isLastInGroup: Boolean,
+    customCoversMap: Map<String, String> = emptyMap(),
     onCardClick: () -> Unit,
     onCardLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val artworkUrl = item.thumbnails.lastOrNull()?.url.orEmpty()
+    val customCover = resolvePlaylistCover(item.browseId, null, customCoversMap)
+    val artworkUrl = customCover ?: item.thumbnails.lastOrNull()?.url.orEmpty()
     val rawSubtitle = item.artists?.map { it.name }?.connectArtists() ?: item.description.orEmpty()
     val isSong = item.videoId != null
     val artistText = when {
@@ -761,17 +1185,20 @@ private fun QuickPickCard(
         else -> if (rawSubtitle.isNotEmpty()) "Playlist • $rawSubtitle" else "Playlist"
     }
 
+    val isLikedMusic = item.browseId == "LM" || item.browseId == "VLLM" || item.browseId == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && !isSong)
+    val displayTitle = if (isLikedMusic) "Liked Songs" else item.title
+
     // Smooth animations for corner rounding and colors
     val animatedBg by animateColorAsState(
         targetValue = if (isSelected) Color(0xFF2B3E52) else Color(0xFF15181C),
         animationSpec = tween(durationMillis = 300),
     )
 
-    // Compute optical corner radius for card
+    // Compute optical corner radius for card (26dp for prominent pill groups)
     val topStartRadius by animateDpAsState(
         targetValue = when {
             isSelected -> 50.dp
-            isFirstInGroup -> 20.dp
+            isFirstInGroup -> 26.dp
             else -> 6.dp
         },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -779,7 +1206,7 @@ private fun QuickPickCard(
     val topEndRadius by animateDpAsState(
         targetValue = when {
             isSelected -> 50.dp
-            isFirstInGroup -> 20.dp
+            isFirstInGroup -> 26.dp
             else -> 6.dp
         },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -787,7 +1214,7 @@ private fun QuickPickCard(
     val bottomStartRadius by animateDpAsState(
         targetValue = when {
             isSelected -> 50.dp
-            isLastInGroup -> 20.dp
+            isLastInGroup -> 26.dp
             else -> 6.dp
         },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -795,7 +1222,7 @@ private fun QuickPickCard(
     val bottomEndRadius by animateDpAsState(
         targetValue = when {
             isSelected -> 50.dp
-            isLastInGroup -> 20.dp
+            isLastInGroup -> 26.dp
             else -> 6.dp
         },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -812,7 +1239,7 @@ private fun QuickPickCard(
     val artTopStart by animateDpAsState(
         targetValue = when {
             isSelected -> 50.dp
-            isFirstInGroup -> 14.dp
+            isFirstInGroup -> 18.dp
             else -> 6.dp
         },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -820,7 +1247,7 @@ private fun QuickPickCard(
     val artBottomStart by animateDpAsState(
         targetValue = when {
             isSelected -> 50.dp
-            isLastInGroup -> 14.dp
+            isLastInGroup -> 18.dp
             else -> 6.dp
         },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -851,17 +1278,54 @@ private fun QuickPickCard(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Artwork
-        AsyncImage(
-            model = ImageRequest.Builder(LocalPlatformContext.current)
-                .data(artworkUrl)
-                .crossfade(true)
-                .build(),
-            contentDescription = item.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(44.dp)
-                .clip(artShape),
-        )
+        if (customCover != null) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalPlatformContext.current)
+                    .data(customCover)
+                    .crossfade(true)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .build(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(artShape),
+            )
+        } else if (isLikedMusic) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(artShape)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF8B001F), // Dark crimson
+                                Color(0xFFFF5A75), // Vibrant coral
+                            ),
+                        ),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = SimpIcons.Favorite,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        } else {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalPlatformContext.current)
+                    .data(artworkUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(artShape),
+            )
+        }
 
         Spacer(modifier = Modifier.width(10.dp))
 
@@ -870,7 +1334,7 @@ private fun QuickPickCard(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = item.title,
+                text = displayTitle,
                 fontFamily = itemTitleFontFamily(),
                 fontSize = 14.5.sp,
                 color = Color.White,
@@ -905,10 +1369,13 @@ private fun QuickPickCard(
  * Clean Horizontal Section Carousel for "Albums for you", "Mixed for you", etc.
  * NO outlines!
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SectionCarousel(
     section: HomeItem,
+    customCoversMap: Map<String, String> = emptyMap(),
     onItemClick: (Content) -> Unit,
+    onItemLongClick: (Content) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -934,13 +1401,19 @@ fun SectionCarousel(
         ) {
             val nonNullContents = section.contents.filterNotNull()
             items(nonNullContents, key = { (it.browseId ?: it.videoId ?: "") + it.hashCode() }) { item ->
-                val artworkUrl = item.thumbnails.lastOrNull()?.url.orEmpty()
-                val subtitleText = item.artists?.map { it.name }?.connectArtists() ?: item.description.orEmpty()
+                val customCover = resolvePlaylistCover(item.browseId, null, customCoversMap)
+                val artworkUrl = customCover ?: item.thumbnails.lastOrNull()?.url.orEmpty()
+                val isLiked = item.browseId == "LM" || item.browseId == "VLLM" || item.browseId == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && item.videoId == null)
+                val displayTitle = if (isLiked) "Liked Songs" else item.title
+                val subtitleText = if (isLiked) "Auto playlist" else (item.artists?.map { it.name }?.connectArtists() ?: item.description.orEmpty())
 
                 Column(
                     modifier = Modifier
                         .width(140.dp)
-                        .clickable { onItemClick(item) },
+                        .combinedClickable(
+                            onClick = { onItemClick(item) },
+                            onLongClick = { onItemLongClick(item) },
+                        ),
                 ) {
                     Box(
                         modifier = Modifier
@@ -948,21 +1421,55 @@ fun SectionCarousel(
                             .clip(RoundedCornerShape(18.dp))
                             .background(Color(0xFF15181C)),
                     ) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalPlatformContext.current)
-                                .data(artworkUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = item.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        if (customCover != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalPlatformContext.current)
+                                    .data(customCover)
+                                    .crossfade(true)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .build(),
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else if (isLiked) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(
+                                                Color(0xFF8B001F),
+                                                Color(0xFFFF5A75),
+                                            ),
+                                        ),
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = SimpIcons.Favorite,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(54.dp),
+                                )
+                            }
+                        } else {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalPlatformContext.current)
+                                    .data(artworkUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = item.title,
+                        text = displayTitle,
                         fontFamily = itemTitleFontFamily(),
                         fontSize = 14.sp,
                         color = Color.White,

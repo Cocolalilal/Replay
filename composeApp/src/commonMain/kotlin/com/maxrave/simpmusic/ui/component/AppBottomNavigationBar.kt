@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,6 +54,16 @@ fun AppBottomNavigationBar(
                 else -> BottomNavScreen.Home.ordinal // Default to Home if not recognized
             },
         )
+    }
+    val currentRouteScreen = bottomNavScreens.firstOrNull { screen ->
+        currentBackStackEntry?.destination?.hierarchy?.any {
+            it.hasRoute(screen.destination::class)
+        } == true
+    }
+    LaunchedEffect(currentRouteScreen) {
+        if (currentRouteScreen != null) {
+            selectedIndex = currentRouteScreen.ordinal
+        }
     }
     Box(
         modifier =
@@ -151,6 +162,16 @@ fun AppNavigationRail(
                 else -> BottomNavScreen.Home.ordinal // Default to Home if not recognized
             },
         )
+    }
+    val currentRouteScreen = bottomNavScreens.firstOrNull { screen ->
+        currentBackStackEntry?.destination?.hierarchy?.any {
+            it.hasRoute(screen.destination::class)
+        } == true
+    }
+    LaunchedEffect(currentRouteScreen) {
+        if (currentRouteScreen != null) {
+            selectedIndex = currentRouteScreen.ordinal
+        }
     }
     NavigationRail {
         Spacer(Modifier.height(16.dp))

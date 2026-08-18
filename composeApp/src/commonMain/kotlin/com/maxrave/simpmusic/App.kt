@@ -1,11 +1,15 @@
 package com.maxrave.simpmusic
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -340,13 +344,13 @@ fun App(viewModel: SharedViewModel = koinInject()) {
             it.hasRoute(FullscreenDestination::class)
         } == true
     }
-    var isScrolledToTop by rememberSaveable {
+    var isScrolledToTop by remember {
         mutableStateOf(true)
     }
-    var lastScrollDirection by rememberSaveable {
+    var lastScrollDirection by remember {
         mutableIntStateOf(0)
     }
-    var scrollEpoch by rememberSaveable {
+    var scrollEpoch by remember {
         mutableIntStateOf(0)
     }
     val isTablet = windowSize.isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)
@@ -368,14 +372,14 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                 if (!isTablet) {
                     AnimatedVisibility(
                         isNavBarVisible,
-                        enter = fadeIn() + slideInHorizontally(),
-                        exit = fadeOut(),
+                        enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                        exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it / 2 },
                     ) {
                         Column {
                             AnimatedVisibility(
                                 isShowMiniPlayer && isLiquidGlassEnabled == DataStoreManager.FALSE,
-                                enter = fadeIn() + slideInHorizontally(),
-                                exit = fadeOut(),
+                                enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                                exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it / 2 },
                             ) {
                                 MiniPlayer(
                                     Modifier
@@ -483,8 +487,8 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                                         .padding(innerPadding)
                                         .align(Alignment.BottomCenter),
                                 visible = isShowMiniPlayer && isTablet && !isInFullscreen,
-                                enter = fadeIn() + slideInHorizontally(),
-                                exit = fadeOut(),
+                                enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                                exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it / 2 },
                             ) {
                                 MiniPlayer(
                                     if (getPlatform() == Platform.Android) {

@@ -86,6 +86,10 @@ import io.github.alexzhirkevich.compottie.Compottie
 import io.github.alexzhirkevich.compottie.LottieCompositionSpec
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.simpmusic.util.resolvePlaylistCover
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.remember
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
@@ -472,6 +476,19 @@ fun PlaylistFullWidthItems(
 ) {
     val contentColor = if (forceDark) Color.White else MaterialTheme.colorScheme.onSurface
     val subtitleColor = if (forceDark) Color(0xC4FFFFFF) else MaterialTheme.colorScheme.onSurfaceVariant
+    val dataStoreManager: DataStoreManager = koinInject()
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
     Box(
         modifier =
             modifier
@@ -505,7 +522,8 @@ fun PlaylistFullWidthItems(
 
             is PlaylistEntity -> {
                 title = data.title
-                thumb = data.thumbnails
+                val defaultThumb = data.thumbnails
+                thumb = resolvePlaylistCover(data.id, defaultThumb, customCoversMap) ?: defaultThumb
                 secondSubtitle = data.author ?: ""
                 if (data.description == "PIN") { // LIKED MUSIC
                     shouldPin = true
@@ -514,13 +532,15 @@ fun PlaylistFullWidthItems(
 
             is LocalPlaylistEntity -> {
                 title = data.title
-                thumb = data.thumbnail ?: ""
+                val defaultThumb = data.thumbnail ?: ""
+                thumb = resolvePlaylistCover(data.youtubePlaylistId ?: data.id.toString(), defaultThumb, customCoversMap) ?: defaultThumb
                 secondSubtitle = stringResource(Res.string.you)
             }
 
             is PlaylistsResult -> {
                 title = data.title
-                thumb = data.thumbnails.lastOrNull()?.url ?: ""
+                val defaultThumb = data.thumbnails.lastOrNull()?.url ?: ""
+                thumb = resolvePlaylistCover(data.browseId, defaultThumb, customCoversMap) ?: defaultThumb
                 secondSubtitle = data.author
             }
 

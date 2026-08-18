@@ -135,9 +135,8 @@ fun BottomNavigationOrchestrator(
                     }
                     if (effectiveCollapse > 0.4f) {
                         onExpandRequested?.invoke()
-                    } else {
-                        onTabSelected(index)
                     }
+                    onTabSelected(index)
                 },
                 onSearchClick = { onSearchActiveChange(true) },
                 backdrop = backdrop,
@@ -226,7 +225,7 @@ private fun SearchFieldOrCircle(
     onCloseClick: () -> Unit,
 ) {
     val isDark = isSystemInDarkTheme()
-    val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = 0.18f)
+    val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = if (isDark) 0.38f else 0.45f)
     val textColor = if (isDark) Color.White else Color.Black
 
     Box(
@@ -260,7 +259,7 @@ private fun SearchFieldOrCircle(
             Icon(
                 imageVector = SimpIcons.Search,
                 contentDescription = "Search",
-                tint = Color.White,
+                tint = textColor,
                 modifier = Modifier.size(26.dp)
             )
         } else {

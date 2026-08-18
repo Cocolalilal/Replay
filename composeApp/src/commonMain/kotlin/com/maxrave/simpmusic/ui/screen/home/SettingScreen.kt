@@ -455,9 +455,7 @@ fun SettingScreen(
     val downloadQuality by viewModel.downloadQuality.collectAsStateWithLifecycle()
     val videoDownloadQuality by viewModel.videoDownloadQuality.collectAsStateWithLifecycle()
     val keepYoutubePlaylistOffline by viewModel.keepYouTubePlaylistOffline.collectAsStateWithLifecycle()
-    val localTrackingEnabled by viewModel.localTrackingEnabled.collectAsStateWithLifecycle(initialValue = false)
     val blogNotificationEnabled by viewModel.blogNotificationEnabled.collectAsStateWithLifecycle()
-    val combineLocalAndYouTubeLiked by viewModel.combineLocalAndYouTubeLiked.collectAsStateWithLifecycle()
     val playVideo by remember { viewModel.playVideoInsteadOfAudio.map { it == TRUE } }.collectAsStateWithLifecycle(initialValue = false)
     val videoQuality by viewModel.videoQuality.collectAsStateWithLifecycle()
     val sendData by remember { viewModel.sendBackToGoogle.map { it == TRUE } }.collectAsStateWithLifecycle(initialValue = false)
@@ -878,18 +876,6 @@ fun SettingScreen(
                     subtitle = stringResource(Res.string.keep_your_youtube_playlist_offline_description),
                     switch = (keepYoutubePlaylistOffline to { viewModel.setKeepYouTubePlaylistOffline(it) }),
                 )
-                SettingItem(
-                    title = stringResource(Res.string.local_tracking_title),
-                    subtitle = stringResource(Res.string.local_tracking_description),
-                    switch = (localTrackingEnabled to { viewModel.setLocalTrackingEnabled(it) }),
-                )
-                /*
-                SettingItem(
-                    title = stringResource(Res.string.combine_local_and_youtube_liked_songs),
-                    subtitle = stringResource(Res.string.combine_local_and_youtube_liked_songs_description),
-                    switch = (combineLocalAndYouTubeLiked to { viewModel.setCombineLocalAndYouTubeLiked(it) })
-                )
-                 */
                 SettingItem(
                     title = stringResource(Res.string.proxy),
                     subtitle = stringResource(Res.string.proxy_description),

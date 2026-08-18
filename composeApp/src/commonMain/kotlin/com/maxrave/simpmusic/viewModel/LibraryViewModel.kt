@@ -1,93 +1,138 @@
 package com.maxrave.simpmusic.viewModel
 
 import androidx.lifecycle.viewModelScope
-import com.maxrave.common.Config
-import com.maxrave.common.LibraryChipType
 import com.maxrave.domain.data.entities.AlbumEntity
-import com.maxrave.domain.data.entities.LocalPlaylistEntity
+import com.maxrave.domain.data.entities.ArtistEntity
 import com.maxrave.domain.data.entities.PlaylistEntity
-import com.maxrave.domain.data.entities.SongEntity
+import com.maxrave.domain.data.model.pinned.PinnedItem
+import com.maxrave.domain.data.model.pinned.PinnedType
 import com.maxrave.domain.data.model.searchResult.playlists.PlaylistsResult
-import com.maxrave.domain.data.type.ChartItem
-import com.maxrave.domain.data.type.PlaylistType
-import com.maxrave.domain.data.type.RecentlyType
 import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.repository.AlbumRepository
+import com.maxrave.domain.repository.ArtistRepository
 import com.maxrave.domain.repository.CommonRepository
-import com.maxrave.domain.repository.LocalPlaylistRepository
 import com.maxrave.domain.repository.PlaylistRepository
-import com.maxrave.domain.repository.PodcastRepository
 import com.maxrave.domain.repository.SongRepository
 import com.maxrave.domain.utils.LocalResource
 import com.maxrave.domain.utils.Resource
-import com.maxrave.domain.utils.isRadioPlaylistId
+import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.datetime.LocalDateTime
+import org.jetbrains.compose.resources.getString
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.added_local_playlist
-import simpmusic.composeapp.generated.resources.youtube_liked_music
+
+enum class LibraryFilter(val displayName: String) {
+    YOUR_LIBRARY("Library"),
+    PLAYLISTS("Playlists"),
+    ALBUMS("Albums"),
+    ARTISTS("Artists"),
+}
+
+enum class LibrarySortOrder(val displayName: String) {
+    RECENTLY_ADDED("Recently added"),
+    RECENTLY_PLAYED("Recently played"),
+    A_TO_Z("A to Z"),
+    Z_TO_A("Z to A"),
+}
+
+data class LibraryCardItem(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val thumbnailUrl: String? = null,
+    val type: LibraryCardType,
+    val targetId: String,
+)
+
+enum class LibraryCardType {
+    YOUTUBE_PLAYLIST,
+    ALBUM,
+    ARTIST,
+    FAVORITE_SONGS,
+    DOWNLOADED_SONGS,
+    MOST_PLAYED,
+}
 
 class LibraryViewModel(
     private val dataStoreManager: DataStoreManager,
     private val songRepository: SongRepository,
     private val commonRepository: CommonRepository,
     private val playlistRepository: PlaylistRepository,
-    private val localPlaylistRepository: LocalPlaylistRepository,
     private val albumRepository: AlbumRepository,
-    private val podcastRepository: PodcastRepository,
+    private val artistRepository: ArtistRepository,
 ) : BaseViewModel() {
-    private val _currentScreen: MutableStateFlow<LibraryChipType> = MutableStateFlow(LibraryChipType.YOUR_LIBRARY)
-    val currentScreen: StateFlow<LibraryChipType> get() = _currentScreen.asStateFlow()
-    private val _recentlyAdded: MutableStateFlow<LocalResource<List<RecentlyType>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val recentlyAdded: StateFlow<LocalResource<List<RecentlyType>>> get() = _recentlyAdded.asStateFlow()
 
-    private val _yourLocalPlaylist: MutableStateFlow<LocalResource<List<LocalPlaylistEntity>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val yourLocalPlaylist: StateFlow<LocalResource<List<LocalPlaylistEntity>>> get() = _yourLocalPlaylist.asStateFlow()
+    val pinnedItems: StateFlow<List<PinnedItem>> =
+        dataStoreManager.pinnedItems.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            emptyList(),
+        )
 
-    private val _youTubePlaylist: MutableStateFlow<LocalResource<List<PlaylistsResult>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val youTubePlaylist: StateFlow<LocalResource<List<PlaylistsResult>>> get() = _youTubePlaylist.asStateFlow()
+    val isGridView: StateFlow<Boolean> =
+        dataStoreManager.isLibraryGridView.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            false,
+        )
 
-    private val _youTubeMixForYou: MutableStateFlow<LocalResource<List<PlaylistsResult>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val youTubeMixForYou: StateFlow<LocalResource<List<PlaylistsResult>>> get() = _youTubeMixForYou.asStateFlow()
+    private val _isEditMode = MutableStateFlow(false)
+    val isEditMode: StateFlow<Boolean> get() = _isEditMode.asStateFlow()
 
-    private val _favoritePlaylist: MutableStateFlow<LocalResource<List<PlaylistType>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val favoritePlaylist: StateFlow<LocalResource<List<PlaylistType>>> get() = _favoritePlaylist.asStateFlow()
+    private val _selectedFilter = MutableStateFlow(LibraryFilter.YOUR_LIBRARY)
+    val selectedFilter: StateFlow<LibraryFilter> get() = _selectedFilter.asStateFlow()
 
-    private val _favoritePodcasts: MutableStateFlow<LocalResource<List<PlaylistType>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val favoritePodcasts: StateFlow<LocalResource<List<PlaylistType>>> get() = _favoritePodcasts.asStateFlow()
+    private val _selectedSortOrder = MutableStateFlow(LibrarySortOrder.RECENTLY_ADDED)
+    val selectedSortOrder: StateFlow<LibrarySortOrder> get() = _selectedSortOrder.asStateFlow()
 
-    private val _downloadedPlaylist: MutableStateFlow<LocalResource<List<PlaylistType>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val downloadedPlaylist: StateFlow<LocalResource<List<PlaylistType>>> get() = _downloadedPlaylist.asStateFlow()
+    private val _libraryItems = MutableStateFlow<LocalResource<List<LibraryCardItem>>>(LocalResource.Loading())
+    val libraryItems: StateFlow<LocalResource<List<LibraryCardItem>>> get() = _libraryItems.asStateFlow()
 
-    private val _chartPlaylists: MutableStateFlow<LocalResource<List<ChartItem>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val chartPlaylists: StateFlow<LocalResource<List<ChartItem>>> get() = _chartPlaylists.asStateFlow()
+    private var rawLibraryItems: List<LibraryCardItem> = emptyList()
 
-    private val _listAnimatedArtworkSongs: MutableStateFlow<LocalResource<List<SongEntity>>> =
-        MutableStateFlow(LocalResource.Loading())
-    val listAnimatedArtworkSongs: StateFlow<LocalResource<List<SongEntity>>> get() = _listAnimatedArtworkSongs.asStateFlow()
+    fun setSelectedSortOrder(sortOrder: LibrarySortOrder) {
+        _selectedSortOrder.value = sortOrder
+        applySort()
+    }
 
-    private val _accountThumbnail: MutableStateFlow<String?> = MutableStateFlow(null)
+    private fun applySort() {
+        val current = rawLibraryItems
+        if (current.isEmpty()) {
+            _libraryItems.value = LocalResource.Success(emptyList())
+            return
+        }
+
+        // Liked Songs item (if present) always stays pinned at the very top (index 0)
+        val favoriteItem = current.firstOrNull { it.id == "favorite_songs" }
+        val rest = current.filterNot { it.id == "favorite_songs" }
+
+        val sortedRest = when (_selectedSortOrder.value) {
+            LibrarySortOrder.RECENTLY_ADDED -> rest
+            LibrarySortOrder.RECENTLY_PLAYED -> rest.reversed()
+            LibrarySortOrder.A_TO_Z -> rest.sortedBy { it.title.lowercase() }
+            LibrarySortOrder.Z_TO_A -> rest.sortedByDescending { it.title.lowercase() }
+        }
+
+        val result = if (favoriteItem != null) listOf(favoriteItem) + sortedRest else sortedRest
+        _libraryItems.value = LocalResource.Success(result)
+    }
+
+    private val _accountThumbnail = MutableStateFlow<String?>(null)
     val accountThumbnail: StateFlow<String?> get() = _accountThumbnail.asStateFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -95,192 +140,296 @@ class LibraryViewModel(
 
     init {
         viewModelScope.launch {
-            val currentScreenJob =
-                launch {
-                    dataStoreManager.getString("library_current_screen").first()?.let { chipType ->
-                        LibraryChipType.fromStringValue(chipType)?.let {
-                            _currentScreen.value = it
-                        }
-                    }
-                }
-            val cookieJob =
-                launch {
-                    dataStoreManager.cookie.distinctUntilChanged().collect {
-                        _accountThumbnail.value = dataStoreManager.getString("AccountThumbUrl").first().takeIf { !it.isNullOrEmpty() }
-                    }
-                }
-            currentScreenJob.join()
-            cookieJob.join()
+            dataStoreManager.cookie.distinctUntilChanged().collect {
+                _accountThumbnail.value = dataStoreManager.getString("AccountThumbUrl").first().takeIf { !it.isNullOrEmpty() }
+            }
+        }
+        loadCurrentFilterData()
+    }
+
+    fun setSelectedFilter(filter: LibraryFilter) {
+        _selectedFilter.value = filter
+        loadCurrentFilterData()
+    }
+
+    fun toggleGridView() {
+        viewModelScope.launch {
+            dataStoreManager.setLibraryGridView(!isGridView.value)
         }
     }
 
-    fun setCurrentScreen(chipType: LibraryChipType) {
-        _currentScreen.value = chipType
+    fun toggleEditMode(enable: Boolean? = null) {
+        _isEditMode.value = enable ?: !_isEditMode.value
+    }
+
+    fun removePin(id: String) {
         viewModelScope.launch {
-            dataStoreManager.putString("library_current_screen", chipType.toStringValue())
+            dataStoreManager.removePin(id)
         }
     }
 
-    fun getRecentlyAdded() {
+    fun pinItem(item: PinnedItem) {
         viewModelScope.launch {
-            commonRepository.getAllRecentData().collectLatest { data ->
-                val temp: MutableList<RecentlyType> = mutableListOf()
-                temp.addAll(data)
-                temp
-                    .find {
-                        it is PlaylistEntity && it.id.isRadioPlaylistId()
-                    }.let {
-                        temp.remove(it)
-                    }
-                temp.removeIf { it is SongEntity && it.inLibrary == Config.REMOVED_SONG_DATE_TIME }
-                if (dataStoreManager.loggedIn.first() == DataStoreManager.TRUE) {
-                    temp.removeIf { it is PlaylistEntity && it.id == "LM" }
-                    temp.add(
-                        PlaylistEntity(
-                            title = getString(Res.string.youtube_liked_music),
-                            author = "YouTube Music",
-                            id = "LM",
-                            description = "PIN",
-                            thumbnails = "https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-1200.png",
-                        ),
-                    )
+            dataStoreManager.addPin(item)
+        }
+    }
+
+    fun isPinned(targetId: String): Boolean {
+        return pinnedItems.value.any { it.id == targetId || it.targetId == targetId }
+    }
+
+    fun togglePin(item: LibraryCardItem) {
+        viewModelScope.launch {
+            val existing = pinnedItems.value.find { it.id == item.id || it.targetId == item.targetId }
+            if (existing != null) {
+                dataStoreManager.removePin(existing.id)
+            } else {
+                val pinnedType = when (item.type) {
+                    LibraryCardType.FAVORITE_SONGS -> PinnedType.FAVORITE_SONGS
+                    LibraryCardType.YOUTUBE_PLAYLIST -> PinnedType.PLAYLIST
+                    LibraryCardType.ALBUM -> PinnedType.ALBUM
+                    LibraryCardType.ARTIST -> PinnedType.ARTIST
+                    LibraryCardType.DOWNLOADED_SONGS -> PinnedType.DOWNLOADED_SONGS
+                    LibraryCardType.MOST_PLAYED -> PinnedType.MOST_PLAYED
                 }
-                temp.reverse()
-                _recentlyAdded.value = LocalResource.Success(temp.toImmutableList())
+                dataStoreManager.addPin(
+                    PinnedItem(
+                        id = item.id,
+                        title = item.title,
+                        subtitle = item.subtitle,
+                        thumbnailUrl = item.thumbnailUrl,
+                        type = pinnedType,
+                        targetId = item.targetId,
+                    ),
+                )
             }
         }
     }
 
-    fun getYouTubePlaylist() {
-        _youTubePlaylist.value = LocalResource.Loading()
+    fun updatePins(items: List<PinnedItem>) {
         viewModelScope.launch {
-            playlistRepository.getLibraryPlaylist().collect { data ->
-                _youTubePlaylist.value = LocalResource.Success(data ?: emptyList())
-            }
+            dataStoreManager.updatePins(items)
         }
     }
 
-    fun getYouTubeMixedForYou() {
-        _youTubeMixForYou.value = LocalResource.Loading()
+    fun createPlaylist(title: String, description: String? = null, privacyStatus: String = "PRIVATE") {
         viewModelScope.launch {
-            playlistRepository.getMixedForYou().collect { data ->
-                _youTubeMixForYou.value = LocalResource.Success(data ?: emptyList())
-            }
-        }
-    }
-
-    fun getYouTubeLoggedIn(): Boolean = runBlocking { dataStoreManager.loggedIn.first() } == DataStoreManager.TRUE
-
-    fun getPlaylistFavorite() {
-        viewModelScope.launch {
-            albumRepository.getLikedAlbums().collect { album ->
-                val temp: MutableList<PlaylistType> = mutableListOf()
-                temp.addAll(album)
-                playlistRepository.getLikedPlaylists().collect { playlist ->
-                    temp.addAll(playlist)
-                    val sortedList =
-                        temp.sortedWith<PlaylistType>(
-                            Comparator { p0, p1 ->
-                                val timeP0: LocalDateTime? =
-                                    when (p0) {
-                                        is AlbumEntity -> p0.favoriteAt ?: p0.inLibrary
-                                        is PlaylistEntity -> p0.favoriteAt ?: p0.inLibrary
-                                        else -> null
-                                    }
-                                val timeP1: LocalDateTime? =
-                                    when (p1) {
-                                        is AlbumEntity -> p1.favoriteAt ?: p1.inLibrary
-                                        is PlaylistEntity -> p1.favoriteAt ?: p1.inLibrary
-                                        else -> null
-                                    }
-                                if (timeP0 == null || timeP1 == null) {
-                                    return@Comparator if (timeP0 == null && timeP1 == null) {
-                                        0
-                                    } else if (timeP0 == null) {
-                                        -1
-                                    } else {
-                                        1
-                                    }
-                                }
-                                timeP0.compareTo(timeP1) // Sort in descending order by inLibrary time
-                            },
-                        )
-                    _favoritePlaylist.value = LocalResource.Success(sortedList)
+            playlistRepository.createPlaylist(
+                title = title,
+                description = description,
+                privacyStatus = privacyStatus,
+            ).collectLatest { res ->
+                if (res is Resource.Success) {
+                    loadCurrentFilterData()
                 }
             }
         }
     }
 
-    fun getFavoritePodcasts() {
+    fun updatePlaylistTitle(newTitle: String, playlistId: String) {
         viewModelScope.launch {
-            podcastRepository.getFavoritePodcasts().collectLatest { podcasts ->
-                val sortedList = podcasts.sortedByDescending { it.favoriteTime }
-                _favoritePodcasts.value = LocalResource.Success(sortedList)
-            }
-        }
-    }
-
-    fun getAnimatedArtworkSongs() {
-        _listAnimatedArtworkSongs.value = LocalResource.Loading()
-        viewModelScope.launch {
-            songRepository.getAnimatedArtworkSongs(max = 5).collect { data ->
-                _listAnimatedArtworkSongs.value = LocalResource.Success(data)
-            }
-        }
-    }
-
-    fun getLocalPlaylist() {
-        _yourLocalPlaylist.value = LocalResource.Loading()
-        viewModelScope.launch {
-            localPlaylistRepository.getAllLocalPlaylists().collect { values ->
-//                    _listLocalPlaylist.postValue(values)
-                _yourLocalPlaylist.value = LocalResource.Success(values.reversed())
-            }
-        }
-    }
-
-    fun getDownloadedPlaylist() {
-        viewModelScope.launch {
-            playlistRepository.getAllDownloadedPlaylist().collect { values ->
-                _downloadedPlaylist.value = LocalResource.Success(values)
-            }
-        }
-    }
-
-    fun getChartPlaylists() {
-        _chartPlaylists.value = LocalResource.Loading()
-        viewModelScope.launch {
-            playlistRepository.getChartPlaylist().collectLatest {
-                when (it) {
-                    is Resource.Success -> _chartPlaylists.value = LocalResource.Success(it.data ?: emptyList())
-                    is Resource.Error -> _chartPlaylists.value = LocalResource.Error(it.message ?: "Unknown error")
+            playlistRepository.editPlaylist(
+                playlistId = playlistId,
+                title = newTitle,
+            ).collectLatest { res ->
+                if (res is Resource.Success) {
+                    loadCurrentFilterData()
                 }
             }
         }
     }
 
-    fun createPlaylist(title: String) {
+    fun deletePlaylist(playlistId: String) {
         viewModelScope.launch {
-            val localPlaylistEntity = LocalPlaylistEntity(title = title)
-            localPlaylistRepository
-                .insertLocalPlaylist(
-                    localPlaylistEntity,
-                    getString(Res.string.added_local_playlist),
-                ).lastOrNull()
-                ?.let {
-                    log("Created playlist with id: $it")
+            playlistRepository.deletePlaylist(playlistId).collectLatest { res ->
+                if (res is Resource.Success) {
+                    loadCurrentFilterData()
                 }
-            getLocalPlaylist()
+            }
         }
     }
 
     fun deleteSong(videoId: String) {
-        _recentlyAdded.value = LocalResource.Loading()
         viewModelScope.launch {
-            songRepository.setInLibrary(videoId, Config.REMOVED_SONG_DATE_TIME)
-            songRepository.resetTotalPlayTime(videoId)
-            delay(500) // Wait for the database to update
-            getRecentlyAdded()
+            songRepository.updateSongInLibrary(
+                kotlinx.datetime.LocalDateTime(1970, 1, 1, 0, 0, 0),
+                videoId,
+            ).collectLatest {
+                loadCurrentFilterData()
+            }
+        }
+    }
+
+    private var loadJob: Job? = null
+
+    fun loadCurrentFilterData() {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _libraryItems.value = LocalResource.Loading()
+            try {
+                when (_selectedFilter.value) {
+                    LibraryFilter.YOUR_LIBRARY -> loadYourLibraryAll()
+                    LibraryFilter.PLAYLISTS -> loadPlaylists()
+                    LibraryFilter.ALBUMS -> loadFavoriteAlbums()
+                    LibraryFilter.ARTISTS -> loadFavoriteArtists()
+                }
+            } catch (e: Exception) {
+                Logger.e("LibraryViewModel", "Error loading library data: ${e.message}")
+                _libraryItems.value = LocalResource.Error(e.message ?: "Failed to load library")
+            }
+        }
+    }
+
+    private suspend fun loadYourLibraryAll() {
+        combine(
+            playlistRepository.getLibraryPlaylist().catch { emit(null) },
+            albumRepository.getLikedAlbums().catch { emit(emptyList()) },
+            artistRepository.getFollowedArtists().catch { emit(emptyList()) },
+        ) { ytPlaylists, likedAlbums, followedArtists ->
+            val list = mutableListOf<LibraryCardItem>()
+
+            // 1. Favorite Songs (Liked songs - LM) at top
+            list.add(
+                LibraryCardItem(
+                    id = "favorite_songs",
+                    title = "Liked Songs",
+                    subtitle = "Playlist • YouTube Music",
+                    thumbnailUrl = null,
+                    type = LibraryCardType.FAVORITE_SONGS,
+                    targetId = "LM",
+                ),
+            )
+
+            // 2. YouTube Playlists (filtering out duplicate Liked Songs and podcasts / episodes)
+            (ytPlaylists ?: emptyList()).filterNot { pl ->
+                val t = pl.title.lowercase()
+                val id = pl.browseId.lowercase()
+                id == "lm" || id == "vllm" || id == "femusic_liked_videos" ||
+                    t == "liked music" || t == "liked songs" || t == "liked videos" || t == "your likes" ||
+                    t.contains("podcast") || t.contains("episode") || t.contains("new episodes") || t.contains("show")
+            }.forEach { pl ->
+                list.add(
+                    LibraryCardItem(
+                        id = "yt_${pl.browseId}",
+                        title = pl.title,
+                        subtitle = "Playlist • ${pl.author.ifEmpty { "YouTube Music" }}",
+                        thumbnailUrl = pl.thumbnails.lastOrNull()?.url,
+                        type = LibraryCardType.YOUTUBE_PLAYLIST,
+                        targetId = pl.browseId,
+                    ),
+                )
+            }
+
+            // 3. Saved Albums
+            likedAlbums.forEach { album ->
+                list.add(
+                    LibraryCardItem(
+                        id = "album_${album.browseId}",
+                        title = album.title,
+                        subtitle = "Album • ${album.artistName.orEmpty()}",
+                        thumbnailUrl = album.thumbnails,
+                        type = LibraryCardType.ALBUM,
+                        targetId = album.browseId,
+                    ),
+                )
+            }
+
+            // 4. Followed Artists
+            followedArtists.forEach { artist ->
+                list.add(
+                    LibraryCardItem(
+                        id = "artist_${artist.channelId}",
+                        title = artist.name,
+                        subtitle = "Artist",
+                        thumbnailUrl = artist.thumbnails,
+                        type = LibraryCardType.ARTIST,
+                        targetId = artist.channelId,
+                    ),
+                )
+            }
+
+            list
+        }.collect { items ->
+            rawLibraryItems = items
+            applySort()
+        }
+    }
+
+    private suspend fun loadPlaylists() {
+        playlistRepository.getLibraryPlaylist().catch { emit(null) }.collectLatest { ytPlaylists ->
+            val list = mutableListOf<LibraryCardItem>()
+
+            // 1. Favorite Songs at top
+            list.add(
+                LibraryCardItem(
+                    id = "favorite_songs",
+                    title = "Liked Songs",
+                    subtitle = "Playlist • YouTube Music",
+                    thumbnailUrl = null,
+                    type = LibraryCardType.FAVORITE_SONGS,
+                    targetId = "LM",
+                ),
+            )
+
+            // 2. YouTube Playlists (filtering out duplicate Liked Songs and podcasts / episodes)
+            (ytPlaylists ?: emptyList()).filterNot { pl ->
+                val t = pl.title.lowercase()
+                val id = pl.browseId.lowercase()
+                id == "lm" || id == "vllm" || id == "femusic_liked_videos" ||
+                    t == "liked music" || t == "liked songs" || t == "liked videos" || t == "your likes" ||
+                    t.contains("podcast") || t.contains("episode") || t.contains("new episodes") || t.contains("show")
+            }.forEach { pl ->
+                list.add(
+                    LibraryCardItem(
+                        id = "yt_${pl.browseId}",
+                        title = pl.title,
+                        subtitle = "Playlist • ${pl.author.ifEmpty { "YouTube Music" }}",
+                        thumbnailUrl = pl.thumbnails.lastOrNull()?.url,
+                        type = LibraryCardType.YOUTUBE_PLAYLIST,
+                        targetId = pl.browseId,
+                    ),
+                )
+            }
+
+            rawLibraryItems = list
+            applySort()
+        }
+    }
+
+    private suspend fun loadFavoriteAlbums() {
+        albumRepository.getLikedAlbums().catch { emit(emptyList()) }.collectLatest { likedAlbums ->
+            val list = likedAlbums.filterNot { album ->
+                val t = album.title.lowercase()
+                t.contains("podcast") || t.contains("episode")
+            }.map { album ->
+                LibraryCardItem(
+                    id = "album_${album.browseId}",
+                    title = album.title,
+                    subtitle = "Album • ${album.artistName.orEmpty()}",
+                    thumbnailUrl = album.thumbnails,
+                    type = LibraryCardType.ALBUM,
+                    targetId = album.browseId,
+                )
+            }
+            rawLibraryItems = list
+            applySort()
+        }
+    }
+
+    private suspend fun loadFavoriteArtists() {
+        artistRepository.getFollowedArtists().catch { emit(emptyList()) }.collectLatest { followedArtists ->
+            val list = followedArtists.map { artist ->
+                LibraryCardItem(
+                    id = "artist_${artist.channelId}",
+                    title = artist.name,
+                    subtitle = "Artist",
+                    thumbnailUrl = artist.thumbnails,
+                    type = LibraryCardType.ARTIST,
+                    targetId = artist.channelId,
+                )
+            }
+            rawLibraryItems = list
+            applySort()
         }
     }
 }

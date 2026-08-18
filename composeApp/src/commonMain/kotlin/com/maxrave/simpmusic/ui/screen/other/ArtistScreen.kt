@@ -122,8 +122,11 @@ import com.maxrave.simpmusic.ui.icon.Shuffle
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
+import androidx.compose.material3.HorizontalDivider
+import com.maxrave.simpmusic.extension.getStringBlocking
 import com.maxrave.simpmusic.ui.navigation.destination.list.MoreAlbumsDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.PlaylistDestination
+import com.maxrave.simpmusic.ui.theme.sectionTitleFontFamily
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.ArtistScreenState
 import com.maxrave.simpmusic.viewModel.ArtistViewModel
@@ -803,11 +806,11 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.popular),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                     )
@@ -817,7 +820,7 @@ private fun ArtistSections(
                             if (id != null) {
                                 navController.navigate(PlaylistDestination(id))
                             } else {
-                                viewModel.makeToast(runBlocking { getString(Res.string.error) })
+                                viewModel.makeToast(getStringBlocking(Res.string.error))
                             }
                         },
                         colors =
@@ -830,9 +833,17 @@ private fun ArtistSections(
                         Text(stringResource(Res.string.more), style = typo().bodySmall)
                     }
                 }
-                state.data.popularSongs.forEach { song ->
+                state.data.popularSongs.forEachIndexed { index, song ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 72.dp, end = 20.dp),
+                            thickness = 0.5.dp,
+                            color = Color.White.copy(alpha = 0.12f),
+                        )
+                    }
                     SongFullWidthItems(
-                        forceDark = true,                        track = song,
+                        forceDark = true,
+                        track = song,
                         isPlaying = song.videoId == playingTrack,
                         modifier = Modifier.fillMaxWidth(),
                         onMoreClickListener = {
@@ -875,11 +886,11 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.singles),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                     )
@@ -915,7 +926,8 @@ private fun ArtistSections(
                     }
                     items(state.data.singles?.results ?: emptyList()) { single ->
                         HomeItemContentPlaylist(
-                            forceDark = true,                            onClick = {
+                            forceDark = true,
+                            onClick = {
                                 navController.navigate(
                                     AlbumDestination(
                                         single.browseId,
@@ -943,11 +955,11 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.albums),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                     )
@@ -983,7 +995,8 @@ private fun ArtistSections(
                     }
                     items(state.data.albums?.results ?: emptyList()) { album ->
                         HomeItemContentPlaylist(
-                            forceDark = true,                            onClick = {
+                            forceDark = true,
+                            onClick = {
                                 navController.navigate(
                                     AlbumDestination(
                                         browseId = album.browseId,
@@ -1011,11 +1024,11 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.videos),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                     )
@@ -1050,7 +1063,8 @@ private fun ArtistSections(
                     }
                     items(state.data.video?.video ?: emptyList()) { video ->
                         HomeItemVideo(
-                            forceDark = true,                            onClick = {
+                            forceDark = true,
+                            onClick = {
                                 val firstQueue: Track = video
                                 viewModel.setQueueData(
                                     QueueData.Data(
@@ -1097,16 +1111,16 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.featured_inArtist),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 4.dp),
                     )
                 }
                 LazyRow(
@@ -1117,7 +1131,8 @@ private fun ArtistSections(
                     }
                     items(state.data.featuredOn) { feature ->
                         HomeItemContentPlaylist(
-                            forceDark = true,                            onClick = {
+                            forceDark = true,
+                            onClick = {
                                 navController.navigate(
                                     PlaylistDestination(
                                         feature.id,
@@ -1145,16 +1160,16 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.related_artists),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 4.dp),
                     )
                 }
                 LazyRow(

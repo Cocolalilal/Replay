@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -88,6 +89,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
+import com.maxrave.simpmusic.ui.theme.lyricsFontFamily
 import coil3.compose.LocalPlatformContext
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
@@ -384,14 +386,15 @@ fun LyricsLineItem(
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = originalWords,
-            style = typo().headlineLarge.copy(fontSize = 27.sp),
+            fontFamily = lyricsFontFamily(),
+            fontSize = 27.sp,
             color = if (isCurrent) Color.White else DimOriginalColor,
-            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
         )
         if (translatedWords != null) {
             Text(
                 text = translatedWords,
-                style = typo().bodyMedium.copy(fontSize = 14.sp),
+                fontFamily = lyricsFontFamily(),
+                fontSize = 14.sp,
                 color = if (isCurrent) Color.White.copy(alpha = 0.55f) else DimTranslatedColor,
             )
         }
@@ -483,8 +486,10 @@ private fun AnimatedWord(
     customFontSize: TextUnit? = null,
 ) {
     val style =
-        typo().headlineLarge.copy(
+        TextStyle(
+            fontFamily = lyricsFontFamily(),
             fontSize = customFontSize ?: 27.sp,
+            fontWeight = FontWeight.Bold,
         )
 
     if (!isCurrent) {
@@ -792,7 +797,13 @@ fun FullscreenLyricsSheet(
                         modifier =
                             Modifier
                                 .size(45.dp)
-                                .clip(RoundedCornerShape(8.dp)),
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    coroutineScope.launch {
+                                        sheetState.hide()
+                                        onDismiss()
+                                    }
+                                },
                     )
 
                     Spacer(modifier = Modifier.width(12.dp))

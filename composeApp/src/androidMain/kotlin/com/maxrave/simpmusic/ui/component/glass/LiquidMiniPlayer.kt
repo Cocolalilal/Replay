@@ -79,7 +79,7 @@ fun LiquidMiniPlayer(
 ) {
     val scope = rememberCoroutineScope()
     val isDark = isSystemInDarkTheme()
-    val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = 0.18f)
+    val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = if (isDark) 0.38f else 0.45f)
     val textColor = if (isDark) Color.White else Color.Black
     val subtitleColor = if (isDark) Color.White.copy(alpha = 0.65f) else Color.Black.copy(alpha = 0.65f)
 

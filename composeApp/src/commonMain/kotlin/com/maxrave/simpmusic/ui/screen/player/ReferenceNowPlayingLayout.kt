@@ -20,6 +20,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -30,6 +32,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -133,6 +137,16 @@ import com.maxrave.simpmusic.extension.formatDuration
 import com.maxrave.simpmusic.ui.component.LyricsView
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.rememberHolderPainter
+import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
+import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
+import com.maxrave.simpmusic.ui.theme.nowPlayingTitleFontFamily
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.zIndex
+import com.maxrave.simpmusic.ui.icon.DragHandle
 import com.maxrave.simpmusic.ui.icon.Favorite
 import com.maxrave.simpmusic.ui.icon.FavoriteBorder
 import com.maxrave.simpmusic.ui.icon.Forward5
@@ -160,6 +174,9 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.unavailable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
@@ -378,16 +395,71 @@ fun ReferenceNowPlayingLayout(
                             .weight(1f)
                             .fillMaxWidth(),
                 ) {
-                    // Tab switch: the outgoing page fades out quickly and the incoming one only
-                    // starts appearing as it goes — a short, tight crossfade instead of a long
-                    // overlap, so text never lingers over the new page. The cover art still
-                    // morphs via the shared element.
+                    // Tab switch: smooth, spatially logical transitions reflecting the bottom pill
+                    // layout (Lyrics on left = tab 1, Player in center = tab 0, Queue on right = tab 2).
+                    // Cover art continues morphing smoothly via SharedTransitionLayout without clipping.
                     AnimatedContent(
                         targetState = selectedTab,
                         transitionSpec = {
-                            (fadeIn(tween(400, easing = FastOutSlowInEasing, delayMillis = 200)) togetherWith
-                                fadeOut(tween(300, easing = FastOutSlowInEasing)))
-                                .using(SizeTransform(clip = false))
+                            val initial = initialState
+                            val target = targetState
+                            when {
+                                // Lyrics (1) <-> Queue (2): 1 is left, 2 is right
+                                initial == 1 && target == 2 -> {
+                                    (slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { (it * 0.30f).toInt() } +
+                                        fadeIn(tween(300, delayMillis = 50, easing = FastOutSlowInEasing)))
+                                        .togetherWith(
+                                            slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { (-it * 0.30f).toInt() } +
+                                                fadeOut(tween(220, easing = FastOutSlowInEasing)),
+                                        )
+                                }
+                                initial == 2 && target == 1 -> {
+                                    (slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { (-it * 0.30f).toInt() } +
+                                        fadeIn(tween(300, delayMillis = 50, easing = FastOutSlowInEasing)))
+                                        .togetherWith(
+                                            slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { (it * 0.30f).toInt() } +
+                                                fadeOut(tween(220, easing = FastOutSlowInEasing)),
+                                        )
+                                }
+                                // Player (0) <-> Lyrics (1): Lyrics is left
+                                initial == 0 && target == 1 -> {
+                                    (slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { (-it * 0.25f).toInt() } +
+                                        fadeIn(tween(300, delayMillis = 50, easing = FastOutSlowInEasing)))
+                                        .togetherWith(
+                                            slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { (it * 0.15f).toInt() } +
+                                                fadeOut(tween(220, easing = FastOutSlowInEasing)),
+                                        )
+                                }
+                                initial == 1 && target == 0 -> {
+                                    (slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { (it * 0.15f).toInt() } +
+                                        fadeIn(tween(300, delayMillis = 50, easing = FastOutSlowInEasing)))
+                                        .togetherWith(
+                                            slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { (-it * 0.25f).toInt() } +
+                                                fadeOut(tween(220, easing = FastOutSlowInEasing)),
+                                        )
+                                }
+                                // Player (0) <-> Queue (2): Queue is right
+                                initial == 0 && target == 2 -> {
+                                    (slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { (it * 0.25f).toInt() } +
+                                        fadeIn(tween(300, delayMillis = 50, easing = FastOutSlowInEasing)))
+                                        .togetherWith(
+                                            slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { (-it * 0.15f).toInt() } +
+                                                fadeOut(tween(220, easing = FastOutSlowInEasing)),
+                                        )
+                                }
+                                initial == 2 && target == 0 -> {
+                                    (slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { (-it * 0.15f).toInt() } +
+                                        fadeIn(tween(300, delayMillis = 50, easing = FastOutSlowInEasing)))
+                                        .togetherWith(
+                                            slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { (it * 0.25f).toInt() } +
+                                                fadeOut(tween(220, easing = FastOutSlowInEasing)),
+                                        )
+                                }
+                                else -> {
+                                    (fadeIn(tween(300, easing = FastOutSlowInEasing)) togetherWith
+                                        fadeOut(tween(250, easing = FastOutSlowInEasing)))
+                                }
+                            }.using(SizeTransform(clip = false))
                         },
                         label = "nowPlayingTab",
                     ) { tab ->
@@ -407,6 +479,7 @@ fun ReferenceNowPlayingLayout(
                                         onLike = { sharedViewModel.onUIEvent(UIEvent.ToggleLike) },
                                         onMore = { showOverflow = true },
                                         onArtistClick = navigateToArtist,
+                                        onArtworkClick = { selectedTab = 0 },
                                         onLineClick = { progress ->
                                             sharedViewModel.onUIEvent(UIEvent.UpdateProgress(progress))
                                         },
@@ -427,6 +500,7 @@ fun ReferenceNowPlayingLayout(
                                         onLike = { sharedViewModel.onUIEvent(UIEvent.ToggleLike) },
                                         onMore = { showOverflow = true },
                                         onArtistClick = navigateToArtist,
+                                        onArtworkClick = { selectedTab = 0 },
                                         onShuffle = { sharedViewModel.onUIEvent(UIEvent.Shuffle) },
                                         onRepeat = { sharedViewModel.onUIEvent(UIEvent.Repeat) },
                                         currentVideoId = currentVideoId,
@@ -821,6 +895,7 @@ private fun ReferenceLyricsPage(
     onLike: () -> Unit,
     onMore: () -> Unit,
     onArtistClick: () -> Unit,
+    onArtworkClick: (() -> Unit)? = null,
     onLineClick: (Float) -> Unit,
     onArtworkLoaded: (androidx.compose.ui.graphics.ImageBitmap) -> Unit,
     timeLine: StateFlow<TimeLine>,
@@ -843,6 +918,7 @@ private fun ReferenceLyricsPage(
                 onLike = onLike,
                 onMore = onMore,
                 onArtistClick = onArtistClick,
+                onArtworkClick = onArtworkClick,
                 onArtworkLoaded = onArtworkLoaded,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -875,6 +951,144 @@ private fun ReferenceLyricsPage(
     }
 }
 
+private data class QueueDisplayTrack(
+    val id: String,
+    val track: Track,
+)
+
+private class QueueDragDropState(
+    val lazyListState: LazyListState,
+    private val scope: CoroutineScope,
+    private val hapticFeedback: HapticFeedback,
+) {
+    var draggedIndex by mutableStateOf<Int?>(null)
+        internal set
+    var dragOffsetY by mutableFloatStateOf(0f)
+        internal set
+    var isDragging by mutableStateOf(false)
+        internal set
+
+    var settleIndex by mutableStateOf<Int?>(null)
+        internal set
+    val settleOffset = Animatable(0f)
+
+    private var autoScrollJob: Job? = null
+
+    fun onDragStart(index: Int) {
+        draggedIndex = index
+        isDragging = true
+        dragOffsetY = 0f
+        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+    }
+
+    fun onDrag(
+        dragAmount: Float,
+        itemCount: Int,
+        onSwap: (Int, Int) -> Unit,
+    ) {
+        val currentIdx = draggedIndex ?: return
+        dragOffsetY += dragAmount
+
+        val targetLazyIndex = currentIdx + 1
+        val visibleItems = lazyListState.layoutInfo.visibleItemsInfo
+        val currentItemInfo = visibleItems.firstOrNull { it.index == targetLazyIndex }
+        val itemHeight = (currentItemInfo?.size ?: 60).toFloat()
+
+        if (dragOffsetY > itemHeight * 0.55f && currentIdx < itemCount - 1) {
+            val nextIdx = currentIdx + 1
+            dragOffsetY -= itemHeight
+            onSwap(currentIdx, nextIdx)
+            draggedIndex = nextIdx
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+        } else if (dragOffsetY < -itemHeight * 0.55f && currentIdx > 0) {
+            val prevIdx = currentIdx - 1
+            dragOffsetY += itemHeight
+            onSwap(currentIdx, prevIdx)
+            draggedIndex = prevIdx
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+        }
+
+        val viewportHeight = lazyListState.layoutInfo.viewportSize.height
+        val currentItemTop = (currentItemInfo?.offset ?: 0) + dragOffsetY
+        val scrollZone = 100f
+
+        if (currentItemTop < scrollZone) {
+            val speed = -((scrollZone - currentItemTop).coerceIn(4f, 25f))
+            startAutoScroll(speed)
+        } else if (currentItemTop + itemHeight > viewportHeight - scrollZone) {
+            val speed = ((currentItemTop + itemHeight) - (viewportHeight - scrollZone)).coerceIn(4f, 25f)
+            startAutoScroll(speed)
+        } else {
+            stopAutoScroll()
+        }
+    }
+
+    fun onDragEnd(onCommit: () -> Unit) {
+        stopAutoScroll()
+        val finishedIndex = draggedIndex
+        val currentOffset = dragOffsetY
+
+        isDragging = false
+        draggedIndex = null
+        dragOffsetY = 0f
+
+        if (finishedIndex != null && kotlin.math.abs(currentOffset) > 1f) {
+            settleIndex = finishedIndex
+            scope.launch {
+                settleOffset.snapTo(currentOffset)
+                settleOffset.animateTo(
+                    0f,
+                    spring(
+                        stiffness = Spring.StiffnessMediumLow,
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                    ),
+                )
+                settleIndex = null
+            }
+        }
+
+        hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
+        onCommit()
+    }
+
+    fun onDragCancel() {
+        stopAutoScroll()
+        isDragging = false
+        draggedIndex = null
+        dragOffsetY = 0f
+    }
+
+    private fun startAutoScroll(delta: Float) {
+        if (autoScrollJob?.isActive == true) return
+        autoScrollJob = scope.launch {
+            while (isDragging) {
+                lazyListState.scrollBy(delta)
+                delay(16)
+            }
+        }
+    }
+
+    private fun stopAutoScroll() {
+        autoScrollJob?.cancel()
+        autoScrollJob = null
+    }
+}
+
+@Composable
+private fun rememberQueueDragDropState(
+    lazyListState: LazyListState,
+): QueueDragDropState {
+    val scope = rememberCoroutineScope()
+    val hapticFeedback = LocalHapticFeedback.current
+    return remember(lazyListState) {
+        QueueDragDropState(
+            lazyListState = lazyListState,
+            scope = scope,
+            hapticFeedback = hapticFeedback,
+        )
+    }
+}
+
 @Composable
 private fun ReferenceQueuePage(
     screenDataState: NowPlayingScreenData,
@@ -887,11 +1101,80 @@ private fun ReferenceQueuePage(
     onLike: () -> Unit,
     onMore: () -> Unit,
     onArtistClick: () -> Unit,
+    onArtworkClick: (() -> Unit)? = null,
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
     currentVideoId: String?,
     onArtworkLoaded: (androidx.compose.ui.graphics.ImageBitmap) -> Unit,
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val hapticFeedback = LocalHapticFeedback.current
+    val lazyListState = rememberLazyListState()
+    val dragDropState = rememberQueueDragDropState(lazyListState)
+
+    var idCounter by remember { mutableIntStateOf(0) }
+    val displayQueue = remember { mutableStateListOf<QueueDisplayTrack>() }
+
+    // Sync displayQueue whenever queue changes and user is not actively dragging
+    LaunchedEffect(queue) {
+        if (!dragDropState.isDragging) {
+            val currentVideoIds = displayQueue.map { it.track.videoId }
+            val newVideoIds = queue.map { it.videoId }
+            if (currentVideoIds != newVideoIds) {
+                val existingById = displayQueue.associateBy { it.track.videoId }
+                val newItems = queue.map { track ->
+                    existingById[track.videoId]?.copy(track = track)
+                        ?: QueueDisplayTrack(id = "${track.videoId}_${idCounter++}", track = track)
+                }
+                displayQueue.clear()
+                displayQueue.addAll(newItems)
+            }
+        }
+    }
+
+    val shuffleRotation = remember { Animatable(0f) }
+    val shuffleScale = remember { Animatable(1f) }
+
+    val handleRandomize: () -> Unit = {
+        coroutineScope.launch {
+            launch {
+                shuffleScale.animateTo(1.25f, spring(dampingRatio = 0.5f, stiffness = 800f))
+                shuffleScale.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 400f))
+            }
+            launch {
+                shuffleRotation.animateTo(
+                    targetValue = shuffleRotation.value + 360f,
+                    animationSpec = spring(dampingRatio = 0.65f, stiffness = 350f),
+                )
+            }
+        }
+        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+
+        if (displayQueue.size > 1) {
+            val currentIdx = displayQueue.indexOfFirst { it.track.videoId == currentVideoId }.takeIf { it >= 0 } ?: 0
+            val newList = displayQueue.toMutableList()
+            val indicesToShuffle =
+                if (currentIdx < displayQueue.size - 1) {
+                    ((currentIdx + 1) until displayQueue.size).toList()
+                } else {
+                    (0 until displayQueue.size).filter { it != currentIdx }
+                }
+            if (indicesToShuffle.size > 1) {
+                val shuffled = indicesToShuffle.map { displayQueue[it] }.shuffled()
+                indicesToShuffle.forEachIndexed { i, originalIdx ->
+                    newList[originalIdx] = shuffled[i]
+                }
+                displayQueue.clear()
+                displayQueue.addAll(newList)
+
+                coroutineScope.launch {
+                    mediaPlayerHandler.updateQueueOrder(newList.map { it.track })
+                }
+            }
+        }
+        onShuffle()
+    }
+
     Column(Modifier.fillMaxSize()) {
         ReferenceTrackHeader(
             screenDataState = screenDataState,
@@ -903,6 +1186,7 @@ private fun ReferenceQueuePage(
             onLike = onLike,
             onMore = onMore,
             onArtistClick = onArtistClick,
+            onArtworkClick = onArtworkClick,
             onArtworkLoaded = onArtworkLoaded,
             modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp),
         )
@@ -918,13 +1202,20 @@ private fun ReferenceQueuePage(
             ReferencePageSegment(
                 selected = controllerState.isShuffle,
                 outerSide = ReferenceSegmentOuterSide.Left,
-                onClick = onShuffle,
+                onClick = handleRandomize,
             ) {
                 Icon(
                     imageVector = SimpIcons.Shuffle,
                     contentDescription = "Shuffle",
                     tint = if (controllerState.isShuffle) ReferenceSegmentActiveTint else ReferenceText,
-                    modifier = Modifier.size(22.dp),
+                    modifier =
+                        Modifier
+                            .size(22.dp)
+                            .graphicsLayer {
+                                rotationZ = shuffleRotation.value
+                                scaleX = shuffleScale.value
+                                scaleY = shuffleScale.value
+                            },
                 )
             }
             ReferencePageSegment(
@@ -951,13 +1242,14 @@ private fun ReferenceQueuePage(
             }
         }
         LazyColumn(
+            state = lazyListState,
             modifier =
                 Modifier
                     .weight(1f)
                     .fillMaxWidth(),
             contentPadding = PaddingValues(start = 26.dp, end = 26.dp, bottom = 12.dp),
         ) {
-            item {
+            item(key = "reference_queue_header") {
                 Column(Modifier.padding(top = 14.dp, bottom = 6.dp)) {
                     Text(
                         text = "Up Next",
@@ -973,14 +1265,94 @@ private fun ReferenceQueuePage(
                 }
             }
             itemsIndexed(
-                items = queue,
-                key = { index, track -> "reference_queue_${track.videoId}_$index" },
-            ) { index, track ->
-                ReferenceQueueItem(
-                    track = track,
-                    isPlaying = track.videoId == currentVideoId,
-                    onClick = { mediaPlayerHandler.playMediaItemInMediaSource(index) },
+                items = displayQueue,
+                key = { _, item -> item.id },
+            ) { index, item ->
+                val isDragged = index == dragDropState.draggedIndex
+                val isSettling = index == dragDropState.settleIndex
+                val dragOffset = dragDropState.dragOffsetY
+                val settleOffset = dragDropState.settleOffset.value
+
+                val animatedElevation by animateDpAsState(
+                    targetValue = if (isDragged) 12.dp else 0.dp,
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "itemElevation",
                 )
+                val animatedScale by animateFloatAsState(
+                    targetValue = if (isDragged) 1.035f else 1f,
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "itemScale",
+                )
+
+                val itemModifier =
+                    when {
+                        isDragged -> {
+                            Modifier
+                                .zIndex(10f)
+                                .graphicsLayer {
+                                    translationY = dragOffset
+                                    scaleX = animatedScale
+                                    scaleY = animatedScale
+                                    shadowElevation = animatedElevation.toPx()
+                                }
+                        }
+                        isSettling -> {
+                            Modifier
+                                .zIndex(5f)
+                                .graphicsLayer {
+                                    translationY = settleOffset
+                                }
+                        }
+                        else -> {
+                            Modifier.animateItem(
+                                placementSpec =
+                                    spring(
+                                        stiffness = Spring.StiffnessMediumLow,
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                    ),
+                                fadeInSpec = tween(250),
+                                fadeOutSpec = tween(200),
+                            )
+                        }
+                    }
+
+                Box(modifier = itemModifier) {
+                    ReferenceQueueItem(
+                        track = item.track,
+                        isPlaying = item.track.videoId == currentVideoId,
+                        isDragging = isDragged,
+                        onClick = {
+                            val realIndex =
+                                mediaPlayerHandler.queueData.value?.data?.listTracks?.indexOfFirst {
+                                    it.videoId == item.track.videoId
+                                } ?: index
+                            mediaPlayerHandler.playMediaItemInMediaSource(realIndex)
+                        },
+                        onDragStart = {
+                            dragDropState.onDragStart(index)
+                        },
+                        onDrag = { deltaY ->
+                            dragDropState.onDrag(
+                                dragAmount = deltaY,
+                                itemCount = displayQueue.size,
+                                onSwap = { from, to ->
+                                    val moved = displayQueue.removeAt(from)
+                                    displayQueue.add(to, moved)
+                                },
+                            )
+                        },
+                        onDragEnd = {
+                            dragDropState.onDragEnd {
+                                coroutineScope.launch {
+                                    mediaPlayerHandler.updateQueueOrder(displayQueue.map { it.track })
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            dragDropState.onDragCancel()
+                        },
+                    )
+                }
             }
         }
     }
@@ -1099,6 +1471,7 @@ private fun ReferenceTrackHeader(
     onLike: () -> Unit,
     onMore: () -> Unit,
     onArtistClick: () -> Unit,
+    onArtworkClick: (() -> Unit)? = null,
     onArtworkLoaded: (androidx.compose.ui.graphics.ImageBitmap) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1114,28 +1487,34 @@ private fun ReferenceTrackHeader(
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                 label = "miniArtworkPauseScale",
             )
-            if (shouldShowVideo && screenDataState.isVideo && timeLine != null) {
-                // The video track keeps playing in the header — a small 16:9 window that is the
-                // shared-element destination of the big video (same 8dp radius so the morph
-                // never radius-cuts).
-                ReferenceMiniVideo(
-                    screenDataState = screenDataState,
-                    isInPipMode = isInPipMode,
-                    timeLine = timeLine,
-                    isPlaying = controllerState.isPlaying,
-                    pauseScale = pauseScale,
-                    modifier = Modifier.height(44.dp),
-                )
-            } else {
-                // Perfect square, and the shared-element destination of the big artwork — it MUST
-                // use the same corner radius (16dp) or the radius hard-cuts at the start of the
-                // morph.
-                ReferenceStaticArtwork(
-                    url = screenDataState.thumbnailURL,
-                    onSuccess = onArtworkLoaded,
-                    modifier = Modifier.size(44.dp),
-                    scale = pauseScale,
-                )
+            val artworkClickModifier = if (onArtworkClick != null) {
+                Modifier.clickable(onClick = onArtworkClick)
+            } else Modifier
+
+            Box(modifier = artworkClickModifier) {
+                if (shouldShowVideo && screenDataState.isVideo && timeLine != null) {
+                    // The video track keeps playing in the header — a small 16:9 window that is the
+                    // shared-element destination of the big video (same 8dp radius so the morph
+                    // never radius-cuts).
+                    ReferenceMiniVideo(
+                        screenDataState = screenDataState,
+                        isInPipMode = isInPipMode,
+                        timeLine = timeLine,
+                        isPlaying = controllerState.isPlaying,
+                        pauseScale = pauseScale,
+                        modifier = Modifier.height(44.dp),
+                    )
+                } else {
+                    // Perfect square, and the shared-element destination of the big artwork — it MUST
+                    // use the same corner radius (16dp) or the radius hard-cuts at the start of the
+                    // morph.
+                    ReferenceStaticArtwork(
+                        url = screenDataState.thumbnailURL,
+                        onSuccess = onArtworkLoaded,
+                        modifier = Modifier.size(44.dp),
+                        scale = pauseScale,
+                    )
+                }
             }
             Spacer(Modifier.width(12.dp))
         }
@@ -1143,7 +1522,10 @@ private fun ReferenceTrackHeader(
             Text(
                 text = screenDataState.nowPlayingTitle,
                 color = ReferenceText,
-                style = typo().titleLarge.copy(fontSize = if (showArtwork) 17.sp else 21.sp),
+                style = typo().titleMedium.copy(
+                    fontFamily = nowPlayingTitleFontFamily(),
+                    fontSize = if (showArtwork) 17.sp else 21.sp,
+                ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier =
@@ -1155,7 +1537,10 @@ private fun ReferenceTrackHeader(
             Text(
                 text = screenDataState.artistName,
                 color = ReferenceMutedText,
-                style = typo().bodyLarge.copy(fontSize = if (showArtwork) 13.sp else 15.sp),
+                style = typo().bodyMedium.copy(
+                    fontFamily = itemSubtitleFontFamily(),
+                    fontSize = if (showArtwork) 13.sp else 15.sp,
+                ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier =
@@ -1244,10 +1629,7 @@ private fun ReferenceProgressBar(
 
     val hapticFeedback = LocalHapticFeedback.current
     var lastTickSecond by remember { mutableLongStateOf(Long.MIN_VALUE) }
-    val referencePrimary = LocalReferencePrimary.current
-    // Solid tint used INSIDE the merged offscreen layer (see the thumb Canvas below): the layer
-    // is drawn at 30% like the play/pause button, so the bar optically matches it.
-    val referenceTint = LocalReferenceTint.current
+    val referenceSecondary = LocalReferenceSecondary.current
 
     var isPointerSeeking by remember { mutableStateOf(false) }
     val isInteracting = isPointerSeeking || isSliding
@@ -1290,14 +1672,9 @@ private fun ReferenceProgressBar(
         }
 
     // The played portion and the ball are SOLID WHITE (the cleanest look, like Apple Music's
-    // bar); the unplayed remainder stays a faint pre-blended tint.
+    // bar); the unplayed remainder uses the secondary tint.
     val playedSolid = Color.White
-    val unplayedSolid =
-        referenceTint.copy(
-            red = referenceTint.red * 0.24f,
-            green = referenceTint.green * 0.24f,
-            blue = referenceTint.blue * 0.24f,
-        )
+    val unplayedTrackColor = referenceSecondary
 
     // Smooth interpolated progress, updated on the frame clock (never recomposes per frame).
     val renderedNormalizedProgress = remember { mutableFloatStateOf(value.coerceIn(0f, 1f)) }
@@ -1373,9 +1750,8 @@ private fun ReferenceProgressBar(
         contentAlignment = Alignment.Center,
     ) {
         // The original structure: the wavy indicator draws the played portion, our Canvas draws
-        // the unplayed track and the round thumb. All colours are SOLID (pre-blended over black
-        // so they look exactly like the translucent play/pause tints) — nothing is translucent
-        // anymore, so nothing can show through anything, and the gap keeps the lines clear of
+        // the unplayed track and the round thumb. The played portion is solid white while the
+        // unplayed track uses the secondary background tint, and the gap keeps the lines clear of
         // the thumb.
         LinearWavyProgressIndicator(
             progress = { renderedNormalizedProgress.floatValue },
@@ -1418,7 +1794,7 @@ private fun ReferenceProgressBar(
             // end ball instead of drawing a backwards line beyond it.
             val visibleTrackLeft = trackLeft.coerceAtMost(visibleTrackRight)
             drawLine(
-                color = unplayedSolid,
+                color = unplayedTrackColor,
                 start = Offset(visibleTrackLeft, thumbY),
                 end = Offset(visibleTrackRight, thumbY),
                 strokeWidth = strokeWidthPx,
@@ -1512,6 +1888,7 @@ private fun ReferenceProgressBar(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .offset(y = (-8).dp)
                     .padding(horizontal = 26.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -1880,15 +2257,46 @@ private fun RowScope.ReferencePageSegment(
 private fun ReferenceQueueItem(
     track: Track,
     isPlaying: Boolean,
+    isDragging: Boolean,
     onClick: () -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val thumbnail = track.thumbnails?.maxByOrNull { it.width * it.height }?.url
+    val dragHandleScale by animateFloatAsState(
+        targetValue = if (isDragging) 1.2f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "dragHandleScale",
+    )
+
     Row(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (isDragging) {
+                        LocalReferencePrimary.current.copy(alpha = 0.45f)
+                    } else {
+                        Color.Transparent
+                    },
+                )
+                .then(
+                    if (isDragging) {
+                        Modifier.border(
+                            width = 1.dp,
+                            color = Color.White.copy(alpha = 0.25f),
+                            shape = RoundedCornerShape(12.dp),
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
                 .clickable(onClick = onClick)
-                .padding(vertical = 6.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
@@ -1925,16 +2333,58 @@ private fun ReferenceQueueItem(
             Text(
                 text = track.artists?.joinToString(", ") { it.name }.orEmpty(),
                 color = ReferenceMutedText,
-                style = typo().bodyLarge.copy(fontSize = 14.sp),
+                style =
+                    typo().bodyMedium.copy(
+                        fontFamily = itemSubtitleFontFamily(),
+                        fontSize = 14.sp,
+                    ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
-        ReferenceQueueListIcon(
-            tint = if (isPlaying) ReferenceText.copy(alpha = 0.8f) else ReferenceMutedText.copy(alpha = 0.5f),
-            modifier = Modifier.size(30.dp),
-        )
+        // Handle bars drag handle on the right of the song
+        Box(
+            modifier =
+                Modifier
+                    .size(44.dp)
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { _ ->
+                                onDragStart()
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                onDrag(dragAmount.y)
+                            },
+                            onDragEnd = {
+                                onDragEnd()
+                            },
+                            onDragCancel = {
+                                onDragCancel()
+                            },
+                        )
+                    },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = SimpIcons.DragHandle,
+                contentDescription = "Reorder",
+                tint =
+                    when {
+                        isDragging -> ReferenceText
+                        isPlaying -> ReferenceText.copy(alpha = 0.85f)
+                        else -> ReferenceMutedText.copy(alpha = 0.5f)
+                    },
+                modifier =
+                    Modifier
+                        .size(24.dp)
+                        .graphicsLayer {
+                            scaleX = dragHandleScale
+                            scaleY = dragHandleScale
+                        },
+            )
+        }
     }
 }
 

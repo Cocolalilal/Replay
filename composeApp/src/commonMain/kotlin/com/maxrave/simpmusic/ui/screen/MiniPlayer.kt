@@ -3,6 +3,7 @@ package com.maxrave.simpmusic.ui.screen
 import androidx.compose.animation.Animatable
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.unit.sp
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
@@ -173,10 +174,6 @@ fun MiniPlayer(
         label = "MiniPlayerTextColor",
         animationSpec = tween(500),
     )
-
-    LaunchedEffect(luminanceAnimation.value) {
-        Logger.w("GlassDbg", "luminanceAnimation: ${luminanceAnimation.value}")
-    }
 
     LaunchedEffect(layer, isLiquidGlassEnabled) {
         val buffer = IntArray(25)
@@ -474,7 +471,7 @@ fun MiniPlayer(
                                     ) {
                                         Text(
                                             text = (songEntity?.title ?: "").toString(),
-                                            style = typo().labelSmall,
+                                            style = typo().titleSmall.copy(fontSize = 13.5.sp),
                                             color = textColor,
                                             maxLines = 1,
                                             modifier =
@@ -670,7 +667,7 @@ fun MiniPlayer(
                         Column {
                             Text(
                                 text = (songEntity?.title ?: "").toString(),
-                                style = typo().labelSmall,
+                                style = typo().titleSmall.copy(fontSize = 13.5.sp),
                                 color = textColor,
                                 maxLines = 1,
                                 modifier =

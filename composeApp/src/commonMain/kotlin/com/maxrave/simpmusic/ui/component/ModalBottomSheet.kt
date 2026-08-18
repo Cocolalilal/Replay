@@ -147,6 +147,7 @@ import com.maxrave.simpmusic.ui.icon.Done
 import com.maxrave.simpmusic.ui.icon.DownloadForOffline
 import com.maxrave.simpmusic.ui.icon.DownloadForOfflineOutlined
 import com.maxrave.simpmusic.ui.icon.Downloading
+import com.maxrave.simpmusic.ui.icon.AddPhotoAlternate
 import com.maxrave.simpmusic.ui.icon.Edit
 import com.maxrave.simpmusic.ui.icon.FavoriteBorder
 import com.maxrave.simpmusic.ui.icon.KeyboardArrowDown
@@ -156,11 +157,21 @@ import com.maxrave.simpmusic.ui.icon.Lyrics
 import com.maxrave.simpmusic.ui.icon.PeopleAlt
 import com.maxrave.simpmusic.ui.icon.PlayCircle
 import com.maxrave.simpmusic.ui.icon.PlaylistAdd
+import com.maxrave.domain.data.model.pinned.PinnedItem
+import com.maxrave.domain.data.model.pinned.PinnedType
+import com.maxrave.simpmusic.ui.icon.PushPin
 import com.maxrave.simpmusic.ui.icon.QueueMusic
 import com.maxrave.simpmusic.ui.icon.Remove
 import com.maxrave.simpmusic.ui.icon.Sensors
 import com.maxrave.simpmusic.ui.icon.Share
 import com.maxrave.simpmusic.ui.icon.SimpIcons
+import com.maxrave.simpmusic.util.CustomCoverHelper
+import com.mohamedrejeb.calf.io.getPath
+import com.mohamedrejeb.calf.io.readByteArray
+import com.mohamedrejeb.calf.picker.FilePickerFileType
+import com.mohamedrejeb.calf.picker.FilePickerSelectionMode
+import com.mohamedrejeb.calf.picker.rememberFilePickerLauncher
+import simpmusic.composeapp.generated.resources.monochrome
 import com.maxrave.simpmusic.ui.icon.Speed
 import com.maxrave.simpmusic.ui.icon.Sync
 import com.maxrave.simpmusic.ui.icon.SyncDisabled
@@ -1081,7 +1092,13 @@ fun QueueBottomSheet(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(10.dp),
+                            .padding(10.dp)
+                            .clickable {
+                                coroutineScope.launch {
+                                    sheetState.hide()
+                                    onDismiss()
+                                }
+                            },
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -1409,6 +1426,8 @@ fun NowPlayingBottomSheet(
     var mainLyricsProvider by remember { mutableStateOf(false) }
     var sleepTimer by remember { mutableStateOf(false) }
     var sleepTimerWarning by remember { mutableStateOf(false) }
+    var showDeleteSongConfirmation by remember { mutableStateOf(false) }
+    var showLibraryDeleteConfirmation by remember { mutableStateOf(false) }
     var isBottomSheetVisible by rememberSaveable { mutableStateOf(false) }
     var changePlaybackSpeedPitch by remember { mutableStateOf(false) }
     val crossfadeEnabled by dataStoreManager.crossfadeEnabled.collectAsState(DataStoreManager.FALSE)
@@ -1717,8 +1736,7 @@ fun NowPlayingBottomSheet(
                                 icon = SimpIcons.Delete,
                                 text = Res.string.delete_song_from_playlist,
                             ) {
-                                hideModalBottomSheet()
-                                onDelete?.invoke()
+                                showDeleteSongConfirmation = true
                             }
                         }
                     }
@@ -1728,8 +1746,7 @@ fun NowPlayingBottomSheet(
                                 icon = SimpIcons.Delete,
                                 text = Res.string.delete,
                             ) {
-                                hideModalBottomSheet()
-                                onLibraryDelete?.invoke()
+                                showLibraryDeleteConfirmation = true
                             }
                         }
                     }
@@ -1894,10 +1911,53 @@ fun NowPlayingBottomSheet(
                     ) {
                         viewModel.onUIEvent(NowPlayingBottomSheetUIEvent.Share)
                     }
+                    ActionButton(
+                        icon = SimpIcons.Remove,
+                        text = null,
+                        textString = "Not interested",
+                    ) {
+                        viewModel.onUIEvent(NowPlayingBottomSheetUIEvent.NotInterested(uiState.songUIState.videoId))
+                        hideModalBottomSheet()
+                    }
+                    if (uiState.songUIState.listArtists.isNotEmpty()) {
+                        val artist = uiState.songUIState.listArtists.firstOrNull()?.name.orEmpty()
+                        ActionButton(
+                            icon = SimpIcons.PeopleAlt,
+                            text = null,
+                            textString = "Don't recommend artist",
+                        ) {
+                            viewModel.onUIEvent(NowPlayingBottomSheetUIEvent.DontRecommendArtist(artist))
+                            hideModalBottomSheet()
+                        }
+                    }
                     EndOfModalBottomSheet()
                 }
             }
         }
+    }
+    if (showDeleteSongConfirmation) {
+        ReplayConfirmationDialog(
+            title = stringResource(Res.string.delete_song_from_playlist),
+            message = "Are you sure you want to remove \"${song?.title ?: "this song"}\" from the playlist?",
+            confirmText = stringResource(Res.string.delete),
+            onConfirm = {
+                onDelete?.invoke()
+                hideModalBottomSheet()
+            },
+            onDismiss = { showDeleteSongConfirmation = false },
+        )
+    }
+    if (showLibraryDeleteConfirmation) {
+        ReplayConfirmationDialog(
+            title = stringResource(Res.string.delete),
+            message = "Are you sure you want to delete \"${song?.title ?: "this item"}\"? This action cannot be undone.",
+            confirmText = stringResource(Res.string.delete),
+            onConfirm = {
+                onLibraryDelete?.invoke()
+                hideModalBottomSheet()
+            },
+            onDismiss = { showLibraryDeleteConfirmation = false },
+        )
     }
 }
 
@@ -1909,6 +1969,7 @@ fun ActionButton(
     textColor: Color? = null,
     iconColor: Color = Color.Unspecified,
     enable: Boolean = true,
+    trailingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     val c = rememberSurfaceDarkColors()
@@ -1947,8 +2008,13 @@ fun ActionButton(
                 modifier =
                     Modifier
                         .padding(start = 10.dp)
+                        .weight(1f, fill = false)
                         .wrapContentHeight(Alignment.CenterVertically),
             )
+            if (trailingContent != null) {
+                Spacer(modifier = Modifier.weight(1f))
+                trailingContent()
+            }
         }
     }
 }
@@ -2731,14 +2797,19 @@ fun PlaylistBottomSheet(
     onDismiss: () -> Unit,
     playlistId: String,
     playlistName: String,
+    thumbnailUrl: String? = null,
     isYourYouTubePlaylist: Boolean,
     onEditTitle: (newTitle: String) -> Unit = {},
-    onSaveToLocal: () -> Unit,
+    onDelete: (() -> Unit)? = null,
+    onSaveToLocal: () -> Unit = {},
     onAddToQueue: (() -> Unit)? = null,
     localPlaylistRepository: LocalPlaylistRepository = koinInject(),
+    dataStoreManager: DataStoreManager = koinInject(),
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val isPinned by dataStoreManager.isPinned(playlistId).collectAsStateWithLifecycle(false)
     var isSavedToLocal by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     val modelBottomSheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val hideModalBottomSheet: () -> Unit =
@@ -2816,6 +2887,39 @@ fun PlaylistBottomSheet(
         }
     }
 
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+    val hasCustomCover = remember(customCoversMap, playlistId) {
+        CustomCoverHelper.hasCustomCover(playlistId, customCoversMap)
+    }
+
+    val calfPlatformContext = com.mohamedrejeb.calf.core.LocalPlatformContext.current
+    val picker = rememberFilePickerLauncher(
+        type = FilePickerFileType.Image,
+        selectionMode = FilePickerSelectionMode.Single,
+        onResult = { files ->
+            val file = files.firstOrNull()
+            if (file != null) {
+                coroutineScope.launch {
+                    val bytes = runCatching { file.readByteArray(calfPlatformContext) }.getOrNull()
+                    if (bytes != null) {
+                        CustomCoverHelper.saveCustomCover(playlistId, bytes, dataStoreManager)
+                    }
+                    hideModalBottomSheet()
+                }
+            }
+        },
+    )
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = modelBottomSheetState,
@@ -2838,6 +2942,57 @@ fun PlaylistBottomSheet(
                     shape = RoundedCornerShape(50),
                 ) {}
                 Spacer(modifier = Modifier.height(5.dp))
+                ActionButton(
+                    icon = SimpIcons.PushPin,
+                    text = null,
+                    textString = if (isPinned) "Unpin from library" else "Pin to library",
+                ) {
+                    coroutineScope.launch {
+                        if (isPinned) {
+                            dataStoreManager.removePin(playlistId)
+                        } else {
+                            val isAlbum = playlistId.startsWith("MPRE") || playlistId.startsWith("OLAK")
+                            dataStoreManager.addPin(
+                                PinnedItem(
+                                    id = if (isAlbum) "album_$playlistId" else "yt_$playlistId",
+                                    title = playlistName,
+                                    subtitle = if (isAlbum) "Album" else "Playlist",
+                                    thumbnailUrl = thumbnailUrl,
+                                    type = if (isAlbum) PinnedType.ALBUM else PinnedType.PLAYLIST,
+                                    targetId = playlistId,
+                                ),
+                            )
+                        }
+                        hideModalBottomSheet()
+                    }
+                }
+                ActionButton(
+                    icon = SimpIcons.AddPhotoAlternate,
+                    text = null,
+                    textString = "Change playlist cover",
+                    trailingContent = {
+                        Image(
+                            painter = painterResource(Res.drawable.monochrome),
+                            contentDescription = "Replay Customization",
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    },
+                ) {
+                    picker.launch()
+                }
+                if (hasCustomCover) {
+                    ActionButton(
+                        icon = SimpIcons.Delete,
+                        text = null,
+                        textString = "Remove custom cover",
+                    ) {
+                        coroutineScope.launch {
+                            CustomCoverHelper.removeCustomCover(playlistId, dataStoreManager)
+                            hideModalBottomSheet()
+                        }
+                    }
+                }
                 if (onAddToQueue != null) {
                     ActionButton(
                         icon = SimpIcons.QueueMusic,
@@ -2851,23 +3006,10 @@ fun PlaylistBottomSheet(
                     ActionButton(icon = SimpIcons.Edit, text = Res.string.edit_title) {
                         showEditTitle = true
                     }
-                    ActionButton(
-                        icon =
-                            if (isSavedToLocal) {
-                                SimpIcons.SyncDisabled
-                            } else {
-                                SimpIcons.Sync
-                            },
-                        text =
-                            if (isSavedToLocal) {
-                                Res.string.saved_to_local_playlist
-                            } else {
-                                Res.string.save_to_local_playlist
-                            },
-                        enable = !isSavedToLocal,
-                    ) {
-                        onSaveToLocal.invoke()
-                        hideModalBottomSheet()
+                    if (onDelete != null) {
+                        ActionButton(icon = SimpIcons.Delete, text = Res.string.delete) {
+                            showDeleteConfirmation = true
+                        }
                     }
                 }
                 val shareTitle = stringResource(Res.string.share)
@@ -2879,6 +3021,18 @@ fun PlaylistBottomSheet(
             }
         }
     }
+    if (showDeleteConfirmation) {
+        ReplayConfirmationDialog(
+            title = stringResource(Res.string.delete_playlist),
+            message = "Are you sure you want to delete \"$playlistName\"? This action cannot be undone.",
+            confirmText = stringResource(Res.string.delete),
+            onConfirm = {
+                onDelete?.invoke()
+                hideModalBottomSheet()
+            },
+            onDismiss = { showDeleteConfirmation = false },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -2888,8 +3042,10 @@ fun LocalPlaylistBottomSheet(
     onDismiss: () -> Unit,
     title: String,
     ytPlaylistId: String? = null,
+    hasCustomCover: Boolean = false,
     onEditTitle: (newTitle: String) -> Unit,
-    onEditThumbnail: (newThumbnailUri: String) -> Unit,
+    onEditThumbnail: ((ByteArray) -> Unit)? = null,
+    onRemoveThumbnail: (() -> Unit)? = null,
     onAddToQueue: () -> Unit,
     onSync: () -> Unit,
     onUpdatePlaylist: () -> Unit,
@@ -2897,6 +3053,7 @@ fun LocalPlaylistBottomSheet(
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showEditTitle by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     val modelBottomSheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val hideModalBottomSheet: () -> Unit =
@@ -2906,10 +3063,23 @@ fun LocalPlaylistBottomSheet(
                 onDismiss()
             }
         }
-    val resultLauncher =
-        photoPickerResult {
-            it?.let { onEditThumbnail(it) }
-        }
+    val calfPlatformContext = com.mohamedrejeb.calf.core.LocalPlatformContext.current
+    val picker = rememberFilePickerLauncher(
+        type = FilePickerFileType.Image,
+        selectionMode = FilePickerSelectionMode.Single,
+        onResult = { files ->
+            val file = files.firstOrNull()
+            if (file != null) {
+                coroutineScope.launch {
+                    val bytes = runCatching { file.readByteArray(calfPlatformContext) }.getOrNull()
+                    if (bytes != null) {
+                        onEditThumbnail?.invoke(bytes)
+                    }
+                    hideModalBottomSheet()
+                }
+            }
+        },
+    )
     if (showEditTitle) {
         var newTitle by remember { mutableStateOf(title) }
         val showEditTitleSheetState =
@@ -2997,7 +3167,17 @@ fun LocalPlaylistBottomSheet(
                         showEditTitle = true
                     }
                     ActionButton(icon = SimpIcons.AddPhotoAlternate, text = Res.string.edit_thumbnail) {
-                        resultLauncher.launch()
+                        picker.launch()
+                    }
+                    if (hasCustomCover && onRemoveThumbnail != null) {
+                        ActionButton(
+                            icon = SimpIcons.Delete,
+                            text = null,
+                            textString = "Remove custom cover",
+                        ) {
+                            onRemoveThumbnail()
+                            hideModalBottomSheet()
+                        }
                     }
                     ActionButton(icon = SimpIcons.QueueMusic, text = Res.string.add_to_queue) {
                         onAddToQueue()
@@ -3026,8 +3206,7 @@ fun LocalPlaylistBottomSheet(
                         onUpdatePlaylist()
                     }
                     ActionButton(icon = SimpIcons.Delete, text = Res.string.delete_playlist) {
-                        onDelete()
-                        hideModalBottomSheet()
+                        showDeleteConfirmation = true
                     }
                     val shareTitle = stringResource(Res.string.share_url)
                     ActionButton(
@@ -3042,6 +3221,18 @@ fun LocalPlaylistBottomSheet(
                 }
             }
         }
+    }
+    if (showDeleteConfirmation) {
+        ReplayConfirmationDialog(
+            title = stringResource(Res.string.delete_playlist),
+            message = "Are you sure you want to delete \"$title\"? This action cannot be undone.",
+            confirmText = stringResource(Res.string.delete),
+            onConfirm = {
+                onDelete()
+                hideModalBottomSheet()
+            },
+            onDismiss = { showDeleteConfirmation = false },
+        )
     }
 }
 

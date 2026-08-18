@@ -73,14 +73,14 @@ actual fun LiquidGlassAppBottomNavigationBar(
     }
 
     var isSearchActive by remember { mutableStateOf(false) }
-    var isManuallyExpanded by remember { mutableStateOf(false) }
+    var isManuallyExpanded by remember { mutableStateOf(true) }
 
     var currentRouteKey by remember { mutableStateOf("home") }
-    val routeAtTop = remember { mutableStateMapOf<String, Boolean>() }
-    var lastLiveAtTop by remember { mutableStateOf(isScrolledToTop) }
+    val routeAtTop = remember { mutableStateMapOf<String, Boolean>("home" to true) }
+    var lastLiveAtTop by remember { mutableStateOf(true) }
 
     LaunchedEffect(isScrolledToTop, scrollDirection, scrollEpoch) {
-        if (scrollDirection < 0) {
+        if (scrollDirection < 0 && !isScrolledToTop) {
             isManuallyExpanded = false
         }
         lastLiveAtTop = isScrolledToTop
@@ -137,14 +137,18 @@ actual fun LiquidGlassAppBottomNavigationBar(
         val dest = if (index == 0) HomeDestination else LibraryDestination
         val destClass = if (index == 0) HomeDestination::class else LibraryDestination::class
 
-        if (selectedIndex == index) {
-            if (currentBackStackEntry?.destination?.hierarchy?.any { it.hasRoute(destClass) } == true) {
-                reloadDestinationIfNeeded(destClass)
-            } else {
-                navController.navigate(dest)
-            }
+        val isCurrentTab = currentBackStackEntry?.destination?.hasRoute(destClass) == true
+
+        if (isSearchActive) {
+            isSearchActive = false
+            searchViewModel.setSearchBarActive(false)
+        }
+
+        if (isCurrentTab) {
+            reloadDestinationIfNeeded(destClass)
         } else {
             selectedIndex = index
+            isManuallyExpanded = true
             navController.navigate(dest) {
                 popUpTo(navController.graph.startDestinationId) {
                     saveState = true

@@ -1,10 +1,15 @@
 package com.maxrave.simpmusic.ui.screen.library
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -37,7 +43,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -94,6 +102,18 @@ import simpmusic.composeapp.generated.resources.your_top_albums
 import simpmusic.composeapp.generated.resources.your_top_artists
 import simpmusic.composeapp.generated.resources.your_top_tracks
 
+enum class LikedFilter { ALL, SONGS, VIDEOS }
+
+fun SongEntity.isVideoTrack(): Boolean {
+    return videoType == "MUSIC_VIDEO_TYPE_OMV" ||
+        videoType == "MUSIC_VIDEO_TYPE_UGC" ||
+        category == "Videos" ||
+        category == "Video" ||
+        resultType == "Videos" ||
+        resultType == "Video" ||
+        (videoType.contains("VIDEO", ignoreCase = true) && !videoType.contains("ATV", ignoreCase = true))
+}
+
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 @ExperimentalMaterial3Api
@@ -112,6 +132,7 @@ fun LibraryDynamicPlaylistScreen(
     var showBottomSheet by rememberSaveable { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    var likedFilter by rememberSaveable { mutableStateOf(LikedFilter.ALL) }
 
     val favorite by viewModel.listFavoriteSong.collectAsStateWithLifecycle()
     var tempFavorite by remember { mutableStateOf(emptyList<SongEntity>()) }
@@ -125,6 +146,16 @@ fun LibraryDynamicPlaylistScreen(
     var tempTopTracks by remember { mutableStateOf(analyticsUIState.topTracks.data ?: emptyList()) }
     var tempTopArtists by remember { mutableStateOf(analyticsUIState.topArtists.data ?: emptyList()) }
     var tempTopAlbums by remember { mutableStateOf(analyticsUIState.topAlbums.data ?: emptyList()) }
+
+    val filteredFavorite = remember(favorite, tempFavorite, query, showSearchBar, likedFilter) {
+        val base = if (query.isNotEmpty() && showSearchBar) tempFavorite else favorite
+        when (likedFilter) {
+            LikedFilter.ALL -> base
+            LikedFilter.SONGS -> base.filter { !it.isVideoTrack() }
+            LikedFilter.VIDEOS -> base.filter { it.isVideoTrack() }
+        }
+    }
+
     val hazeState =
         rememberHazeState(
             blurEnabled = true,
@@ -194,6 +225,43 @@ fun LibraryDynamicPlaylistScreen(
             }
         }
         val type = LibraryDynamicPlaylistType.toType(type)
+        if (type == LibraryDynamicPlaylistType.Favorite) {
+            item(key = "liked_filter_chips") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    listOf(
+                        LikedFilter.ALL to "All",
+                        LikedFilter.SONGS to "Songs",
+                        LikedFilter.VIDEOS to "Videos",
+                    ).forEach { (filter, label) ->
+                        val selected = likedFilter == filter
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (selected) Color.White else Color(0xFF1E1E22))
+                                .border(
+                                    BorderStroke(1.dp, if (selected) Color.White else Color.White.copy(alpha = 0.15f)),
+                                    RoundedCornerShape(50),
+                                )
+                                .clickable { likedFilter = filter }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                        ) {
+                            Text(
+                                text = label,
+                                style = typo().labelSmall,
+                                color = if (selected) Color.Black else Color.White,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
+        }
         if (type == LibraryDynamicPlaylistType.Followed) {
             items(
                 if (query.isNotEmpty() && showSearchBar) {
@@ -363,11 +431,7 @@ fun LibraryDynamicPlaylistScreen(
                     }
 
                     LibraryDynamicPlaylistType.Favorite -> {
-                        if (query.isNotEmpty() && showSearchBar) {
-                            tempFavorite
-                        } else {
-                            favorite
-                        }
+                        filteredFavorite
                     }
 
                     LibraryDynamicPlaylistType.MostPlayed -> {
@@ -633,9 +697,12 @@ sealed class LibraryDynamicPlaylistType {
         }
 
     companion object {
+        val LikedSongs: LibraryDynamicPlaylistType = Favorite
+
         fun toType(input: String): LibraryDynamicPlaylistType =
             when (input) {
                 "favorite" -> Favorite
+                "liked_songs" -> Favorite
                 "followed" -> Followed
                 "most_played" -> MostPlayed
                 "downloaded" -> Downloaded
