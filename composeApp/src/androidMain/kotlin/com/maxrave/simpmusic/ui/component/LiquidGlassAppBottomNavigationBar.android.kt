@@ -89,7 +89,12 @@ actual fun LiquidGlassAppBottomNavigationBar(
     }
 
     LaunchedEffect(nowPlayingData) {
-        isShowMiniPlayer = !(nowPlayingData?.mediaItem == null || nowPlayingData?.mediaItem == GenericMediaItem.EMPTY)
+        val wasMiniPlayerShown = isShowMiniPlayer
+        val isNowShown = !(nowPlayingData?.mediaItem == null || nowPlayingData?.mediaItem == GenericMediaItem.EMPTY)
+        isShowMiniPlayer = isNowShown
+        if (wasMiniPlayerShown && !isNowShown) {
+            isManuallyExpanded = true
+        }
     }
 
     LaunchedEffect(currentBackStackEntry) {
@@ -121,7 +126,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
         }
     }
 
-    val targetCollapse = if (isManuallyExpanded || lastLiveAtTop) 0f else 1f
+    val targetCollapse = if (!isShowMiniPlayer || isManuallyExpanded || lastLiveAtTop) 0f else 1f
     val scrollCollapseProgress by animateFloatAsState(
         targetValue = targetCollapse,
         animationSpec = spring(dampingRatio = 0.88f, stiffness = 500f),
@@ -196,6 +201,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
             onNextTrack = { viewModel.onUIEvent(UIEvent.Next) },
             onExpandFullPlayer = onOpenNowPlaying,
             onDismissMiniPlayer = {
+                isManuallyExpanded = true
                 viewModel.onUIEvent(UIEvent.Stop)
                 viewModel.isServiceRunning = false
             },
