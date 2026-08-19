@@ -25,6 +25,7 @@ import com.maxrave.simpmusic.ui.icon.Insights
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.icon.TrendingUp
 import com.maxrave.simpmusic.ui.navigation.destination.library.LibraryDynamicPlaylistDestination
+import com.maxrave.simpmusic.ui.navigation.destination.list.PlaylistDestination
 import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistType
 import com.maxrave.simpmusic.ui.theme.typo
 import org.jetbrains.compose.resources.StringResource
@@ -61,9 +62,7 @@ fun LibraryTilingBox(navController: NavController) {
                     when (listItem[number]) {
                         LibraryTilingState.Favorite -> {
                             navController.navigate(
-                                LibraryDynamicPlaylistDestination(
-                                    type = LibraryDynamicPlaylistType.Favorite.toStringParams(),
-                                ),
+                                PlaylistDestination("LM", isYourYouTubePlaylist = true),
                             )
                         }
 

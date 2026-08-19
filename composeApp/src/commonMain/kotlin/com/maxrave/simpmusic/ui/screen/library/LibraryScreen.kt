@@ -42,6 +42,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,6 +78,7 @@ import com.maxrave.simpmusic.extension.NonLazyGrid
 import com.maxrave.simpmusic.ui.component.CenterLoadingBox
 import com.maxrave.simpmusic.ui.component.EndOfPage
 import com.maxrave.simpmusic.ui.component.GradientHeartIcon
+import com.maxrave.simpmusic.ui.component.LikedSongsCover
 import com.maxrave.simpmusic.ui.component.LocalPlaylistBottomSheet
 import com.maxrave.simpmusic.ui.component.PlaylistBottomSheet
 import com.maxrave.simpmusic.ui.component.ReplayTopBar
@@ -196,28 +198,7 @@ fun LibraryScreen(
     var playlistToDelete by remember { mutableStateOf<LibraryCardItem?>(null) }
     var pinToRemove by remember { mutableStateOf<PinnedItem?>(null) }
 
-    val prevScrollPosition = rememberSaveable {
-        mutableFloatStateOf(scrollState.firstVisibleItemIndex + scrollState.firstVisibleItemScrollOffset / 10000.0f)
-    }
-
-    LaunchedEffect(scrollState) {
-        snapshotFlow {
-            val idx = scrollState.firstVisibleItemIndex
-            val off = scrollState.firstVisibleItemScrollOffset
-            Triple(idx == 0 && off == 0, idx, off)
-        }.collect { (isAtTop, idx, off) ->
-            val position = idx + (off / 10000.0f)
-            val direction = if (position > prevScrollPosition.floatValue) {
-                -1
-            } else if (position < prevScrollPosition.floatValue) {
-                1
-            } else {
-                0
-            }
-            prevScrollPosition.floatValue = position
-            onScrolling(isAtTop, direction)
-        }
-    }
+    scrollState.TrackScrolling(onScrolling = onScrolling)
 
     val onRefresh: () -> Unit = {
         isRefreshing = true
@@ -576,15 +557,14 @@ fun LibraryScreen(
                         ) {
                             // Sort Order Dropdown Pill (No sort icon)
                             Box {
-                                Row(
+                                Box(
                                     modifier = Modifier
                                         .height(36.dp)
                                         .clip(RoundedCornerShape(18.dp))
                                         .background(Color(0xFF1E1E22))
                                         .clickable { sortDropdownExpanded = true }
                                         .padding(horizontal = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
                                         text = selectedSortOrder.displayName,
@@ -592,12 +572,6 @@ fun LibraryScreen(
                                         fontSize = 13.sp,
                                         color = Color.White,
                                         fontWeight = FontWeight.Medium,
-                                    )
-                                    Icon(
-                                        imageVector = SimpIcons.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = Color(0xFFAAAAAA),
-                                        modifier = Modifier.size(16.dp),
                                     )
                                 }
 
@@ -910,29 +884,12 @@ fun PinnedItemCard(
             // Artwork or Gradient Special Icon
             when (item.type) {
                 PinnedType.FAVORITE_SONGS -> {
-                    if (customCover != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalPlatformContext.current)
-                                .data(customCover)
-                                .crossfade(true)
-                                .diskCachePolicy(CachePolicy.ENABLED)
-                                .build(),
-                            contentDescription = item.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(innerShape),
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0xFF141416)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            GradientHeartIcon(size = 44.dp)
-                        }
-                    }
+                    LikedSongsCover(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(innerShape),
+                        iconSize = 44.dp,
+                    )
                 }
 
                 PinnedType.DOWNLOADED_SONGS -> {
@@ -1044,19 +1001,19 @@ fun LibraryListCard(
 ) {
     val isArtist = item.type == LibraryCardType.ARTIST
     val cardShape = RoundedCornerShape(
-        topStart = if (isFirstInGroup) 20.dp else 6.dp,
-        topEnd = if (isFirstInGroup) 20.dp else 6.dp,
-        bottomStart = if (isLastInGroup) 20.dp else 6.dp,
-        bottomEnd = if (isLastInGroup) 20.dp else 6.dp,
+        topStart = if (isFirstInGroup) 26.dp else 6.dp,
+        topEnd = if (isFirstInGroup) 26.dp else 6.dp,
+        bottomStart = if (isLastInGroup) 26.dp else 6.dp,
+        bottomEnd = if (isLastInGroup) 26.dp else 6.dp,
     )
 
     val artShape = if (isArtist) {
         CircleShape
     } else {
         RoundedCornerShape(
-            topStart = if (isFirstInGroup) 14.dp else 6.dp,
+            topStart = if (isFirstInGroup) 18.dp else 6.dp,
             topEnd = 6.dp,
-            bottomStart = if (isLastInGroup) 14.dp else 6.dp,
+            bottomStart = if (isLastInGroup) 18.dp else 6.dp,
             bottomEnd = 6.dp,
         )
     }
@@ -1071,35 +1028,26 @@ fun LibraryListCard(
                 onClick = onCardClick,
                 onLongClick = onLongClick,
             )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val activeThumbnail = customCover ?: item.thumbnailUrl
         // Thumbnail with concentric optical corner rounding
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(56.dp)
                 .clip(artShape)
                 .background(Color(0xFF222226)),
             contentAlignment = Alignment.Center,
         ) {
             when (item.type) {
                 LibraryCardType.FAVORITE_SONGS -> {
-                    if (customCover != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalPlatformContext.current)
-                                .data(customCover)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = item.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(artShape),
-                        )
-                    } else {
-                        GradientHeartIcon(size = 28.dp)
-                    }
+                    LikedSongsCover(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(artShape),
+                        iconSize = 28.dp,
+                    )
                 }
 
                 LibraryCardType.DOWNLOADED_SONGS -> {
@@ -1206,28 +1154,12 @@ fun LibraryGridCard(
             contentAlignment = Alignment.Center,
         ) {
             if (item.type == LibraryCardType.FAVORITE_SONGS) {
-                if (customCover != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalPlatformContext.current)
-                            .data(customCover)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(cardShape),
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFF15181C)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        GradientHeartIcon(size = 40.dp)
-                    }
-                }
+                LikedSongsCover(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(cardShape),
+                    iconSize = 40.dp,
+                )
             } else if (!activeThumbnail.isNullOrEmpty()) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalPlatformContext.current)
@@ -1540,21 +1472,10 @@ fun LibraryItemBottomSheet(
                             ?: item.thumbnailUrl
                         when (item.type) {
                             LibraryCardType.FAVORITE_SONGS -> {
-                                if (hasCustomCover && !activeCover.isNullOrEmpty()) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(LocalPlatformContext.current)
-                                            .data(activeCover)
-                                            .diskCachePolicy(CachePolicy.ENABLED)
-                                            .memoryCachePolicy(CachePolicy.ENABLED)
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = item.title,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                } else {
-                                    GradientHeartIcon(size = 32.dp)
-                                }
+                                LikedSongsCover(
+                                    modifier = Modifier.fillMaxSize(),
+                                    iconSize = 28.dp,
+                                )
                             }
                             LibraryCardType.DOWNLOADED_SONGS -> Icon(
                                 imageVector = SimpIcons.DownloadForOffline,

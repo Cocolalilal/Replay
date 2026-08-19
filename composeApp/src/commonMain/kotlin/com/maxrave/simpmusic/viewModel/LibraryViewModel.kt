@@ -1,8 +1,6 @@
 package com.maxrave.simpmusic.viewModel
 
 import androidx.lifecycle.viewModelScope
-import com.maxrave.domain.data.entities.AlbumEntity
-import com.maxrave.domain.data.entities.ArtistEntity
 import com.maxrave.domain.data.entities.PlaylistEntity
 import com.maxrave.domain.data.model.pinned.PinnedItem
 import com.maxrave.domain.data.model.pinned.PinnedType
@@ -283,9 +281,9 @@ class LibraryViewModel(
     private suspend fun loadYourLibraryAll() {
         combine(
             playlistRepository.getLibraryPlaylist().catch { emit(null) },
-            albumRepository.getLikedAlbums().catch { emit(emptyList()) },
-            artistRepository.getFollowedArtists().catch { emit(emptyList()) },
-        ) { ytPlaylists, likedAlbums, followedArtists ->
+            albumRepository.getLibraryAlbums().catch { emit(emptyList()) },
+            artistRepository.getLibraryArtists().catch { emit(emptyList()) },
+        ) { ytPlaylists, libraryAlbums, libraryArtists ->
             val list = mutableListOf<LibraryCardItem>()
 
             // 1. Favorite Songs (Liked songs - LM) at top
@@ -320,30 +318,30 @@ class LibraryViewModel(
                 )
             }
 
-            // 3. Saved Albums
-            likedAlbums.forEach { album ->
+            // 3. Account Albums (from the signed-in YouTube Music account)
+            (libraryAlbums ?: emptyList()).forEach { album ->
                 list.add(
                     LibraryCardItem(
                         id = "album_${album.browseId}",
                         title = album.title,
-                        subtitle = "Album • ${album.artistName.orEmpty()}",
-                        thumbnailUrl = album.thumbnails,
+                        subtitle = "Album • ${album.artists.joinToString(", ") { it.name }}",
+                        thumbnailUrl = album.thumbnails.lastOrNull()?.url,
                         type = LibraryCardType.ALBUM,
                         targetId = album.browseId,
                     ),
                 )
             }
 
-            // 4. Followed Artists
-            followedArtists.forEach { artist ->
+            // 4. Account Artists (subscribed/followed on the signed-in account)
+            (libraryArtists ?: emptyList()).forEach { artist ->
                 list.add(
                     LibraryCardItem(
-                        id = "artist_${artist.channelId}",
-                        title = artist.name,
+                        id = "artist_${artist.browseId}",
+                        title = artist.artist,
                         subtitle = "Artist",
-                        thumbnailUrl = artist.thumbnails,
+                        thumbnailUrl = artist.thumbnails.lastOrNull()?.url,
                         type = LibraryCardType.ARTIST,
-                        targetId = artist.channelId,
+                        targetId = artist.browseId,
                     ),
                 )
             }
@@ -397,16 +395,16 @@ class LibraryViewModel(
     }
 
     private suspend fun loadFavoriteAlbums() {
-        albumRepository.getLikedAlbums().catch { emit(emptyList()) }.collectLatest { likedAlbums ->
-            val list = likedAlbums.filterNot { album ->
+        albumRepository.getLibraryAlbums().catch { emit(emptyList()) }.collectLatest { libraryAlbums ->
+            val list = (libraryAlbums ?: emptyList()).filterNot { album ->
                 val t = album.title.lowercase()
                 t.contains("podcast") || t.contains("episode")
             }.map { album ->
                 LibraryCardItem(
                     id = "album_${album.browseId}",
                     title = album.title,
-                    subtitle = "Album • ${album.artistName.orEmpty()}",
-                    thumbnailUrl = album.thumbnails,
+                    subtitle = "Album • ${album.artists.joinToString(", ") { it.name }}",
+                    thumbnailUrl = album.thumbnails.lastOrNull()?.url,
                     type = LibraryCardType.ALBUM,
                     targetId = album.browseId,
                 )
@@ -417,15 +415,15 @@ class LibraryViewModel(
     }
 
     private suspend fun loadFavoriteArtists() {
-        artistRepository.getFollowedArtists().catch { emit(emptyList()) }.collectLatest { followedArtists ->
-            val list = followedArtists.map { artist ->
+        artistRepository.getLibraryArtists().catch { emit(emptyList()) }.collectLatest { libraryArtists ->
+            val list = (libraryArtists ?: emptyList()).map { artist ->
                 LibraryCardItem(
-                    id = "artist_${artist.channelId}",
-                    title = artist.name,
+                    id = "artist_${artist.browseId}",
+                    title = artist.artist,
                     subtitle = "Artist",
-                    thumbnailUrl = artist.thumbnails,
+                    thumbnailUrl = artist.thumbnails.lastOrNull()?.url,
                     type = LibraryCardType.ARTIST,
-                    targetId = artist.channelId,
+                    targetId = artist.browseId,
                 )
             }
             rawLibraryItems = list

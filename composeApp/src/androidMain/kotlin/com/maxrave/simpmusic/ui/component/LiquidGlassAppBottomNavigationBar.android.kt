@@ -74,18 +74,30 @@ actual fun LiquidGlassAppBottomNavigationBar(
 
     var isSearchActive by remember { mutableStateOf(false) }
     var isManuallyExpanded by remember { mutableStateOf(true) }
+    var downwardScrollTicks by remember { mutableIntStateOf(0) }
 
     var currentRouteKey by remember { mutableStateOf("home") }
     val routeAtTop = remember { mutableStateMapOf<String, Boolean>("home" to true) }
     var lastLiveAtTop by remember { mutableStateOf(true) }
 
     LaunchedEffect(isScrolledToTop, scrollDirection, scrollEpoch) {
-        if (scrollDirection < 0 && !isScrolledToTop) {
+        if (isScrolledToTop) {
+            downwardScrollTicks = 0
             isManuallyExpanded = false
+        } else if (isManuallyExpanded) {
+            if (scrollDirection < 0) {
+                downwardScrollTicks++
+                if (downwardScrollTicks >= 10) {
+                    isManuallyExpanded = false
+                    downwardScrollTicks = 0
+                }
+            } else if (scrollDirection > 0) {
+                downwardScrollTicks = 0
+            }
         }
         lastLiveAtTop = isScrolledToTop
         routeAtTop[currentRouteKey] = isScrolledToTop
-        Logger.d(TAG, "scroll: atTop=$isScrolledToTop dir=$scrollDirection epoch=$scrollEpoch route=$currentRouteKey manual=$isManuallyExpanded lastLive=$lastLiveAtTop")
+        Logger.d(TAG, "scroll: atTop=$isScrolledToTop dir=$scrollDirection epoch=$scrollEpoch route=$currentRouteKey manual=$isManuallyExpanded lastLive=$lastLiveAtTop ticks=$downwardScrollTicks")
     }
 
     LaunchedEffect(nowPlayingData) {
@@ -149,6 +161,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
         } else {
             selectedIndex = index
             isManuallyExpanded = true
+            downwardScrollTicks = 0
             navController.navigate(dest) {
                 popUpTo(navController.graph.startDestinationId) {
                     saveState = true
@@ -186,6 +199,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
                     }
                 } else {
                     isManuallyExpanded = true
+                    downwardScrollTicks = 0
                     if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) == true) {
                         navController.popBackStack()
                     }
@@ -206,6 +220,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
             onExpandFullPlayer = onOpenNowPlaying,
             onDismissMiniPlayer = {
                 isManuallyExpanded = true
+                downwardScrollTicks = 0
                 viewModel.onUIEvent(UIEvent.Stop)
                 viewModel.isServiceRunning = false
             },
@@ -232,6 +247,7 @@ actual fun LiquidGlassAppBottomNavigationBar(
             },
             onExpandRequested = {
                 isManuallyExpanded = true
+                downwardScrollTicks = 0
                 Logger.d(TAG, "manual expand requested -> $isManuallyExpanded")
             }
         )

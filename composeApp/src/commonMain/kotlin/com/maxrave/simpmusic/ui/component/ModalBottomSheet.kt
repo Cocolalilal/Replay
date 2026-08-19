@@ -171,6 +171,7 @@ import com.mohamedrejeb.calf.io.readByteArray
 import com.mohamedrejeb.calf.picker.FilePickerFileType
 import com.mohamedrejeb.calf.picker.FilePickerSelectionMode
 import com.mohamedrejeb.calf.picker.rememberFilePickerLauncher
+import com.maxrave.simpmusic.util.isLikedSongsPlaylist
 import simpmusic.composeapp.generated.resources.monochrome
 import com.maxrave.simpmusic.ui.icon.Speed
 import com.maxrave.simpmusic.ui.icon.Sync
@@ -2966,30 +2967,32 @@ fun PlaylistBottomSheet(
                         hideModalBottomSheet()
                     }
                 }
-                ActionButton(
-                    icon = SimpIcons.AddPhotoAlternate,
-                    text = null,
-                    textString = "Change playlist cover",
-                    trailingContent = {
-                        Image(
-                            painter = painterResource(Res.drawable.monochrome),
-                            contentDescription = "Replay Customization",
-                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)),
-                            modifier = Modifier.size(16.dp),
-                        )
-                    },
-                ) {
-                    picker.launch()
-                }
-                if (hasCustomCover) {
+                if (!isLikedSongsPlaylist(playlistId, playlistName)) {
                     ActionButton(
-                        icon = SimpIcons.Delete,
+                        icon = SimpIcons.AddPhotoAlternate,
                         text = null,
-                        textString = "Remove custom cover",
+                        textString = "Change playlist cover",
+                        trailingContent = {
+                            Image(
+                                painter = painterResource(Res.drawable.monochrome),
+                                contentDescription = "Replay Customization",
+                                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        },
                     ) {
-                        coroutineScope.launch {
-                            CustomCoverHelper.removeCustomCover(playlistId, dataStoreManager)
-                            hideModalBottomSheet()
+                        picker.launch()
+                    }
+                    if (hasCustomCover) {
+                        ActionButton(
+                            icon = SimpIcons.Delete,
+                            text = null,
+                            textString = "Remove custom cover",
+                        ) {
+                            coroutineScope.launch {
+                                CustomCoverHelper.removeCustomCover(playlistId, dataStoreManager)
+                                hideModalBottomSheet()
+                            }
                         }
                     }
                 }

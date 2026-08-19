@@ -97,9 +97,7 @@ fun PlayerControlLayout(
                             CircleShape,
                         )
                         .clickable {
-                            if (controllerState.isPreviousAvailable) {
-                                onUIEvent(UIEvent.Previous)
-                            }
+                            onUIEvent(UIEvent.Previous)
                         },
                 contentAlignment = Alignment.Center,
             ) {
@@ -156,9 +154,7 @@ fun PlayerControlLayout(
                             CircleShape,
                         )
                         .clickable {
-                            if (controllerState.isNextAvailable) {
-                                onUIEvent(UIEvent.Next)
-                            }
+                            onUIEvent(UIEvent.Next)
                         },
                 contentAlignment = Alignment.Center,
             ) {

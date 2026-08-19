@@ -5,10 +5,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.calculateTargetValue
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.splineBasedDecay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -38,10 +36,13 @@ import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,6 +57,7 @@ import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -96,9 +98,12 @@ import com.maxrave.domain.mediaservice.handler.QueueData
 import com.maxrave.domain.utils.connectArtists
 import com.maxrave.domain.utils.toSongEntity
 import com.maxrave.domain.utils.toTrack
+import com.maxrave.simpmusic.util.isListenAgainSection
+import com.maxrave.simpmusic.util.isQuickPicksSection
 import com.maxrave.simpmusic.util.resolvePlaylistCover
 import com.maxrave.simpmusic.ui.component.EndOfPage
 import com.maxrave.simpmusic.ui.component.HomeShimmer
+import com.maxrave.simpmusic.ui.component.LikedSongsCover
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.OfflineErrorState
 import com.maxrave.simpmusic.ui.component.PlaylistBottomSheet
@@ -130,6 +135,7 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.home_offline_cached_notice
+import simpmusic.composeapp.generated.resources.listen_again
 import simpmusic.composeapp.generated.resources.quick_picks
 import simpmusic.composeapp.generated.resources.retry
 
@@ -172,49 +178,43 @@ fun HomeScreen(
 
     val currentNowPlayingVideoId = nowPlayingData?.songEntity?.videoId ?: nowPlayingData?.track?.videoId
     val isPlaying = controllerState.isPlaying
+    val listenAgainTitle = stringResource(Res.string.listen_again)
     val quickPicksTitle = stringResource(Res.string.quick_picks)
 
-    // Quick Picks Section identification (always matches reliably on first paint)
-    val quickPicksData = remember(homeData, quickPicksTitle) {
-        homeData.firstOrNull {
-            it.title.equals(quickPicksTitle, ignoreCase = true) ||
-                it.title.contains("quick", ignoreCase = true) ||
-                it.title.contains("pick", ignoreCase = true) ||
-                it.title.contains("listen again", ignoreCase = true) ||
-                it.title.contains("chọn nhanh", ignoreCase = true)
-        } ?: homeData.firstOrNull { it.contents.any { c -> c?.videoId?.isNotEmpty() == true } }
+    // Listen Again section from YouTube Music
+    val listenAgainData = remember(homeData, listenAgainTitle) {
+        homeData.firstOrNull { isListenAgainSection(it.title, listenAgainTitle) }
     }
 
-    // Hero carousel items (Mixed recommendations & new releases)
-    val featuredItems by viewModel.featuredCarouselItems.collectAsStateWithLifecycle()
-
-    // Lower sections
-    val lowerSections = remember(homeData, quickPicksData) {
-        homeData.filterNot { it == quickPicksData }
-    }
-
-    val prevScrollPosition = rememberSaveable {
-        mutableFloatStateOf(scrollState.firstVisibleItemIndex + scrollState.firstVisibleItemScrollOffset / 10000.0f)
-    }
-
-    LaunchedEffect(scrollState) {
-        snapshotFlow {
-            val idx = scrollState.firstVisibleItemIndex
-            val off = scrollState.firstVisibleItemScrollOffset
-            Triple(idx == 0 && off == 0, idx, off)
-        }.collect { (isAtTop, idx, off) ->
-            val position = idx + (off / 10000.0f)
-            val direction = if (position > prevScrollPosition.floatValue) {
-                -1
-            } else if (position < prevScrollPosition.floatValue) {
-                1
-            } else {
-                0
+    // Quick Picks Section identification (matches Quick Picks title or track-based section)
+    val quickPicksData = remember(homeData, quickPicksTitle, listenAgainData) {
+        homeData.firstOrNull { isQuickPicksSection(it.title, quickPicksTitle) }
+            ?: homeData.firstOrNull { section ->
+                section != listenAgainData &&
+                    !isListenAgainSection(section.title) &&
+                    section.contents.filterNotNull().isNotEmpty() &&
+                    section.contents.filterNotNull().all { it.videoId?.isNotEmpty() == true }
             }
-            prevScrollPosition.floatValue = position
-            onScrolling(isAtTop, direction)
-        }
+            ?: homeData.firstOrNull { section ->
+                section != listenAgainData &&
+                    !isListenAgainSection(section.title) &&
+                    section.contents.filterNotNull().any { it.videoId?.isNotEmpty() == true }
+            }
     }
+
+    // Hero carousel items: Listen Again section contents (with fallback to featuredCarouselItems)
+    val featuredItems by viewModel.featuredCarouselItems.collectAsStateWithLifecycle()
+    val carouselItems = remember(listenAgainData, featuredItems) {
+        listenAgainData?.contents?.filterNotNull()?.filter { it.thumbnails.isNotEmpty() }?.takeIf { it.isNotEmpty() }
+            ?: featuredItems
+    }
+
+    // Lower sections: all other sections from YouTube Music in the order YouTube Music gives them
+    val lowerSections = remember(homeData, listenAgainData, quickPicksData) {
+        homeData.filterNot { it == listenAgainData || it == quickPicksData }
+    }
+
+    scrollState.TrackScrolling(onScrolling = onScrolling)
 
     val onRefresh: () -> Unit = {
         viewModel.retryHome()
@@ -328,9 +328,7 @@ fun HomeScreen(
                             },
                             onOpenLibrary = {
                                 navController.navigate(
-                                    LibraryDynamicPlaylistDestination(
-                                        type = LibraryDynamicPlaylistType.Favorite.toStringParams(),
-                                    ),
+                                    PlaylistDestination("LM", isYourYouTubePlaylist = true),
                                 )
                             },
                         )
@@ -407,17 +405,17 @@ fun HomeScreen(
                         }
 
                         // 1. Hero Carousel (WITH Solid Outline & Long Click - Official M3 Multi-Browse Carousel)
-                        if (featuredItems.isNotEmpty()) {
+                        if (carouselItems.isNotEmpty()) {
                             item(key = "hero_carousel") {
                                 Material3MultiBrowseCarousel(
-                                    items = featuredItems,
+                                    items = carouselItems,
                                     customCoversMap = customCoversMap,
                                     onItemClick = { item ->
                                         val vid = item.videoId
                                         val browse = item.browseId
                                         val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid == null)
                                         if (isLiked) {
-                                            navController.navigate(LibraryDynamicPlaylistDestination(LibraryDynamicPlaylistType.LikedSongs.toStringParams()))
+                                            navController.navigate(PlaylistDestination("LM", isYourYouTubePlaylist = true))
                                         } else if (!vid.isNullOrEmpty()) {
                                             val firstTrack = item.toTrack()
                                             viewModel.setQueueData(
@@ -472,7 +470,7 @@ fun HomeScreen(
                                         val browse = item.browseId.orEmpty()
                                         val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid.isEmpty())
                                         if (isLiked) {
-                                            navController.navigate(LibraryDynamicPlaylistDestination(LibraryDynamicPlaylistType.LikedSongs.toStringParams()))
+                                            navController.navigate(PlaylistDestination("LM", isYourYouTubePlaylist = true))
                                         } else if (vid.isNotEmpty()) {
                                             viewModel.playQuickPickTrack(quickPicksData, item)
                                         } else if (browse.isNotEmpty()) {
@@ -491,7 +489,7 @@ fun HomeScreen(
                         }
 
                         // 3. Dynamic Lower Sections ("Albums for you", "Mixed for you", etc. - WITHOUT OUTLINE)
-                        items(lowerSections, key = { it.title + it.hashCode() }) { section ->
+                        itemsIndexed(lowerSections, key = { index, section -> "section_${section.title}_${section.hashCode()}_$index" }) { _, section ->
                             SectionCarousel(
                                 section = section,
                                 customCoversMap = customCoversMap,
@@ -500,7 +498,7 @@ fun HomeScreen(
                                     val vid = item.videoId.orEmpty()
                                     val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid.isEmpty())
                                     if (isLiked) {
-                                        navController.navigate(LibraryDynamicPlaylistDestination(LibraryDynamicPlaylistType.LikedSongs.toStringParams()))
+                                        navController.navigate(PlaylistDestination("LM", isYourYouTubePlaylist = true))
                                     } else if (browse.isNotEmpty()) {
                                         if (browse.startsWith("VL") || browse.startsWith("PL")) {
                                             navController.navigate(
@@ -556,7 +554,7 @@ private data class CarouselItemVisuals(
 /**
  * Physics-Driven 1:1 Square Multi-Browse Carousel:
  * - Mathematical 1:1 Perfect Square focal entry.
- * - Multi-item momentum fling physics with spline decay and magnetic spring settling.
+ * - Bounded momentum fling physics with critically-damped spring settling.
  * - Dynamic continuous dimming: 100% brightness (focal) -> 80% (2nd) -> 60% (3rd & beyond).
  * - Smooth tuck-under scale and alpha fade on left exit with edge boundary fade on right.
  * - Seamless symmetric transition at end of list.
@@ -816,6 +814,9 @@ fun Material3MultiBrowseCarousel(
                     detectHorizontalDragGestures(
                         onDragStart = {
                             velocityTracker.resetTracking()
+                            coroutineScope.launch {
+                                scrollOffset.stop()
+                            }
                         },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
@@ -827,16 +828,53 @@ fun Material3MultiBrowseCarousel(
                         },
                         onDragEnd = {
                             val velocity = velocityTracker.calculateVelocity().x
+                            val dragVelocity = -velocity
+                            val absVel = abs(dragVelocity)
                             val currentOffset = scrollOffset.value
+                            val currentPos = currentOffset / stepPx
+
+                            // Velocity thresholds in dp/s for natural feel across all screen densities
+                            val minFlingVelocity = with(density) { 350.dp.toPx() }
+                            val mediumFlingVelocity = with(density) { 1400.dp.toPx() }
+                            val maxFlingVelocity = with(density) { 2800.dp.toPx() }
+
+                            val targetIndex = when {
+                                absVel < minFlingVelocity -> {
+                                    currentPos.roundToInt()
+                                }
+                                absVel < mediumFlingVelocity -> {
+                                    if (dragVelocity > 0f) {
+                                        (floor(currentPos) + 1).toInt()
+                                    } else {
+                                        (ceil(currentPos) - 1).toInt()
+                                    }
+                                }
+                                absVel < maxFlingVelocity -> {
+                                    if (dragVelocity > 0f) {
+                                        (floor(currentPos) + 2).toInt()
+                                    } else {
+                                        (ceil(currentPos) - 2).toInt()
+                                    }
+                                }
+                                else -> {
+                                    if (dragVelocity > 0f) {
+                                        (floor(currentPos) + 3).toInt()
+                                    } else {
+                                        (ceil(currentPos) - 3).toInt()
+                                    }
+                                }
+                            }.coerceIn(0, items.lastIndex)
+
+                            // Clamp initial spring velocity to prevent overshoot while preserving natural momentum
+                            val maxSpringVelocity = with(density) { 1600.dp.toPx() }
+                            val clampedInitialVelocity = dragVelocity.coerceIn(-maxSpringVelocity, maxSpringVelocity)
+
                             coroutineScope.launch {
-                                val decay = splineBasedDecay<Float>(density)
-                                val targetOffset = decay.calculateTargetValue(currentOffset, -velocity)
-                                val targetIndex = (targetOffset / stepPx).roundToInt().coerceIn(0, items.lastIndex)
                                 scrollOffset.animateTo(
                                     targetValue = targetIndex * stepPx,
-                                    initialVelocity = -velocity,
+                                    initialVelocity = clampedInitialVelocity,
                                     animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
                                         stiffness = Spring.StiffnessMediumLow,
                                     ),
                                 )
@@ -849,7 +887,7 @@ fun Material3MultiBrowseCarousel(
                                 scrollOffset.animateTo(
                                     targetValue = targetIndex * stepPx,
                                     animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
                                         stiffness = Spring.StiffnessMediumLow,
                                     ),
                                 )
@@ -885,10 +923,10 @@ fun Material3MultiBrowseCarousel(
 
                     val badgeText = when {
                         isLikedMusic -> "Playlist"
-                        browse?.startsWith("VL") == true || browse?.startsWith("PL") == true -> "Playlist"
+                        browse?.startsWith("VL") == true || browse?.startsWith("PL") == true || browse?.startsWith("RD") == true -> "Playlist"
                         browse?.startsWith("UC") == true || browse?.startsWith("FEmusic_library_privately_owned_artist") == true -> "Artist"
-                        browse?.startsWith("MPRE") == true || browse?.startsWith("FEmusic_library_privately_owned_release") == true -> "Album"
-                        vid != null -> "New Release!"
+                        browse?.startsWith("MPRE") == true || browse?.startsWith("FEmusic_library_privately_owned_release") == true || (item.album != null && vid.isNullOrEmpty()) -> "Album"
+                        !vid.isNullOrEmpty() -> "Song"
                         else -> "Featured"
                     }
 
@@ -921,7 +959,7 @@ fun Material3MultiBrowseCarousel(
                                             scrollOffset.animateTo(
                                                 targetValue = index * stepPx,
                                                 animationSpec = spring(
-                                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                                    dampingRatio = Spring.DampingRatioNoBouncy,
                                                     stiffness = Spring.StiffnessMediumLow,
                                                 ),
                                             )
@@ -934,7 +972,12 @@ fun Material3MultiBrowseCarousel(
                             ),
                     ) {
                         // Full Artwork with smooth GPU scaling
-                        if (customCover != null) {
+                        if (isLikedMusic) {
+                            LikedSongsCover(
+                                modifier = Modifier.fillMaxSize(),
+                                iconSize = 72.dp,
+                            )
+                        } else if (customCover != null) {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalPlatformContext.current)
                                     .data(customCover)
@@ -945,27 +988,6 @@ fun Material3MultiBrowseCarousel(
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize(),
                             )
-                        } else if (isLikedMusic) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.linearGradient(
-                                            colors = listOf(
-                                                Color(0xFF8B001F), // Dark crimson
-                                                Color(0xFFFF5A75), // Vibrant coral
-                                            ),
-                                        ),
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = SimpIcons.Favorite,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(72.dp),
-                                )
-                            }
                         } else {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalPlatformContext.current)
@@ -1278,7 +1300,14 @@ private fun QuickPickCard(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Artwork
-        if (customCover != null) {
+        if (isLikedMusic) {
+            LikedSongsCover(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(artShape),
+                iconSize = 22.dp,
+            )
+        } else if (customCover != null) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalPlatformContext.current)
                     .data(customCover)
@@ -1291,28 +1320,6 @@ private fun QuickPickCard(
                     .size(44.dp)
                     .clip(artShape),
             )
-        } else if (isLikedMusic) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(artShape)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                Color(0xFF8B001F), // Dark crimson
-                                Color(0xFFFF5A75), // Vibrant coral
-                            ),
-                        ),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = SimpIcons.Favorite,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
         } else {
             AsyncImage(
                 model = ImageRequest.Builder(LocalPlatformContext.current)
@@ -1400,7 +1407,7 @@ fun SectionCarousel(
             modifier = Modifier.fillMaxWidth(),
         ) {
             val nonNullContents = section.contents.filterNotNull()
-            items(nonNullContents, key = { (it.browseId ?: it.videoId ?: "") + it.hashCode() }) { item ->
+            itemsIndexed(nonNullContents, key = { index, item -> "item_${item.browseId ?: item.videoId ?: item.title}_${item.hashCode()}_$index" }) { _, item ->
                 val customCover = resolvePlaylistCover(item.browseId, null, customCoversMap)
                 val artworkUrl = customCover ?: item.thumbnails.lastOrNull()?.url.orEmpty()
                 val isLiked = item.browseId == "LM" || item.browseId == "VLLM" || item.browseId == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && item.videoId == null)
@@ -1421,7 +1428,12 @@ fun SectionCarousel(
                             .clip(RoundedCornerShape(18.dp))
                             .background(Color(0xFF15181C)),
                     ) {
-                        if (customCover != null) {
+                        if (isLiked) {
+                            LikedSongsCover(
+                                modifier = Modifier.fillMaxSize(),
+                                iconSize = 54.dp,
+                            )
+                        } else if (customCover != null) {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalPlatformContext.current)
                                     .data(customCover)
@@ -1432,27 +1444,6 @@ fun SectionCarousel(
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize(),
                             )
-                        } else if (isLiked) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.linearGradient(
-                                            colors = listOf(
-                                                Color(0xFF8B001F),
-                                                Color(0xFFFF5A75),
-                                            ),
-                                        ),
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = SimpIcons.Favorite,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(54.dp),
-                                )
-                            }
                         } else {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalPlatformContext.current)

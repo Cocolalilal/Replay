@@ -4,8 +4,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +34,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -101,7 +100,6 @@ fun LiquidMiniPlayer(
     )
 
     val dismissOffsetY = remember { Animatable(0f) }
-    val velocityTracker = remember { VelocityTracker() }
 
     Box(
         modifier = modifier
@@ -116,23 +114,10 @@ fun LiquidMiniPlayer(
             }
             .scale(pressScale)
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        val released = tryAwaitRelease()
-                        isPressed = false
-                        if (released) {
-                            onExpandFullPlayer()
-                        }
-                    }
-                )
-            }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { velocityTracker.resetTracking() },
+                detectVerticalDragGestures(
+                    onDragStart = {},
                     onDragEnd = {
-                        val velocityY = velocityTracker.calculateVelocity().y
-                        if (dismissOffsetY.value > 100f || velocityY > 800f) {
+                        if (dismissOffsetY.value > 100f) {
                             scope.launch {
                                 dismissOffsetY.animateTo(300f, spring(stiffness = 400f, dampingRatio = 0.8f))
                                 onDismiss()
@@ -148,11 +133,10 @@ fun LiquidMiniPlayer(
                             dismissOffsetY.animateTo(0f, spring(stiffness = 600f, dampingRatio = 0.7f))
                         }
                     },
-                    onDrag = { change, dragAmount ->
+                    onVerticalDrag = { change, dragAmount ->
                         change.consume()
-                        velocityTracker.addPosition(change.uptimeMillis, change.position)
                         scope.launch {
-                            dismissOffsetY.snapTo((dismissOffsetY.value + dragAmount.y).coerceAtLeast(0f))
+                            dismissOffsetY.snapTo((dismissOffsetY.value + dragAmount).coerceAtLeast(0f))
                         }
                     }
                 )
@@ -178,39 +162,56 @@ fun LiquidMiniPlayer(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = artworkUrl,
-                contentDescription = "Album Artwork",
-                contentScale = ContentScale.Crop,
+            Row(
                 modifier = Modifier
-                    .size(lerp(48.dp, 40.dp, inlineProgress))
-                    .offset(x = (-2).dp)
-                    .scale(pausedArtworkScale)
-                    .clip(CircleShape)
-                    .background(Color.DarkGray)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.Start
+                    .weight(1f)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                isPressed = true
+                                val released = tryAwaitRelease()
+                                isPressed = false
+                                if (released) {
+                                    onExpandFullPlayer()
+                                }
+                            }
+                        )
+                    },
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = title,
-                    color = textColor,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                AsyncImage(
+                    model = artworkUrl,
+                    contentDescription = "Album Artwork",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(lerp(48.dp, 40.dp, inlineProgress))
+                        .offset(x = (-2).dp)
+                        .scale(pausedArtworkScale)
+                        .clip(CircleShape)
+                        .background(Color.DarkGray)
                 )
-                Text(
-                    text = artist,
-                    color = subtitleColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        text = title,
+                        color = textColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = artist,
+                        color = subtitleColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(8.dp))
 

@@ -87,6 +87,7 @@ import io.github.alexzhirkevich.compottie.LottieCompositionSpec
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.simpmusic.util.isLikedSongsPlaylist
 import com.maxrave.simpmusic.util.resolvePlaylistCover
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
@@ -558,6 +559,15 @@ fun PlaylistFullWidthItems(
                 thirdRowSubtitle = data.description
             }
         }
+        val isLikedSongs = isLikedSongsPlaylist(
+            playlistId = when (data) {
+                is PlaylistEntity -> data.id
+                is LocalPlaylistEntity -> data.youtubePlaylistId ?: data.id.toString()
+                is PlaylistsResult -> data.browseId
+                else -> null
+            },
+            title = title,
+        )
         Row(
             Modifier
                 .padding(vertical = 10.dp, horizontal = 15.dp)
@@ -566,24 +576,34 @@ fun PlaylistFullWidthItems(
         ) {
             Spacer(modifier = Modifier.width(8.dp))
             Box(modifier = Modifier.size(48.dp)) {
-                AsyncImage(
-                    model =
-                        ImageRequest
-                            .Builder(LocalPlatformContext.current)
-                            .data(thumb)
-                            .diskCachePolicy(CachePolicy.ENABLED)
-                            .diskCacheKey(thumb)
-                            .crossfade(true)
-                            .build(),
-                    placeholder = rememberHolderPainter(),
-                    error = rememberHolderPainter(),
-                    contentDescription = null,
-                    contentScale = ContentScale.FillWidth,
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(4.dp)),
-                )
+                if (isLikedSongs) {
+                    LikedSongsCover(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(4.dp)),
+                        iconSize = 24.dp,
+                    )
+                } else {
+                    AsyncImage(
+                        model =
+                            ImageRequest
+                                .Builder(LocalPlatformContext.current)
+                                .data(thumb)
+                                .diskCachePolicy(CachePolicy.ENABLED)
+                                .diskCacheKey(thumb)
+                                .crossfade(true)
+                                .build(),
+                        placeholder = rememberHolderPainter(),
+                        error = rememberHolderPainter(),
+                        contentDescription = null,
+                        contentScale = ContentScale.FillWidth,
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(4.dp)),
+                    )
+                }
             }
             Column(
                 Modifier

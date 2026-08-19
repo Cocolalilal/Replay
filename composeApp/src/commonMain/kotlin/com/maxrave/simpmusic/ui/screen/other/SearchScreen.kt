@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -578,7 +579,7 @@ fun SearchScreen(
                                             )
                                         }
                                     }
-                                    items(section.items, key = { "${section.title}/${it.params}" }) { item ->
+                                    itemsIndexed(section.items, key = { index, item -> "${section.title}/${item.params}_$index" }) { _, item ->
                                         LaunchedEffect(item.params) {
                                             searchViewModel.loadMoodArtwork(item.params)
                                         }

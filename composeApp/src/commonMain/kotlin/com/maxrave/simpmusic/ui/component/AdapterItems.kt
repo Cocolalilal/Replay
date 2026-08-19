@@ -92,6 +92,7 @@ import com.maxrave.simpmusic.ui.theme.LocalForceDarkText
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.HomeViewModel
 import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.simpmusic.util.isLikedSongsPlaylist
 import com.maxrave.simpmusic.util.resolvePlaylistCover
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
@@ -368,70 +369,100 @@ fun HomeItemContentPlaylist(
                 is Content -> data.browseId
                 else -> null
             }
-            val thumb = resolvePlaylistCover(playlistId, rawThumb, customCoversMap)
-            AsyncImage(
-                model =
-                    ImageRequest
-                        .Builder(LocalPlatformContext.current)
-                        .data(thumb)
-                        .diskCachePolicy(CachePolicy.ENABLED)
-                        .diskCacheKey(thumb)
-                        .crossfade(550)
-                        .build(),
-                placeholder =
-                    when (data) {
-                        is LocalPlaylistEntity -> {
-                            painterPlaylistThumbnail(
-                                data.title,
-                                style = typo().bodySmall,
-                                thumbSize * 0.9f to thumbSize * 0.9f,
-                            )
-                        }
+            val playlistTitle = when (data) {
+                is Content -> data.title
+                is com.maxrave.domain.data.model.mood.genre.Content -> data.title.title
+                is com.maxrave.domain.data.model.mood.moodmoments.Content -> data.title
+                is LocalPlaylistEntity -> data.title
+                is ChartItem -> data.name
+                is PlaylistsResult -> data.title
+                is AlbumEntity -> data.title
+                is PlaylistEntity -> data.title
+                is ResultSingle -> data.title
+                is ResultAlbum -> data.title
+                is ResultPlaylist -> data.title
+                is PodcastsEntity -> data.title
+                is AlbumsResult -> data.title
+                else -> null
+            }
+            val isLikedSongs = isLikedSongsPlaylist(playlistId, playlistTitle)
+            if (isLikedSongs) {
+                LikedSongsCover(
+                    modifier =
+                        Modifier
+                            .size(thumbSize)
+                            .aspectRatio(1f)
+                            .clip(
+                                RoundedCornerShape(10.dp),
+                            ),
+                    iconSize = thumbSize * 0.45f,
+                )
+            } else {
+                val thumb = resolvePlaylistCover(playlistId, rawThumb, customCoversMap)
+                AsyncImage(
+                    model =
+                        ImageRequest
+                            .Builder(LocalPlatformContext.current)
+                            .data(thumb)
+                            .diskCachePolicy(CachePolicy.ENABLED)
+                            .diskCacheKey(thumb)
+                            .crossfade(550)
+                            .build(),
+                    placeholder =
+                        when (data) {
+                            is LocalPlaylistEntity -> {
+                                painterPlaylistThumbnail(
+                                    data.title,
+                                    style = typo().bodySmall,
+                                    thumbSize * 0.9f to thumbSize * 0.9f,
+                                )
+                            }
 
-                        is ChartItem -> {
-                            painterPlaylistThumbnail(
-                                data.name,
-                                style = typo().bodySmall,
-                                thumbSize * 0.9f to thumbSize * 0.9f,
-                            )
-                        }
+                            is ChartItem -> {
+                                painterPlaylistThumbnail(
+                                    data.name,
+                                    style = typo().bodySmall,
+                                    thumbSize * 0.9f to thumbSize * 0.9f,
+                                )
+                            }
 
-                        else -> {
-                            rememberHolderPainter()
-                        }
-                    },
-                error =
-                    when (data) {
-                        is LocalPlaylistEntity -> {
-                            painterPlaylistThumbnail(
-                                data.title,
-                                style = typo().bodySmall,
-                                thumbSize * 0.9f to thumbSize * 0.9f,
-                            )
-                        }
+                            else -> {
+                                rememberHolderPainter()
+                            }
+                        },
+                    error =
+                        when (data) {
+                            is LocalPlaylistEntity -> {
+                                painterPlaylistThumbnail(
+                                    data.title,
+                                    style = typo().bodySmall,
+                                    thumbSize * 0.9f to thumbSize * 0.9f,
+                                )
+                            }
 
-                        is ChartItem -> {
-                            painterPlaylistThumbnail(
-                                data.name,
-                                style = typo().bodySmall,
-                                thumbSize * 0.9f to thumbSize * 0.9f,
-                            )
-                        }
+                            is ChartItem -> {
+                                painterPlaylistThumbnail(
+                                    data.name,
+                                    style = typo().bodySmall,
+                                    thumbSize * 0.9f to thumbSize * 0.9f,
+                                )
+                            }
 
-                        else -> {
-                            rememberHolderPainter()
-                        }
-                    },
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier =
-                    Modifier
-                        .size(thumbSize)
-                        .aspectRatio(1f)
-                        .clip(
-                            RoundedCornerShape(10.dp),
-                        ),
-            )
+                            else -> {
+                                rememberHolderPainter()
+                            }
+                        },
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier =
+                        Modifier
+                            .size(thumbSize)
+                            .aspectRatio(1f)
+                            .clip(
+                                RoundedCornerShape(10.dp),
+                            ),
+                )
+            }
             Text(
                 text =
                     when (data) {

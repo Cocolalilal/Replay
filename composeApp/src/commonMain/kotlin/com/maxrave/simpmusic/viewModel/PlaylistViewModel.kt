@@ -171,8 +171,6 @@ class PlaylistViewModel(
         }
     }
 
-    private var likedSongsLiveJob: Job? = null
-
     private fun resetData() {
         _uiState.value = Loading
         _playlistEntity.value = null
@@ -180,41 +178,10 @@ class PlaylistViewModel(
         _listColors.value = emptyList()
         checkDownloadedPlaylist?.cancel()
         checkDownloadedPlaylist = null
-        likedSongsLiveJob?.cancel()
-        likedSongsLiveJob = null
-    }
-
-    private fun observeLikedSongsLive(id: String) {
-        likedSongsLiveJob?.cancel()
-        if (id == "LM" || id == "VLLM" || id == "favorite_songs") {
-            likedSongsLiveJob = viewModelScope.launch {
-                songRepository.getLikedSongs().collectLatest { likedEntities ->
-                    val liveTracks = likedEntities
-                        .filter { it.favoriteAt != null && it.favoriteAt != Config.REMOVED_SONG_DATE_TIME }
-                        .map { it.toTrack() }
-                    if (liveTracks.isNotEmpty()) {
-                        _tracks.value = liveTracks
-                        _uiState.update { current ->
-                            val currentData = current.data
-                            if (current is Success && currentData != null) {
-                                Success(
-                                    data = currentData.copy(
-                                        trackCount = liveTracks.size,
-                                    ),
-                                )
-                            } else {
-                                current
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 
     fun getData(id: String) {
         resetData()
-        observeLikedSongsLive(id)
         viewModelScope.launch {
             // Check radio
             if (id.isRadioPlaylistId()) {
@@ -448,6 +415,24 @@ class PlaylistViewModel(
         _listColors.value = listColors
     }
 
+    private var _selectedTag = MutableStateFlow(PlaylistTag.ALL)
+    val selectedTag: StateFlow<PlaylistTag> = _selectedTag
+
+    fun setSelectedTag(tag: PlaylistTag) {
+        _selectedTag.value = tag
+    }
+
+    /**
+     * Applies the active All/Songs/Videos tag filter to [list]. Used both for the track list
+     * shown in the UI and for the queue built when a filtered track is played.
+     */
+    fun filterBySelectedTag(list: List<Track>): List<Track> =
+        when (_selectedTag.value) {
+            PlaylistTag.ALL -> list
+            PlaylistTag.SONGS -> list.filterNot { it.isVideoTrack() }
+            PlaylistTag.VIDEOS -> list.filter { it.isVideoTrack() }
+        }
+
     fun updatePlaylistLiked(
         liked: Boolean,
         id: String,
@@ -469,7 +454,7 @@ class PlaylistViewModel(
         when (event) {
             is PlaylistUIEvent.ItemClick -> {
                 val videoId = event.videoId
-                val loadedList = tracks.value
+                val loadedList = filterBySelectedTag(tracks.value)
                 val clickedSong = loadedList.first { it.videoId == videoId }
                 val index = loadedList.indexOf(clickedSong)
                 setQueueData(
@@ -494,7 +479,7 @@ class PlaylistViewModel(
             }
 
             PlaylistUIEvent.PlayAll -> {
-                val loadedList = tracks.value
+                val loadedList = filterBySelectedTag(tracks.value)
                 if (loadedList.isEmpty()) {
                     makeToast(
                         getString(Res.string.playlist_is_empty),
@@ -536,11 +521,16 @@ class PlaylistViewModel(
                             val result = res.data
                             when (res) {
                                 is Resource.Success if (result != null) -> {
-                                    Logger.d(tag, "Shuffle data: ${result.first.size}")
+                                    val filtered = filterBySelectedTag(result.first)
+                                    Logger.d(tag, "Shuffle data: ${filtered.size}")
+                                    if (filtered.isEmpty()) {
+                                        makeToast(getString(Res.string.playlist_is_empty))
+                                        return@collectLatest
+                                    }
                                     setQueueData(
                                         QueueData.Data(
-                                            listTracks = result.first.toCollection(arrayListOf<Track>()),
-                                            firstPlayedTrack = result.first.firstOrNull() ?: return@collectLatest,
+                                            listTracks = filtered.toCollection(arrayListOf<Track>()),
+                                            firstPlayedTrack = filtered.first(),
                                             playlistId = shuffleEndpoint.playlistId,
                                             playlistName = "\"${data.title}\" ${getString(Res.string.shuffle)}",
                                             playlistType = PlaylistType.RADIO,
@@ -548,7 +538,7 @@ class PlaylistViewModel(
                                         ),
                                     )
                                     loadMediaItem(
-                                        result.first.firstOrNull() ?: return@collectLatest,
+                                        filtered.first(),
                                         Config.RADIO_CLICK,
                                         0,
                                     )
@@ -867,4 +857,30 @@ enum class ListState {
     PAGINATING,
     ERROR,
     PAGINATION_EXHAUST,
+}
+
+/**
+ * Which kind of track is shown/played by [PlaylistScreen].
+ */
+enum class PlaylistTag {
+    ALL,
+    SONGS,
+    VIDEOS,
+}
+
+/**
+ * Classifies a playlist track as a music video. Official music videos (`MUSIC_VIDEO_TYPE_OMV`),
+ * user-generated uploads (`MUSIC_VIDEO_TYPE_UGC`) and any `"Videos"`/`"Video"` category/resultType
+ * are videos. Audio tracks (`MUSIC_VIDEO_TYPE_ATV`), tracks without a music config (null), and
+ * `"Song"` are songs.
+ */
+fun Track.isVideoTrack(): Boolean {
+    val vType = videoType
+    return vType == "MUSIC_VIDEO_TYPE_OMV" ||
+        vType == "MUSIC_VIDEO_TYPE_UGC" ||
+        category == "Videos" ||
+        category == "Video" ||
+        resultType == "Videos" ||
+        resultType == "Video" ||
+        (vType != null && vType.contains("VIDEO", ignoreCase = true) && !vType.contains("ATV", ignoreCase = true))
 }

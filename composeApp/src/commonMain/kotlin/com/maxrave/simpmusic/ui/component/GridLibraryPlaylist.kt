@@ -53,6 +53,7 @@ import com.maxrave.domain.utils.LocalResource
 import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.extension.angledGradientBackground
 import com.maxrave.simpmusic.extension.isScrollingUp
+import com.maxrave.simpmusic.extension.TrackScrolling
 import com.maxrave.simpmusic.ui.icon.Add
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
@@ -80,27 +81,8 @@ internal inline fun <reified T> GridLibraryPlaylist(
     Logger.w("GridLibraryPlaylist", "Generic Type: ${T::class.simpleName}")
     val state = rememberLazyGridState()
     val isScrollingUp by state.isScrollingUp()
+    state.TrackScrolling(onScrolling = onScrolling)
 
-    val prevScrollPosition = rememberSaveable {
-        mutableFloatStateOf(state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / 10000.0f)
-    }
-    LaunchedEffect(state) {
-        snapshotFlow {
-            val idx = state.firstVisibleItemIndex
-            val off = state.firstVisibleItemScrollOffset
-            Pair(idx == 0 && off == 0, idx + (off / 10000.0f))
-        }.collect { (isAtTop, position) ->
-            val direction = if (position > prevScrollPosition.floatValue) {
-                -1
-            } else if (position < prevScrollPosition.floatValue) {
-                1
-            } else {
-                0
-            }
-            prevScrollPosition.floatValue = position
-            onScrolling(isAtTop, direction)
-        }
-    }
     val pullToRefreshState = rememberPullToRefreshState()
     PullToRefreshBox(
         modifier = Modifier.fillMaxSize(),

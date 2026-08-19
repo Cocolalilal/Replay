@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -67,27 +68,7 @@ fun MoreAlbumsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val hazeState = rememberHazeState()
     val gridState = rememberLazyGridState()
-
-    val prevScrollPosition = rememberSaveable {
-        mutableFloatStateOf(gridState.firstVisibleItemIndex + gridState.firstVisibleItemScrollOffset / 10000.0f)
-    }
-    LaunchedEffect(gridState) {
-        snapshotFlow {
-            val idx = gridState.firstVisibleItemIndex
-            val off = gridState.firstVisibleItemScrollOffset
-            Pair(idx == 0 && off == 0, idx + (off / 10000.0f))
-        }.collect { (isAtTop, position) ->
-            val direction = if (position > prevScrollPosition.floatValue) {
-                -1
-            } else if (position < prevScrollPosition.floatValue) {
-                1
-            } else {
-                0
-            }
-            prevScrollPosition.floatValue = position
-            onScrolling(isAtTop, direction)
-        }
-    }
+    gridState.TrackScrolling(onScrolling = onScrolling)
 
     LaunchedEffect(id, type) {
         Logger.w("MoreAlbumsScreen", "id: $id, type: $type")

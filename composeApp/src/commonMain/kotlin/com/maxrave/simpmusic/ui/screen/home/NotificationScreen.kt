@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -83,28 +84,7 @@ fun NotificationScreen(
 ) {
     val listNotification by viewModel.listNotification.collectAsStateWithLifecycle()
     val lazyState = rememberLazyListState()
-
-    val prevScrollPosition = rememberSaveable {
-        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
-    }
-    LaunchedEffect(lazyState) {
-        snapshotFlow {
-            val idx = lazyState.firstVisibleItemIndex
-            val off = lazyState.firstVisibleItemScrollOffset
-            Triple(idx == 0 && off == 0, idx, off)
-        }.collect { (isAtTop, idx, off) ->
-            val position = idx + (off / 10000.0f)
-            val direction = if (position > prevScrollPosition.floatValue) {
-                -1
-            } else if (position < prevScrollPosition.floatValue) {
-                1
-            } else {
-                0
-            }
-            prevScrollPosition.floatValue = position
-            onScrolling(isAtTop, direction)
-        }
-    }
+    lazyState.TrackScrolling(onScrolling = onScrolling)
 
     Column {
         TopAppBar(

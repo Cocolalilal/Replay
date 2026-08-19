@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -78,27 +79,7 @@ fun RecentlySongsScreen(
     val isPlaying by sharedViewModel.controllerState.map { it.isPlaying }.collectAsState(initial = false)
 
     val lazyState = rememberLazyListState()
-    val prevScrollPosition = rememberSaveable {
-        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
-    }
-    LaunchedEffect(lazyState) {
-        snapshotFlow {
-            val idx = lazyState.firstVisibleItemIndex
-            val off = lazyState.firstVisibleItemScrollOffset
-            Triple(idx == 0 && off == 0, idx, off)
-        }.collect { (isAtTop, idx, off) ->
-            val position = idx + (off / 10000.0f)
-            val direction = if (position > prevScrollPosition.floatValue) {
-                -1
-            } else if (position < prevScrollPosition.floatValue) {
-                1
-            } else {
-                0
-            }
-            prevScrollPosition.floatValue = position
-            onScrolling(isAtTop, direction)
-        }
-    }
+    lazyState.TrackScrolling(onScrolling = onScrolling)
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(

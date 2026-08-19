@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.MarqueeAnimationMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -37,9 +38,12 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Icon
@@ -108,10 +112,12 @@ import com.maxrave.simpmusic.ui.component.DescriptionView
 import com.maxrave.simpmusic.ui.component.EndOfPage
 import com.maxrave.simpmusic.ui.component.GradientHeartIcon
 import com.maxrave.simpmusic.ui.component.HeartCheckBox
+import com.maxrave.simpmusic.ui.component.LikedSongsCover
 import com.maxrave.simpmusic.ui.component.LiquidGlassIconButton
 import com.maxrave.simpmusic.ui.component.LoadingDialog
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.PlaylistBottomSheet
+import com.maxrave.simpmusic.util.isLikedSongsPlaylist
 import com.maxrave.simpmusic.util.resolvePlaylistCover
 import com.maxrave.simpmusic.ui.component.RippleIconButton
 import com.maxrave.simpmusic.ui.component.SongFullWidthItems
@@ -119,6 +125,7 @@ import com.maxrave.simpmusic.ui.component.liquidGlass
 import com.maxrave.simpmusic.ui.icon.ArrowBackIosNew
 import com.maxrave.simpmusic.ui.icon.Close
 import com.maxrave.simpmusic.ui.icon.DownloadForOffline
+import com.maxrave.simpmusic.ui.icon.LibraryMusic
 import com.maxrave.simpmusic.ui.icon.MoreVert
 import com.maxrave.simpmusic.ui.icon.Pause
 import com.maxrave.simpmusic.ui.icon.PauseCircle
@@ -133,11 +140,13 @@ import com.maxrave.simpmusic.ui.theme.LocalIsDarkTheme
 import com.maxrave.simpmusic.ui.theme.seed
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.ListState
+import com.maxrave.simpmusic.viewModel.PlaylistTag
 import com.maxrave.simpmusic.viewModel.PlaylistUIEvent
 import com.maxrave.simpmusic.viewModel.PlaylistUIState
 import com.maxrave.simpmusic.viewModel.PlaylistViewModel
 import com.maxrave.simpmusic.viewModel.SharedViewModel
 import com.maxrave.simpmusic.viewModel.UIEvent
+import com.maxrave.simpmusic.viewModel.isVideoTrack
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -205,6 +214,7 @@ fun PlaylistScreen(
     val liked by viewModel.liked.collectAsStateWithLifecycle()
     val tracks by viewModel.tracks.collectAsStateWithLifecycle()
     val tracksListState by viewModel.tracksListState.collectAsStateWithLifecycle()
+    val selectedTag by viewModel.selectedTag.collectAsStateWithLifecycle()
 
     val dataStoreManager: DataStoreManager = koinInject()
     val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
@@ -233,27 +243,7 @@ fun PlaylistScreen(
     var searchBarHeightPx by remember { mutableStateOf(0) }
 
     val lazyState = rememberLazyListState()
-    val prevScrollPosition = rememberSaveable {
-        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
-    }
-    LaunchedEffect(lazyState) {
-        snapshotFlow {
-            val idx = lazyState.firstVisibleItemIndex
-            val off = lazyState.firstVisibleItemScrollOffset
-            Triple(idx == 0 && off == 0, idx, off)
-        }.collect { (isAtTop, idx, off) ->
-            val position = idx + (off / 10000.0f)
-            val direction = if (position > prevScrollPosition.floatValue) {
-                -1
-            } else if (position < prevScrollPosition.floatValue) {
-                1
-            } else {
-                0
-            }
-            prevScrollPosition.floatValue = position
-            onScrolling(isAtTop, direction)
-        }
-    }
+    lazyState.TrackScrolling(onScrolling = onScrolling)
     val firstItemVisible by remember {
         derivedStateOf {
             lazyState.firstVisibleItemIndex == 0
@@ -264,10 +254,16 @@ fun PlaylistScreen(
 
     val filteredTrack by remember {
         derivedStateOf {
+            val tagFiltered =
+                when (selectedTag) {
+                    PlaylistTag.ALL -> tracks
+                    PlaylistTag.SONGS -> tracks.filterNot { it.isVideoTrack() }
+                    PlaylistTag.VIDEOS -> tracks.filter { it.isVideoTrack() }
+                }
             if (query.isEmpty() || !showSearchBar) {
-                tracks
+                tagFiltered
             } else {
-                tracks.filter {
+                tagFiltered.filter {
                     it.title.contains(query, ignoreCase = true) ||
                         it.artists?.joinToString(", ")?.contains(query, ignoreCase = true) == true
                 }
@@ -502,7 +498,7 @@ fun PlaylistScreen(
                                     Column(
                                         horizontalAlignment = Alignment.Start,
                                     ) {
-                                        val isLikedSongs = id == "LM" || id == "VLLM" || id == "favorite_songs" || data.id == "LM" || data.id == "VLLM" || data.id == "favorite_songs" || (data.title.contains("Liked", ignoreCase = true) && !data.isRadio)
+                                        val isLikedSongs = id == "LM" || id == "VLLM" || id == "favorite_songs" || data.id == "LM" || data.id == "VLLM" || data.id == "favorite_songs" || (data.title.contains("Liked", ignoreCase = true) && !data.isRadio) || isLikedSongsPlaylist(id, data.title) || isLikedSongsPlaylist(data.id, data.title)
                                         val displayTitle = if (isLikedSongs) "Liked Songs" else data.title
                                         val activeThumbnail = customCoverUri ?: data.thumbnail
                                         if (isMobilePortrait) {
@@ -518,12 +514,22 @@ fun PlaylistScreen(
                                             ) {
                                                 // Inner Box — backdrop SOURCE (artwork + overlays only, NO glass)
                                                 Box(modifier = Modifier.fillMaxSize().layerBackdrop(artworkBackdrop)) {
-                                                    if (customCoverUri == null && (isLikedSongs || activeThumbnail.isNullOrEmpty())) {
+                                                    if (isLikedSongs) {
+                                                        LikedSongsCover(
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            iconSize = 96.dp,
+                                                        )
+                                                    } else if (customCoverUri == null && activeThumbnail.isNullOrEmpty()) {
                                                         Box(
                                                             modifier = Modifier.fillMaxSize().background(Color(0xFF141416)),
                                                             contentAlignment = Alignment.Center,
                                                         ) {
-                                                            GradientHeartIcon(size = 96.dp)
+                                                            Icon(
+                                                                imageVector = SimpIcons.LibraryMusic,
+                                                                contentDescription = null,
+                                                                tint = Color.White,
+                                                                modifier = Modifier.size(96.dp),
+                                                            )
                                                         }
                                                     } else {
                                                         AsyncImage(
@@ -679,7 +685,16 @@ fun PlaylistScreen(
                                                 }
                                             }
                                         } else {
-                                            if (customCoverUri == null && (isLikedSongs || activeThumbnail.isNullOrEmpty())) {
+                                            if (isLikedSongs) {
+                                                LikedSongsCover(
+                                                    modifier =
+                                                        Modifier
+                                                            .size(artworkSizeDp.dp)
+                                                            .align(Alignment.CenterHorizontally)
+                                                            .clip(RoundedCornerShape(8.dp)),
+                                                    iconSize = (artworkSizeDp * 0.45f).dp,
+                                                )
+                                            } else if (customCoverUri == null && activeThumbnail.isNullOrEmpty()) {
                                                 Box(
                                                     modifier =
                                                         Modifier
@@ -689,7 +704,12 @@ fun PlaylistScreen(
                                                             .background(Color(0xFF141416)),
                                                     contentAlignment = Alignment.Center,
                                                 ) {
-                                                    GradientHeartIcon(size = 72.dp)
+                                                    Icon(
+                                                        imageVector = SimpIcons.LibraryMusic,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(72.dp),
+                                                    )
                                                 }
                                             } else {
                                                 AsyncImage(
@@ -1098,6 +1118,50 @@ fun PlaylistScreen(
                                     with(density) { searchBarHeightPx.toDp() },
                                 ),
                             )
+                        }
+                    }
+                    if (!data.isRadio && tracks.isNotEmpty()) {
+                        item(key = "playlist_tag_chips") {
+                            Row(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                PlaylistTag.entries.forEach { tag ->
+                                    val selected = selectedTag == tag
+                                    FilterChip(
+                                        selected = selected,
+                                        onClick = { viewModel.setSelectedTag(tag) },
+                                        label = {
+                                            Text(
+                                                text =
+                                                    when (tag) {
+                                                        PlaylistTag.ALL -> "All"
+                                                        PlaylistTag.SONGS -> "Songs"
+                                                        PlaylistTag.VIDEOS -> "Videos"
+                                                    },
+                                                style = typo().labelMedium,
+                                            )
+                                        },
+                                        colors =
+                                            FilterChipDefaults.filterChipColors(
+                                                containerColor = Color(0xFF1E1E22),
+                                                labelColor = Color.White,
+                                                selectedContainerColor = Color.White,
+                                                selectedLabelColor = Color.Black,
+                                            ),
+                                        border =
+                                            BorderStroke(
+                                                1.dp,
+                                                if (selected) Color.White else Color.White.copy(alpha = 0.15f),
+                                            ),
+                                        shape = RoundedCornerShape(50),
+                                    )
+                                }
+                            }
                         }
                     }
                     items(count = filteredTrack.size, key = { index ->

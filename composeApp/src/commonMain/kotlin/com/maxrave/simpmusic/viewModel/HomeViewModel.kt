@@ -19,6 +19,8 @@ import com.maxrave.domain.repository.HomeRepository
 import com.maxrave.domain.utils.Resource
 import com.maxrave.domain.utils.toTrack
 import com.maxrave.logger.Logger
+import com.maxrave.simpmusic.util.isListenAgainSection
+import com.maxrave.simpmusic.util.isQuickPicksSection
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -70,17 +72,37 @@ class HomeViewModel(
 
     val featuredCarouselItems: StateFlow<List<Content>> =
         combine(_homeItemList, _newRelease) { homeList, newReleaseList ->
-            val featured = mutableListOf<Content>()
+            // 1. Take items directly from YouTube Music's "Listen again" section if present
+            val listenAgainSection = homeList.firstOrNull { isListenAgainSection(it.title) }
+            if (listenAgainSection != null) {
+                val contents = listenAgainSection.contents.filterNotNull().filter { it.thumbnails.isNotEmpty() }
+                if (contents.isNotEmpty()) {
+                    return@combine contents
+                }
+            }
 
-            // 1. Pick items from rich home sections (Mixed for you, Listen again, Albums for you, Similar to, etc.)
+            // Fallback when "Listen again" is not present (e.g., signed-out user / fresh session)
+            val featured = mutableListOf<Content>()
             homeList.forEach { homeItem ->
-                val titleLower = homeItem.title.lowercase()
-                if (!titleLower.contains("quick pick") &&
-                    !titleLower.contains("podcast") &&
-                    !titleLower.contains("episode") &&
-                    !titleLower.contains("show")
-                ) {
-                    homeItem.contents.filterNotNull().take(5).forEach { item ->
+                if (!isQuickPicksSection(homeItem.title) && !isListenAgainSection(homeItem.title)) {
+                    val titleLower = homeItem.title.lowercase()
+                    if (!titleLower.contains("podcast") &&
+                        !titleLower.contains("episode") &&
+                        !titleLower.contains("show")
+                    ) {
+                        homeItem.contents.filterNotNull().take(5).forEach { item ->
+                            if (item.thumbnails.isNotEmpty() && featured.none { it.title == item.title || (it.browseId != null && it.browseId == item.browseId) }) {
+                                featured.add(item)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback to New Releases
+            if (featured.isEmpty()) {
+                newReleaseList.forEach { releaseHomeItem ->
+                    releaseHomeItem.contents.filterNotNull().take(5).forEach { item ->
                         if (item.thumbnails.isNotEmpty() && featured.none { it.title == item.title || (it.browseId != null && it.browseId == item.browseId) }) {
                             featured.add(item)
                         }
@@ -88,16 +110,6 @@ class HomeViewModel(
                 }
             }
 
-            // 2. Add New Releases (albums/singles)
-            newReleaseList.forEach { releaseHomeItem ->
-                releaseHomeItem.contents.filterNotNull().take(5).forEach { item ->
-                    if (item.thumbnails.isNotEmpty() && featured.none { it.title == item.title || (it.browseId != null && it.browseId == item.browseId) }) {
-                        featured.add(item)
-                    }
-                }
-            }
-
-            // Fallback: If still empty, use new releases
             if (featured.isEmpty()) {
                 newReleaseList.forEach { releaseHomeItem ->
                     featured.addAll(releaseHomeItem.contents.filterNotNull())
@@ -213,127 +225,105 @@ class HomeViewModel(
         homeJob?.cancel()
         homeJob =
             viewModelScope.launch {
-                try {
-                    combine(
-                        homeRepository.getHomeData(
-                            params,
-                            getString(Res.string.view_count),
-                            getString(Res.string.song),
-                        ),
-                        homeRepository.getMoodAndMomentsData(),
-                        homeRepository.getChartData(dataStoreManager.chartKey.first()),
+                // 1. Home Feed Flow - Updates immediately when cache or network data arrives
+                launch {
+                    try {
+                        homeRepository
+                            .getHomeData(
+                                params,
+                                getString(Res.string.view_count),
+                                getString(Res.string.song),
+                            ).collect { home ->
+                                when (home) {
+                                    is Resource.Success -> {
+                                        val newContinuation = home.data?.first
+                                        val raw = home.data?.second ?: listOf()
+                                        val filtered = raw.filterNot { item ->
+                                            val t = item.title.lowercase()
+                                            t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show")
+                                        }.distinct()
+                                        if (filtered.isNotEmpty() || _homeItemList.value.isEmpty()) {
+                                            _homeItemList.value = filtered
+                                        }
+                                        _continuation.value = newContinuation
+                                        _homeListState.value = if (newContinuation.isNullOrEmpty() && filtered.isEmpty()) {
+                                            ListState.PAGINATION_EXHAUST
+                                        } else {
+                                            ListState.IDLE
+                                        }
+                                        isOffline.value = false
+                                        loading.value = false
+                                        isRetrying.value = false
+                                    }
+
+                                    is Resource.Error -> {
+                                        if (_homeItemList.value.isEmpty()) {
+                                            _homeItemList.value = listOf()
+                                            showSnackBarErrorState.emit(home.message ?: "Failed to load home")
+                                        }
+                                        isOffline.value = _homeItemList.value.isNotEmpty()
+                                        loading.value = false
+                                        isRetrying.value = false
+                                        if (_homeListState.value == ListState.LOADING) {
+                                            _homeListState.value = if (continuation.value.isNullOrEmpty()) ListState.PAGINATION_EXHAUST else ListState.IDLE
+                                        }
+                                    }
+
+                                    else -> {}
+                                }
+                            }
+                    } catch (e: Exception) {
+                        Logger.e("HomeViewModel", "getHomeItemList homeData error: ${e.message}")
+                        if (_homeItemList.value.isEmpty()) {
+                            showSnackBarErrorState.emit(e.message ?: "Failed to load home")
+                        }
+                        loading.value = false
+                        isRetrying.value = false
+                    }
+                }
+
+                // 2. Mood & Moments Flow
+                launch {
+                    try {
+                        homeRepository.getMoodAndMomentsData().collect { moodRes ->
+                            if (moodRes is Resource.Success) {
+                                _exploreMoodItem.value = moodRes.data
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Logger.w("HomeViewModel", "getMoodAndMomentsData error: ${e.message}")
+                    }
+                }
+
+                // 3. Chart Data Flow
+                launch {
+                    try {
+                        homeRepository.getChartData(dataStoreManager.chartKey.first()).collect { chartRes ->
+                            if (chartRes is Resource.Success) {
+                                _chart.value = chartRes.data
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Logger.w("HomeViewModel", "getChartData error: ${e.message}")
+                    }
+                }
+
+                // 4. New Release Flow
+                launch {
+                    try {
                         homeRepository.getNewRelease(
                             getString(Res.string.new_release),
                             getString(Res.string.music_video),
-                        ),
-                    ) { home, exploreMood, exploreChart, newRelease ->
-                        HomeDataCombine(home, exploreMood, exploreChart, newRelease)
-                    }.collect { result ->
-                        val home = result.home
-                        Logger.d("home size", "${home.data?.second?.size}")
-                        val exploreMoodItem = result.mood
-                        val chart = result.chart
-                        val newRelease = result.newRelease
-
-                        var isHomeSuccess = false
-                        when (home) {
-                            is Resource.Success -> {
-                                isHomeSuccess = true
-                                _continuation.value = home.data?.first
-                                val raw = home.data?.second ?: listOf()
-                                val filtered = raw.filterNot { item ->
-                                    val t = item.title.lowercase()
-                                    t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show")
-                                }
-                                if (filtered.isNotEmpty() || _homeItemList.value.isEmpty()) {
-                                    _homeItemList.value = filtered
-                                }
-                            }
-
-                            is Resource.Error -> {
-                                // If we already have items (e.g. from cache), do NOT wipe them out!
-                                if (_homeItemList.value.isEmpty()) {
-                                    _homeItemList.value = listOf()
-                                }
-                            }
-
-                            else -> {}
-                        }
-
-                        if (continuation.value.isNullOrEmpty()) {
-                            _homeListState.value = ListState.PAGINATION_EXHAUST
-                        } else {
-                            _homeListState.value = ListState.IDLE
-                        }
-
-                        when (chart) {
-                            is Resource.Success -> {
-                                _chart.value = chart.data
-                            }
-
-                            else -> {}
-                        }
-
-                        when (newRelease) {
-                            is Resource.Success -> {
-                                val data = newRelease.data ?: arrayListOf()
+                        ).collect { releaseRes ->
+                            if (releaseRes is Resource.Success) {
+                                val data = releaseRes.data ?: arrayListOf()
                                 if (data.isNotEmpty() || _newRelease.value.isEmpty()) {
                                     _newRelease.value = data
                                 }
                             }
-
-                            else -> {}
                         }
-
-                        when (exploreMoodItem) {
-                            is Resource.Success -> {
-                                _exploreMoodItem.value = exploreMoodItem.data
-                            }
-
-                            else -> {}
-                        }
-
-                        regionCodeChart.value = dataStoreManager.chartKey.first()
-                        Logger.d("HomeViewModel", "getHomeItemList: $result")
-                        dataStoreManager.cookie.first().let {
-                            if (it != "") {
-                                _accountInfo.emit(
-                                    Pair(
-                                        dataStoreManager.getString("AccountName").first(),
-                                        dataStoreManager.getString("AccountThumbUrl").first(),
-                                    ),
-                                )
-                            }
-                        }
-
-                        isOffline.value = !isHomeSuccess && _homeItemList.value.isNotEmpty()
-
-                        val errorMessage = when {
-                            home is Resource.Error -> home.message
-                            exploreMoodItem is Resource.Error -> exploreMoodItem.message
-                            chart is Resource.Error -> chart.message
-                            else -> null
-                        }
-                        if (errorMessage != null) {
-                            if (_homeItemList.value.isEmpty()) {
-                                showSnackBarErrorState.emit(errorMessage)
-                            }
-                            Logger.w("Error", "getHomeItemList error: $errorMessage")
-                        }
-
-                        loading.value = false
-                        isRetrying.value = false
-                    }
-                } catch (e: Exception) {
-                    Logger.e("HomeViewModel", "getHomeItemList error: ${e.message}")
-                    if (_homeItemList.value.isEmpty()) {
-                        showSnackBarErrorState.emit(e.message ?: "Failed to load home")
-                    }
-                } finally {
-                    loading.value = false
-                    isRetrying.value = false
-                    if (_homeListState.value == ListState.LOADING) {
-                        _homeListState.value = if (continuation.value.isNullOrEmpty()) ListState.PAGINATION_EXHAUST else ListState.IDLE
+                    } catch (e: Exception) {
+                        Logger.w("HomeViewModel", "getNewRelease error: ${e.message}")
                     }
                 }
             }
@@ -359,9 +349,12 @@ class HomeViewModel(
                                 val rawNewItems = home.data?.second ?: listOf()
                                 val newItems = rawNewItems.filterNot { item ->
                                     val t = item.title.lowercase()
-                                    t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show") || t.contains("keep listening")
+                                    t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show")
+                                }.distinct()
+                                _homeItemList.update { currentList ->
+                                    val existing = currentList.toSet()
+                                    currentList + newItems.filterNot { it in existing }
                                 }
-                                _homeItemList.update { it + newItems }
                                 if (home.data?.first.isNullOrEmpty()) {
                                     _homeListState.value = ListState.PAGINATION_EXHAUST
                                 } else {

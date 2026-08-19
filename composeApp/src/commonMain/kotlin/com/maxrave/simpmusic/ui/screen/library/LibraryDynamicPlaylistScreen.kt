@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -162,27 +164,7 @@ fun LibraryDynamicPlaylistScreen(
         )
 
     val lazyState = rememberLazyListState()
-    val prevScrollPosition = rememberSaveable {
-        mutableFloatStateOf(lazyState.firstVisibleItemIndex + lazyState.firstVisibleItemScrollOffset / 10000.0f)
-    }
-    LaunchedEffect(lazyState) {
-        snapshotFlow {
-            val idx = lazyState.firstVisibleItemIndex
-            val off = lazyState.firstVisibleItemScrollOffset
-            Triple(idx == 0 && off == 0, idx, off)
-        }.collect { (isAtTop, idx, off) ->
-            val position = idx + (off / 10000.0f)
-            val direction = if (position > prevScrollPosition.floatValue) {
-                -1
-            } else if (position < prevScrollPosition.floatValue) {
-                1
-            } else {
-                0
-            }
-            prevScrollPosition.floatValue = position
-            onScrolling(isAtTop, direction)
-        }
-    }
+    lazyState.TrackScrolling(onScrolling = onScrolling)
 
     LaunchedEffect(query) {
         Logger.w("LibraryDynamicPlaylistScreen", "Check query: $query")
@@ -286,14 +268,14 @@ fun LibraryDynamicPlaylistScreen(
             when (analyticsUIState.topArtists) {
                 is LocalResource.Success if (!analyticsUIState.topArtists.data.isNullOrEmpty()) -> {
                     val data = analyticsUIState.topArtists.data ?: emptyList()
-                    items(
+                    itemsIndexed(
                         if (query.isNotEmpty() && showSearchBar) {
                             tempTopArtists
                         } else {
                             data
                         },
-                        key = { it.first.hashCode() },
-                    ) { artist ->
+                        key = { index, artist -> "top_artist_${artist.second.channelId}_$index" },
+                    ) { _, artist ->
                         ArtistFullWidthItems(
                             artist.second,
                             rightView = {
@@ -321,14 +303,14 @@ fun LibraryDynamicPlaylistScreen(
             when (analyticsUIState.topAlbums) {
                 is LocalResource.Success if (!analyticsUIState.topAlbums.data.isNullOrEmpty()) -> {
                     val data = analyticsUIState.topAlbums.data ?: emptyList()
-                    items(
+                    itemsIndexed(
                         if (query.isNotEmpty() && showSearchBar) {
                             tempTopAlbums
                         } else {
                             data
                         },
-                        key = { it.first.hashCode() },
-                    ) { album ->
+                        key = { index, album -> "top_album_${album.second.browseId}_$index" },
+                    ) { _, album ->
                         PlaylistFullWidthItems(
                             album.second,
                             rightView = {
@@ -356,14 +338,14 @@ fun LibraryDynamicPlaylistScreen(
             when (analyticsUIState.topTracks) {
                 is LocalResource.Success if (!analyticsUIState.topTracks.data.isNullOrEmpty()) -> {
                     val data = analyticsUIState.topTracks.data ?: emptyList()
-                    items(
+                    itemsIndexed(
                         if (query.isNotEmpty() && showSearchBar) {
                             tempTopTracks
                         } else {
                             data
                         },
-                        key = { it.hashCode() },
-                    ) { song ->
+                        key = { index, song -> "top_track_${song.second.videoId}_$index" },
+                    ) { _, song ->
                         SongFullWidthItems(
                             songEntity = song.second,
                             isPlaying = song.second.videoId == nowPlayingVideoId,
@@ -420,7 +402,7 @@ fun LibraryDynamicPlaylistScreen(
                 else -> {}
             }
         } else {
-            items(
+            itemsIndexed(
                 when (type) {
                     LibraryDynamicPlaylistType.Downloaded -> {
                         if (query.isNotEmpty() && showSearchBar) {
@@ -442,8 +424,8 @@ fun LibraryDynamicPlaylistScreen(
                         }
                     }
                 },
-                key = { it.hashCode() },
-            ) { song ->
+                key = { index, song -> "song_${song.videoId}_$index" },
+            ) { _, song ->
                 SongFullWidthItems(
                     songEntity = song,
                     isPlaying = song.videoId == nowPlayingVideoId,
