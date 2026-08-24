@@ -64,13 +64,13 @@ class ArtistViewModel(
                 when (browse) {
                     is Resource.Success if (data != null) -> {
                         data.channelId?.let { channelId ->
+                            val existing = artistRepository.getArtistById(channelId).firstOrNull()
+                            val avatarUrl = existing?.thumbnails ?: data.thumbnails?.lastOrNull()?.url
                             insertArtist(
                                 ArtistEntity(
                                     channelId,
                                     data.name,
-                                    data.thumbnails
-                                        ?.lastOrNull()
-                                        ?.url,
+                                    avatarUrl,
                                 ),
                             )
                         }
@@ -120,8 +120,10 @@ class ArtistViewModel(
             delay(100)
             artistRepository.getArtistById(artist.channelId).collect { artistEntity ->
                 if (artistEntity != null) {
-                    artist.thumbnails?.let {
-                        artistRepository.updateArtistImage(artistEntity.channelId, it)
+                    if (artistEntity.thumbnails.isNullOrEmpty()) {
+                        artist.thumbnails?.let {
+                            artistRepository.updateArtistImage(artistEntity.channelId, it)
+                        }
                     }
                     _followed.value = artistEntity.followed
                     log("insertArtist: ${artistEntity.followed}")

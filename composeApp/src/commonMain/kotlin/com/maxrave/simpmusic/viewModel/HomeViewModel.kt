@@ -254,6 +254,12 @@ class HomeViewModel(
                                         isOffline.value = false
                                         loading.value = false
                                         isRetrying.value = false
+
+                                        // Auto-fetch next batch if Quick Picks is not yet in the initial shelves
+                                        val hasQuickPicks = filtered.any { isQuickPicksSection(it.title) || (it.contents.filterNotNull().isNotEmpty() && it.contents.filterNotNull().all { c -> !c.videoId.isNullOrEmpty() }) }
+                                        if (!hasQuickPicks && !newContinuation.isNullOrEmpty()) {
+                                            getContinueHomeItem(newContinuation)
+                                        }
                                     }
 
                                     is Resource.Error -> {

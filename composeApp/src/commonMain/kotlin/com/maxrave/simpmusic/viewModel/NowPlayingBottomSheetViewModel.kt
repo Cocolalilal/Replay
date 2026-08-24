@@ -242,13 +242,32 @@ class NowPlayingBottomSheetViewModel(
                 }
 
                 is NowPlayingBottomSheetUIEvent.AddToYouTubePlaylist -> {
-                    localPlaylistRepository
-                        .addYouTubePlaylistItem(
-                            youtubePlaylistId = ev.browseId,
+                    playlistRepository
+                        .addTrackToPlaylist(
+                            playlistId = ev.browseId,
                             videoId = songUIState.videoId,
                         ).collectLatestResource(
                             onSuccess = {
                                 makeToast(it)
+                            },
+                            onError = {
+                                makeToast(it)
+                            },
+                        )
+                }
+
+                is NowPlayingBottomSheetUIEvent.CreateNewYouTubePlaylist -> {
+                    playlistRepository
+                        .createPlaylist(
+                            title = ev.title,
+                            description = "",
+                            privacyStatus = "PRIVATE",
+                        ).collectLatestResource(
+                            onSuccess = { createdId ->
+                                if (!createdId.isNullOrEmpty() && songUIState.videoId.isNotEmpty()) {
+                                    onUIEvent(NowPlayingBottomSheetUIEvent.AddToYouTubePlaylist(createdId))
+                                }
+                                resetPlaylists()
                             },
                             onError = {
                                 makeToast(it)
@@ -447,6 +466,10 @@ sealed class NowPlayingBottomSheetUIEvent {
 
     data class AddToYouTubePlaylist(
         val browseId: String,
+    ) : NowPlayingBottomSheetUIEvent()
+
+    data class CreateNewYouTubePlaylist(
+        val title: String,
     ) : NowPlayingBottomSheetUIEvent()
 
     data object PlayNext : NowPlayingBottomSheetUIEvent()

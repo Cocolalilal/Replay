@@ -259,66 +259,47 @@ class SharedViewModel(
                 )
             }
             dataStoreManager.openApp()
-            val timeLineJob =
-                launch {
-                    nowPlayingState
-                        .filterNotNull()
-                        .flatMapLatest { nowPlayingState ->
-                            timeline.map { timeLine ->
-                                Pair(timeLine, nowPlayingState)
-                            }
-                        }.distinctUntilChanged { old, new ->
-                            (old.first.total.toString() + old.second.songEntity?.videoId).hashCode() ==
-                                (new.first.total.toString() + new.second.songEntity?.videoId).hashCode()
-                        }.collectLatest {
-                            log("Timeline job ${(it.first.total.toString() + it.second.songEntity?.videoId).hashCode()}")
-                            val nowPlaying = it.second
-                            val timeline = it.first
-                            if (nowPlaying.songEntity != null) {
-                                nowPlaying.songEntity?.let { song ->
-                                    if (nowPlayingScreenData.value.lyricsData == null) {
-                                        val dur = if (timeline.total > 0L) (timeline.total / 1000).toInt() else song.durationSeconds
-                                        Logger.w(tag, "Get lyrics from format")
-                                        getLyricsFromFormat(nowPlaying.mediaItem.isVideo(), song, dur)
-                                    }
+            launch {
+                nowPlayingState
+                    .filterNotNull()
+                    .flatMapLatest { nowPlayingState ->
+                        timeline.map { timeLine ->
+                            Pair(timeLine, nowPlayingState)
+                        }
+                    }.distinctUntilChanged { old, new ->
+                        (old.first.total.toString() + old.second.songEntity?.videoId).hashCode() ==
+                            (new.first.total.toString() + new.second.songEntity?.videoId).hashCode()
+                    }.collectLatest {
+                        log("Timeline job ${(it.first.total.toString() + it.second.songEntity?.videoId).hashCode()}")
+                        val nowPlaying = it.second
+                        val timeline = it.first
+                        if (nowPlaying.songEntity != null) {
+                            nowPlaying.songEntity?.let { song ->
+                                if (nowPlayingScreenData.value.lyricsData == null) {
+                                    val dur = if (timeline.total > 0L) (timeline.total / 1000).toInt() else song.durationSeconds
+                                    Logger.w(tag, "Get lyrics from format")
+                                    getLyricsFromFormat(nowPlaying.mediaItem.isVideo(), song, dur)
                                 }
                             }
                         }
-                }
-            val checkGetVideoJob =
-                launch {
-                    dataStoreManager.watchVideoInsteadOfPlayingAudio.collectLatest {
-                        Logger.w(tag, "GetVideo is $it")
-                        _getVideo.value = it == TRUE
                     }
+            }
+            launch {
+                dataStoreManager.watchVideoInsteadOfPlayingAudio.collectLatest {
+                    Logger.w(tag, "GetVideo is $it")
+                    _getVideo.value = it == TRUE
                 }
-            val lyricsProviderJob =
-                launch {
-                    dataStoreManager.lyricsProvider.distinctUntilChanged().collectLatest {
-                        setLyricsProvider()
-                    }
+            }
+            launch {
+                dataStoreManager.lyricsProvider.distinctUntilChanged().collectLatest {
+                    setLyricsProvider()
                 }
-            val shareSavedLyricsJob =
-                launch {
-                    dataStoreManager.helpBuildLyricsDatabase.distinctUntilChanged().collectLatest {
-                        _shareSavedLyrics.value = it == TRUE
-                    }
+            }
+            launch {
+                dataStoreManager.helpBuildLyricsDatabase.distinctUntilChanged().collectLatest {
+                    _shareSavedLyrics.value = it == TRUE
                 }
-//            val controllerStateJob =
-//                launch {
-//                    controllerState.map { it.isLiked }.distinctUntilChanged().collectLatest {
-//                        if (dataStoreManager.combineLocalAndYouTubeLiked.first() == TRUE) {
-//                            nowPlayingState.value?.mediaItem?.mediaId?.let {
-//                                getLikeStatus(it)
-//                            }
-//                        }
-//                    }
-//                }
-            timeLineJob.join()
-            checkGetVideoJob.join()
-            lyricsProviderJob.join()
-            shareSavedLyricsJob.join()
-//            controllerStateJob.join()
+            }
         }
 
         runBlocking {
@@ -383,7 +364,9 @@ class SharedViewModel(
                         }
                     }
                     state.songEntity?.let { song ->
-                        _liked.value = song.liked == true
+                        val isSongLiked = song.liked == true
+                        _liked.value = isSongLiked
+                        _controllerState.update { it.copy(isLiked = isSongLiked) }
                         _nowPlayingScreenData.update {
                             it.copy(
                                 isExplicit = song.isExplicit,
@@ -496,10 +479,6 @@ class SharedViewModel(
                         }
                     }
                 }
-            job1.join()
-            controllerJob.join()
-            sleepTimerJob.join()
-            playlistNameJob.join()
         }
         // Reset downloading songs & playlists to not downloaded
         checkAllDownloadingSongs()
@@ -554,6 +533,8 @@ class SharedViewModel(
                 _likeStatus.value = false
                 songRepository.getLikeStatus(videoId).collectLatest { status ->
                     _likeStatus.value = status
+                    _controllerState.update { it.copy(isLiked = status) }
+                    mediaPlayerHandler.like(status)
                 }
             }
         }

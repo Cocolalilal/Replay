@@ -214,6 +214,7 @@ import simpmusic.composeapp.generated.resources.can_not_be_empty
 import simpmusic.composeapp.generated.resources.cancel
 import simpmusic.composeapp.generated.resources.codec
 import simpmusic.composeapp.generated.resources.copied_to_clipboard
+import simpmusic.composeapp.generated.resources.create
 import simpmusic.composeapp.generated.resources.delete
 import simpmusic.composeapp.generated.resources.delete_playlist
 import simpmusic.composeapp.generated.resources.delete_song_from_playlist
@@ -252,6 +253,8 @@ import simpmusic.composeapp.generated.resources.play_next
 import simpmusic.composeapp.generated.resources.playback_speed
 import simpmusic.composeapp.generated.resources.playback_speed_pitch
 import simpmusic.composeapp.generated.resources.playback_speed_pitch_disabled
+import simpmusic.composeapp.generated.resources.playlist
+import simpmusic.composeapp.generated.resources.playlist_name
 import simpmusic.composeapp.generated.resources.playlist_name_cannot_be_empty
 import simpmusic.composeapp.generated.resources.plays
 import simpmusic.composeapp.generated.resources.processing
@@ -1472,6 +1475,9 @@ fun NowPlayingBottomSheet(
             onYTPlaylistClick = {
                 viewModel.onUIEvent(NowPlayingBottomSheetUIEvent.AddToYouTubePlaylist(it.browseId))
             },
+            onCreateNewPlaylist = { title ->
+                viewModel.onUIEvent(NowPlayingBottomSheetUIEvent.CreateNewYouTubePlaylist(title))
+            },
             videoId = uiState.songUIState.videoId,
         )
     }
@@ -2522,22 +2528,17 @@ fun SleepTimerBottomSheet(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = seed,
-                            disabledContainerColor = seed.copy(alpha = 0.3f),
-                        ),
+                    colors = ButtonDefaults.buttonColors(containerColor = seed),
                     enabled = isSetEnabled,
                 ) {
                     Text(
                         text = stringResource(Res.string.set),
-                        style = typo().labelSmall,
-                        color = rememberSurfaceDarkColors().content,
-                        modifier = Modifier.padding(vertical = 4.dp),
+                        style = typo().bodyMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
                 EndOfModalBottomSheet()
             }
         }
@@ -2553,18 +2554,68 @@ fun AddToPlaylistModalBottomSheet(
     videoId: String? = null,
     onClick: (LocalPlaylistEntity) -> Unit,
     onYTPlaylistClick: (PlaylistsResult) -> Unit,
+    onCreateNewPlaylist: ((String) -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val modelBottomSheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    val hideModalBottomSheet: () -> Unit =
-        {
-            coroutineScope.launch {
-                modelBottomSheetState.hide()
-                onDismiss()
-            }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newPlaylistTitle by remember { mutableStateOf("") }
+
+    val hideModalBottomSheet: () -> Unit = {
+        coroutineScope.launch {
+            modelBottomSheetState.hide()
+            onDismiss()
         }
+    }
+
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showCreateDialog = false
+                newPlaylistTitle = ""
+            },
+            title = { Text(text = "${stringResource(Res.string.create)} ${stringResource(Res.string.playlist)}", color = rememberSurfaceDarkColors().content) },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistTitle,
+                    onValueChange = { newPlaylistTitle = it },
+                    label = { Text(text = stringResource(Res.string.playlist_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newPlaylistTitle.isNotBlank()) {
+                            onCreateNewPlaylist?.invoke(newPlaylistTitle.trim())
+                            showCreateDialog = false
+                            newPlaylistTitle = ""
+                            hideModalBottomSheet()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = seed),
+                ) {
+                    Text(text = stringResource(Res.string.save))
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = {
+                        showCreateDialog = false
+                        newPlaylistTitle = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                ) {
+                    Text(text = stringResource(Res.string.cancel), color = rememberSurfaceDarkColors().content)
+                }
+            },
+            containerColor = rememberSurfaceDarkColors().container,
+        )
+    }
+
     if (isBottomSheetVisible) {
         ModalBottomSheet(
             onDismissRequest = onDismiss,
@@ -2594,117 +2645,160 @@ fun AddToPlaylistModalBottomSheet(
                         colors = CardDefaults.cardColors().copy(containerColor = rememberSurfaceDarkColors().handle),
                         shape = RoundedCornerShape(50),
                     ) {}
-                    Spacer(modifier = Modifier.height(5.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    val chipRowState = rememberScrollState()
-                    var isYouTubePlaylistClicked by remember { mutableStateOf(false) }
-                    if (listYouTubePlaylist.isNotEmpty()) {
-                        Row(
-                            modifier =
-                                Modifier
-                                    .horizontalScroll(chipRowState)
-                                    .padding(horizontal = 15.dp)
-                                    .padding(vertical = 8.dp)
-                                    .background(Color.Transparent),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Chip(
-                                isAnimated = false,
-                                isSelected = !isYouTubePlaylistClicked,
-                                text = stringResource(Res.string.your_playlists),
-                                onClick = { isYouTubePlaylistClicked = false },
-                            )
-                            Chip(
-                                isAnimated = false,
-                                isSelected = isYouTubePlaylistClicked,
-                                text = stringResource(Res.string.your_youtube_playlists),
-                                onClick = { isYouTubePlaylistClicked = true },
-                            )
-                        }
-                    }
+                    Text(
+                        text = stringResource(Res.string.add_to_a_playlist),
+                        style = typo().titleMedium,
+                        color = rememberSurfaceDarkColors().content,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
 
-                    if ((listLocalPlaylist.isEmpty() && !isYouTubePlaylistClicked) ||
-                        (listYouTubePlaylist.isEmpty() && isYouTubePlaylistClicked)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                     ) {
-                        Text(
-                            text = stringResource(Res.string.no_playlist_found),
-                            style = typo().labelSmall,
-                            modifier = Modifier.padding(20.dp),
-                            color = rememberSurfaceDarkColors().disabled,
-                        )
-                    } else {
-                        Crossfade(isYouTubePlaylistClicked) { clicked ->
-                            if (clicked) {
-                                LazyColumn {
-                                    items(listYouTubePlaylist) { playlist ->
+                        if (onCreateNewPlaylist != null) {
+                            item {
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                            .clickable { showCreateDialog = true },
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(12.dp),
+                                    ) {
                                         Box(
                                             modifier =
                                                 Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 3.dp)
-                                                    .clickable(onClick = {
-                                                        onYTPlaylistClick(playlist)
-                                                        hideModalBottomSheet()
-                                                    }),
+                                                    .size(44.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(seed.copy(alpha = 0.2f)),
+                                            contentAlignment = Alignment.Center,
                                         ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(12.dp).align(Alignment.CenterStart),
-                                            ) {
-                                                Image(
-                                                    imageVector = SimpIcons.PlaylistAdd,
-                                                    contentDescription = "",
-                                                )
-                                                Spacer(modifier = Modifier.width(10.dp))
+                                            Image(
+                                                imageVector = SimpIcons.Add,
+                                                contentDescription = null,
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Text(
+                                            text = "${stringResource(Res.string.create)} ${stringResource(Res.string.playlist)}",
+                                            style = typo().bodyMedium,
+                                            color = seed,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (listYouTubePlaylist.isNotEmpty()) {
+                            items(listYouTubePlaylist) { playlist ->
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .clickable(onClick = {
+                                                onYTPlaylistClick(playlist)
+                                                hideModalBottomSheet()
+                                            }),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    ) {
+                                        Box(
+                                            modifier =
+                                                Modifier
+                                                    .size(44.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(rememberSurfaceDarkColors().container),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Image(
+                                                imageVector = SimpIcons.PlaylistAdd,
+                                                contentDescription = null,
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = playlist.title,
+                                                style = typo().bodyMedium,
+                                                color = rememberSurfaceDarkColors().content,
+                                                maxLines = 1,
+                                            )
+                                            if (!playlist.author.isNullOrEmpty()) {
                                                 Text(
-                                                    text = playlist.title,
+                                                    text = playlist.author ?: "",
                                                     style = typo().labelSmall,
-                                                    color = rememberSurfaceDarkColors().content,
+                                                    color = rememberSurfaceDarkColors().disabled,
+                                                    maxLines = 1,
                                                 )
                                             }
                                         }
                                     }
                                 }
-                            } else {
-                                LazyColumn {
-                                    items(listLocalPlaylist) { playlist ->
+                            }
+                        } else if (listLocalPlaylist.isNotEmpty()) {
+                            items(listLocalPlaylist) { playlist ->
+                                val isAdded = playlist.tracks?.contains(videoId) == true
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .clickable(
+                                                enabled = !isAdded,
+                                                onClick = {
+                                                    onClick(playlist)
+                                                    hideModalBottomSheet()
+                                                },
+                                            ),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    ) {
                                         Box(
                                             modifier =
                                                 Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 3.dp)
-                                                    .clickable(
-                                                        enabled = playlist.tracks?.contains(videoId) != true,
-                                                        onClick = {
-                                                            onClick(playlist)
-                                                            hideModalBottomSheet()
-                                                        },
-                                                    ),
+                                                    .size(44.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(rememberSurfaceDarkColors().container),
+                                            contentAlignment = Alignment.Center,
                                         ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(12.dp).align(Alignment.CenterStart),
-                                            ) {
-                                                Crossfade(targetState = playlist.tracks?.contains(videoId) == true) {
-                                                    if (it) {
-                                                        Image(imageVector = SimpIcons.Done, contentDescription = "")
-                                                    } else {
-                                                        Image(
-                                                            imageVector = SimpIcons.PlaylistAdd,
-                                                            contentDescription = "",
-                                                        )
-                                                    }
+                                            Crossfade(targetState = isAdded) { added ->
+                                                if (added) {
+                                                    Image(imageVector = SimpIcons.Done, contentDescription = null)
+                                                } else {
+                                                    Image(imageVector = SimpIcons.PlaylistAdd, contentDescription = null)
                                                 }
-                                                Spacer(modifier = Modifier.width(10.dp))
-                                                Text(
-                                                    text = playlist.title,
-                                                    style = typo().labelSmall,
-                                                    color = if (playlist.tracks?.contains(videoId) == true) rememberSurfaceDarkColors().disabled else rememberSurfaceDarkColors().content,
-                                                )
                                             }
                                         }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Text(
+                                            text = playlist.title,
+                                            style = typo().bodyMedium,
+                                            color = if (isAdded) rememberSurfaceDarkColors().disabled else rememberSurfaceDarkColors().content,
+                                            maxLines = 1,
+                                        )
                                     }
                                 }
+                            }
+                        } else if (onCreateNewPlaylist == null) {
+                            item {
+                                Text(
+                                    text = stringResource(Res.string.no_playlist_found),
+                                    style = typo().labelSmall,
+                                    modifier = Modifier.padding(20.dp),
+                                    color = rememberSurfaceDarkColors().disabled,
+                                )
                             }
                         }
                     }
