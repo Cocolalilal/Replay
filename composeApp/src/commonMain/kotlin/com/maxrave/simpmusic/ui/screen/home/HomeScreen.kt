@@ -198,6 +198,11 @@ fun HomeScreen(
             ?: homeData.firstOrNull { section ->
                 section != listenAgainData &&
                     !isListenAgainSection(section.title) &&
+                    section.contents.filterNotNull().count { it.videoId?.isNotEmpty() == true } >= 3
+            }
+            ?: homeData.firstOrNull { section ->
+                section != listenAgainData &&
+                    !isListenAgainSection(section.title) &&
                     section.contents.filterNotNull().any { it.videoId?.isNotEmpty() == true }
             }
     }

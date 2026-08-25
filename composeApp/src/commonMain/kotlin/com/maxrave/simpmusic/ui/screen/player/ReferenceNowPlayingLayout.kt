@@ -1975,7 +1975,7 @@ private fun ReferenceTransportControls(
     ) {
         ReferenceTransportButton(
             modifier = Modifier.weight(previousWeight).fillMaxHeight(),
-            enabled = controllerState.isPreviousAvailable,
+            enabled = true,
             shape = CircleShape,
             containerColor = LocalReferenceSecondary.current,
             interactionSource = previousInteraction,

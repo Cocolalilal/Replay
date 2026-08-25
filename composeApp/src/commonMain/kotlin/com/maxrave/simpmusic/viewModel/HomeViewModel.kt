@@ -335,7 +335,7 @@ class HomeViewModel(
             }
     }
 
-    fun getContinueHomeItem(continuation: String?) {
+    fun getContinueHomeItem(continuation: String?, autoRetryCount: Int = 0) {
         viewModelScope.launch {
             if (continuation.isNullOrEmpty()) {
                 _homeListState.value = ListState.PAGINATION_EXHAUST
@@ -357,14 +357,21 @@ class HomeViewModel(
                                     val t = item.title.lowercase()
                                     t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show")
                                 }.distinct()
+                                var updatedList: List<HomeItem> = emptyList()
                                 _homeItemList.update { currentList ->
                                     val existing = currentList.toSet()
-                                    currentList + newItems.filterNot { it in existing }
+                                    updatedList = currentList + newItems.filterNot { it in existing }
+                                    updatedList
                                 }
-                                if (home.data?.first.isNullOrEmpty()) {
+                                val nextCont = home.data?.first
+                                if (nextCont.isNullOrEmpty()) {
                                     _homeListState.value = ListState.PAGINATION_EXHAUST
                                 } else {
                                     _homeListState.value = ListState.IDLE
+                                }
+                                val hasQuickPicks = updatedList.any { isQuickPicksSection(it.title) || (it.contents.filterNotNull().isNotEmpty() && it.contents.filterNotNull().all { c -> !c.videoId.isNullOrEmpty() }) }
+                                if (!hasQuickPicks && !nextCont.isNullOrEmpty() && autoRetryCount < 2) {
+                                    getContinueHomeItem(nextCont, autoRetryCount + 1)
                                 }
                             }
 

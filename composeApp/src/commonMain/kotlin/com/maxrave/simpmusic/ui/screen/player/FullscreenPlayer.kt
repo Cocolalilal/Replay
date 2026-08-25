@@ -388,14 +388,14 @@ fun FullscreenPlayer(
                                         .clip(
                                             CircleShape,
                                         ),
-                                enabled = controllerState.isPreviousAvailable,
+                                enabled = true,
                                 onClick = {
                                     sharedViewModel.onUIEvent(UIEvent.Previous)
                                 },
                             ) {
                                 Icon(
                                     imageVector = SimpIcons.SkipPrevious,
-                                    tint = if (controllerState.isPreviousAvailable) Color.White else Color.DarkGray,
+                                    tint = Color.White,
                                     contentDescription = "",
                                     modifier =
                                         Modifier

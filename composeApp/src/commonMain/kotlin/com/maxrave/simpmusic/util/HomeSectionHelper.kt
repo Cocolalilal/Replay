@@ -47,20 +47,40 @@ fun isQuickPicksSection(title: String, localizedQuickPicks: String? = null): Boo
         t.startsWith("quick pick") ||
         t.contains("quick pick") ||
         t.contains("quick") ||
+        t.contains("start radio") ||
+        t.contains("radio from a song") ||
+        t.contains("start a radio") ||
         t.contains("chọn nhanh") ||
+        t.contains("bắt đầu danh sách phát từ bài hát") ||
+        t.contains("bắt đầu radio") ||
         t.contains("sélection rapide") ||
+        t.contains("lancer une radio") ||
         t.contains("selección rápida") ||
+        t.contains("inicia una radio") ||
         t.contains("schnelle auswahl") ||
+        t.contains("radio starten") ||
         t.contains("escolhas rápidas") ||
+        t.contains("inicie uma rádio") ||
         t.contains("быстрый выбор") ||
+        t.contains("радио по треку") ||
+        t.contains("запустить радио") ||
         t.contains("scelte rapide") ||
+        t.contains("avvia una radio") ||
         t.contains("クイック選択") ||
+        t.contains("ラジオを開始") ||
         t.contains("빠른 선곡") ||
+        t.contains("뮤직 스테이션 시작") ||
         t.contains("快速选择") ||
         t.contains("快速挑選") ||
         t.contains("精選歌曲") ||
+        t.contains("開始播放電台") ||
+        t.contains("开始播放电台") ||
         t.contains("اختيارات سريعة") ||
+        t.contains("بدء محطة راديو") ||
         t.contains("hızlı seçim") ||
+        t.contains("radyo başlat") ||
         t.contains("เลือกด่วน") ||
-        t.contains("pilihan cepat")
+        t.contains("เริ่มเล่นวิทยุ") ||
+        t.contains("pilihan cepat") ||
+        t.contains("mulai radio")
 }

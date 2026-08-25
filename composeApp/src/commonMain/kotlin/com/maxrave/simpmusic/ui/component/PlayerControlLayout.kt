@@ -103,7 +103,7 @@ fun PlayerControlLayout(
             ) {
                 Icon(
                     imageVector = SimpIcons.SkipPrevious,
-                    tint = if (controllerState.isPreviousAvailable) contentColor else contentColor.copy(alpha = 0.4f),
+                    tint = contentColor,
                     contentDescription = "",
                     modifier = Modifier.size(mediumIcon.first),
                 )
