@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="asset/icon.png" width="160" alt="Replay icon" />
+<img src="asset/icon.png" width="220" alt="Replay icon" />
 
 # Replay
 
