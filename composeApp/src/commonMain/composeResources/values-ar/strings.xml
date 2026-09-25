@@ -172,8 +172,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings"></string>
     <string name="save_last_played">حفظ آخر تشغيل</string>
     <string name="save_last_played_track_and_queue">حفظ آخر مسار وقائمة الانتظار تم تشغيله</string>
-    <string name="update_available">تحديث جديد متوفر</string>
-    <string name="check_for_update">التحقق من وجود التحديث</string>
     <string name="last_checked_at">آخر تحقق: %1$s</string>
     <string name="checking">التحقق</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: تخطي %1$s مقطع</string>
@@ -205,7 +203,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">نسخ إلى الحافظة</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">تم النسخ إلى الحافظة</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">معلومات الخطأ</string>
-    <string name="no_update">نسختك هي الأحدث</string>
     <string name="sleep_timer">مؤقت النوم - %1$s دقيقة/دقائق</string>
     <string name="sleep_timer_off">مؤقت النوم</string>
     <string name="sleep_minutes">وقت العد التنازلي (بالدقائق)</string>

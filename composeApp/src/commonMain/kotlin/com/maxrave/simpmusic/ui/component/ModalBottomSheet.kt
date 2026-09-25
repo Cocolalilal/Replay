@@ -1927,13 +1927,15 @@ fun NowPlayingBottomSheet(
                         hideModalBottomSheet()
                     }
                     if (uiState.songUIState.listArtists.isNotEmpty()) {
-                        val artist = uiState.songUIState.listArtists.firstOrNull()?.name.orEmpty()
+                        val firstArtist = uiState.songUIState.listArtists.firstOrNull()
+                        val artist = firstArtist?.name.orEmpty()
+                        val artistId = firstArtist?.id
                         ActionButton(
                             icon = SimpIcons.PeopleAlt,
                             text = null,
                             textString = "Don't recommend artist",
                         ) {
-                            viewModel.onUIEvent(NowPlayingBottomSheetUIEvent.DontRecommendArtist(artist))
+                            viewModel.onUIEvent(NowPlayingBottomSheetUIEvent.DontRecommendArtist(artistName = artist, artistId = artistId))
                             hideModalBottomSheet()
                         }
                     }

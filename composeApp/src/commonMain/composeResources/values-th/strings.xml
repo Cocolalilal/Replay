@@ -123,13 +123,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">เลี้ยงกาแฟให้ฉัน</string>
-    <string name="developer_blog">บล็อกนักพัฒนา</string>
-    <string name="developer_blog_tagline">อ่านบันทึกจากผู้พัฒนา บทแนะนำ &amp; เบื้องหลังการทำงาน</string>
-    <string name="blog_promo_title">สิ่งใหม่จากผู้พัฒนา</string>
-    <string name="blog_promo_message">ผมเพิ่งเปิดบล็อกส่วนตัวที่ maxrave.dev
-เอาไว้แชร์เรื่องราวเบื้องหลัง SimpMusic เจาะลึกด้าน music-tech และบันทึกด้านวิศวกรรมต่าง ๆ
-แวะเข้าไปอ่านกันได้ถ้าสนใจ ✨</string>
-    <string name="visit_blog">เยี่ยมชมบล็อก</string>
     <string name="paypal">PayPal</string>
     <string name="title">ชื่อ</string>
     <string name="custom_order">กำหนดลำดับเอง</string>
@@ -185,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">หมดเวลาเชื่อมต่อ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต (%1$s)</string>
     <string name="save_last_played">บันทึกการเล่นครั้งล่าสุด</string>
     <string name="save_last_played_track_and_queue">บันทึกเพลงและคิวที่เล่นล่าสุด</string>
-    <string name="update_available">อัปเดตใหม่พร้อมใช้งานแล้ว</string>
-    <string name="update_message">เวอร์ชั่น %1$s พร้อมใช้งาน\nเปิดตัวเมื่อ: %2$s\n</string>
-    <string name="check_for_update">ตรวจสอบการอัปเดต</string>
     <string name="last_checked_at">ตรวจสอบล่าสุดเมื่อ %1$s</string>
     <string name="checking">กำลังตรวจสอบ</string>
     <string name="sponsorblock_skip_segment">บล็อคสปอนเซอร์: ข้ามส่วน %1$s </string>
@@ -219,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">คัดลอกไปยังคลิปบอร์ด</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">คัดลอกไปยังคลิปบอร์ดแล้ว</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">ข้อมูลข้อผิดพลาด</string>
-    <string name="no_update">เวอร์ชันของคุณเป็นเวอร์ชันใหม่ล่าสุด</string>
     <string name="sleep_timer">ตั้งเวลาปิดเครื่องเล่น - %1$s นาที</string>
     <string name="sleep_timer_end_of_song">ตั้งเวลาปิดเพลง – เมื่อเพลงจบ</string>
     <string name="sleep_timer_off">ตั้งเวลาปิดเครื่องเล่น</string>
@@ -401,8 +390,6 @@
     <string name="sync_first">ซิงค์เพลย์ลิสต์นี้กับ YouTube Music ก่อน</string>
     <string name="endless_queue">คิวไม่มีที่สิ้นสุด</string>
     <string name="do_not_show_again">อย่าแสดงอีก</string>
-    <string name="auto_check_for_update">ตรวจสอบการอัปเดตอัตโนมัติ</string>
-    <string name="auto_check_for_update_description">ตรวจสอบการอัปเดตทุกครั้งที่คุณเปิดแอป</string>
     <string name="playback_speed_pitch"><![CDATA[ความเร็วในการเล่นและความสูง-ต่ำของเสียง]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[ความเร็วการเล่นและระดับเสียง (จะถูกปิดใช้งานเมื่อเปิด Crossfade)]]></string>
     <string name="playback_speed">ความเร็วในการเล่น</string>
@@ -493,7 +480,6 @@
     <string name="no_playlist_found">ไม่พบเพลย์ลิสต์ในเครื่อง กรุณาสร้างเพลย์ลิสต์ก่อน</string>
     <string name="list_all_cookies_of_this_page">รายการคุกกี้ทั้งหมดของหน้านี้</string>
     <string name="copied_to_clipboard">คัดลอกไปยังคลิปบอร์ดแล้ว</string>
-    <string name="update_channel">ช่องทางอัพเดต</string>
     <string name="enable_liquid_glass_effect">เปิดใช้งาน Liquid Glass (เบต้า)</string>
     <string name="enable_liquid_glass_effect_description">เปิดใช้งานเอฟเฟกต์ Liquid glass ในบางจุด (Android 13 ขึ้นไป)</string>
     <string name="your_library">คลังเพลงของคุณ</string>
@@ -504,7 +490,6 @@
     <string name="no_mixes_found">ไม่พบมิกซ์</string>
     <string name="no_charts_found">ไม่พบข้อมูลชาร์ต</string>
     <string name="desktop_webview_description">เนื่องจากข้อจำกัดของ Compose Multiplatform ทำให้ฉันไม่สามารถใช้งาน WebView บนเดสก์ท็อปได้ \nอ่านข้อมูลนี้เพื่อเรียนรู้เพิ่มเติมเกี่ยวกับวิธีการเข้าสู่ระบบบนเดสก์ท็อป:\n</string>
-    <string name="open_blog_post">เปิดบล็อกโพสต์</string>
     <string name="discord_integration">เชื่อมต่อ Discord</string>
     <string name="log_in_to_discord">เข้าสู่ระบบ Discord</string>
     <string name="intro_login_to_discord">เข้าสู่ระบบเพื่อเปิดใช้งาน Discord Rich Presence</string>
@@ -545,8 +530,6 @@
     <string name="quit_app">ออกจากแอป</string>
     <string name="local_tracking_title">ติดตามประวัติการฟังในเครื่อง</string>
     <string name="local_tracking_description">บันทึกประวัติการฟังไว้ในฐานข้อมูลภายในเครื่อง</string>
-    <string name="blog_notification_title">รับการแจ้งเตือนจากบล็อก</string>
-    <string name="blog_notification_description">รับการแจ้งเตือนจากบล็อกเมื่อมีบทความใหม่</string>
     <string name="simpmusic_charts">ชาร์ต SimpMusic</string>
     <string name="crossfading">Crossfading</string>
     <string name="your_320kbps_url">ลิงก์สตรีม 320 kbps ของคุณ</string>

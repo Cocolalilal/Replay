@@ -130,13 +130,22 @@ import com.maxrave.domain.mediaservice.handler.MediaPlayerHandler
 import com.maxrave.domain.mediaservice.handler.RepeatState
 import com.maxrave.simpmusic.expect.ui.MediaPlayerView
 import com.maxrave.simpmusic.expect.ui.MediaPlayerViewWithSubtitle
-import com.maxrave.simpmusic.expect.ui.PlatformCastButton
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.text.font.FontWeight
+import com.maxrave.domain.data.player.GenericCastState
+import com.maxrave.domain.data.player.RemoteDeviceType
 import com.maxrave.simpmusic.expect.ui.toImageBitmap
 import com.maxrave.simpmusic.extension.toAppleMusicTintColor
 import com.maxrave.simpmusic.extension.formatDuration
+import com.maxrave.simpmusic.ui.component.DevicePickerBottomSheet
 import com.maxrave.simpmusic.ui.component.LyricsView
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.rememberHolderPainter
+import com.maxrave.simpmusic.ui.icon.Cast
+import com.maxrave.simpmusic.ui.icon.Devices
+import com.maxrave.simpmusic.ui.icon.Speaker
 import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
 import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
 import com.maxrave.simpmusic.ui.theme.nowPlayingTitleFontFamily
@@ -234,6 +243,7 @@ fun ReferenceNowPlayingLayout(
     val timelineState by sharedViewModel.timeline.collectAsStateWithLifecycle()
     val queueDataState by sharedViewModel.getQueueDataState().collectAsStateWithLifecycle()
     val shouldShowVideo by sharedViewModel.getVideo.collectAsStateWithLifecycle()
+    val castState by sharedViewModel.castState.collectAsStateWithLifecycle()
     val mediaPlayerHandler: MediaPlayerHandler = koinInject()
     val isInPipMode = com.maxrave.simpmusic.extension.rememberIsInPipMode()
     val currentVideoId = sharedViewModel.nowPlayingState.value?.songEntity?.videoId
@@ -241,6 +251,36 @@ fun ReferenceNowPlayingLayout(
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showOverflow by rememberSaveable { mutableStateOf(false) }
+    var showDevicePicker by rememberSaveable { mutableStateOf(false) }
+
+    // Track the live aspect ratio of the active video so that square (1:1), 4:3, 16:9, or vertical
+    // videos dynamically adapt their frame size and match the cover-art silhouette when square.
+    var videoAspectRatio by rememberSaveable(currentVideoId) { mutableFloatStateOf(16f / 9f) }
+    var hasReportedVideoAspectRatio by rememberSaveable(currentVideoId) { mutableStateOf(false) }
+    LaunchedEffect(currentVideoId, screenDataState.bitmap) {
+        if (!hasReportedVideoAspectRatio) {
+            val bmp = screenDataState.bitmap
+            if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+                val bmpRatio = bmp.width.toFloat() / bmp.height.toFloat()
+                if (bmpRatio.isFinite() && bmpRatio > 0f) {
+                    videoAspectRatio = bmpRatio.coerceIn(0.35f, 3.0f)
+                }
+            }
+        }
+    }
+    val onVideoAspectRatioChanged: (Float) -> Unit = { ratio ->
+        if (ratio.isFinite() && ratio > 0f) {
+            hasReportedVideoAspectRatio = true
+            videoAspectRatio = ratio.coerceIn(0.35f, 3.0f)
+        }
+    }
+
+    if (showDevicePicker) {
+        DevicePickerBottomSheet(
+            onDismissRequest = { showDevicePicker = false },
+            sharedViewModel = sharedViewModel,
+        )
+    }
 
     // Seek state, in fractions (0f..1f). The held target keeps the thumb where the user
     // dropped it until real playback catches up (same thresholds as PixelPlayer's bar).
@@ -476,6 +516,8 @@ fun ReferenceNowPlayingLayout(
                                         shouldShowVideo = shouldShowVideo,
                                         isInPipMode = isInPipMode,
                                         timelineValue = timelineState,
+                                        videoAspectRatio = videoAspectRatio,
+                                        onVideoAspectRatioChanged = onVideoAspectRatioChanged,
                                         onLike = { sharedViewModel.onUIEvent(UIEvent.ToggleLike) },
                                         onMore = { showOverflow = true },
                                         onArtistClick = navigateToArtist,
@@ -497,6 +539,8 @@ fun ReferenceNowPlayingLayout(
                                         shouldShowVideo = shouldShowVideo,
                                         isInPipMode = isInPipMode,
                                         timelineValue = timelineState,
+                                        videoAspectRatio = videoAspectRatio,
+                                        onVideoAspectRatioChanged = onVideoAspectRatioChanged,
                                         onLike = { sharedViewModel.onUIEvent(UIEvent.ToggleLike) },
                                         onMore = { showOverflow = true },
                                         onArtistClick = navigateToArtist,
@@ -517,6 +561,8 @@ fun ReferenceNowPlayingLayout(
                                             shouldShowVideo = shouldShowVideo,
                                             isInPipMode = isInPipMode,
                                             timeLine = timelineState,
+                                            videoAspectRatio = videoAspectRatio,
+                                            onVideoAspectRatioChanged = onVideoAspectRatioChanged,
                                             onFullscreen = {
                                                 onDismiss()
                                                 navController.navigate(FullscreenDestination)
@@ -562,12 +608,61 @@ fun ReferenceNowPlayingLayout(
                 onNext = { sharedViewModel.onUIEvent(UIEvent.Next) },
             )
 
+            AnimatedVisibility(
+                visible = castState.isRemote,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF1DB954).copy(alpha = 0.22f))
+                            .clickable { showDevicePicker = true }
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (castState.deviceType == RemoteDeviceType.SONOS) {
+                                    SimpIcons.Speaker
+                                } else {
+                                    SimpIcons.Cast
+                                },
+                                contentDescription = null,
+                                tint = Color(0xFF1DB954),
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = castState.deviceName ?: "Speaker",
+                                style = typo().labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF1DB954),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(6.dp))
 
             ReferenceBottomNavigation(
                 selectedTab = selectedTab,
+                castState = castState,
                 onSelect = { tab ->
                     selectedTab = if (selectedTab == tab) 0 else tab
+                },
+                onOpenDevicePicker = {
+                    showDevicePicker = true
                 },
             )
         }
@@ -653,6 +748,8 @@ private fun ReferencePlayerPage(
     shouldShowVideo: Boolean,
     isInPipMode: Boolean,
     timeLine: TimeLine,
+    videoAspectRatio: Float = 16f / 9f,
+    onVideoAspectRatioChanged: (Float) -> Unit = {},
     onFullscreen: () -> Unit,
     onBackward: () -> Unit,
     onForward: () -> Unit,
@@ -712,20 +809,20 @@ private fun ReferencePlayerPage(
                 contentAlignment = Alignment.Center,
             ) {
                 if (screenDataState.isVideo && shouldShowVideo) {
-                    // The video track keeps the music video's 16:9 shape, playing through the
-                    // main player with YouTube subtitles; tap the video for the overlay controls.
-                    // It fills the SAME square footprint the cover art would occupy, centred both
-                    // ways — so the video's middle lines up with where the artwork's middle would
-                    // be.
+                    // The video track dynamically adapts to the actual playing video's aspect ratio
+                    // within the same square footprint the cover art would occupy, centred both
+                    // ways — so a square (1:1) video looks like the cover art playing video, and
+                    // landscape/portrait videos fit without stretching.
                     ReferenceInlineVideo(
                         screenDataState = screenDataState,
                         isInPipMode = isInPipMode,
                         timeLine = timeLine,
                         isPlaying = controllerState.isPlaying,
+                        videoAspectRatio = videoAspectRatio,
+                        onVideoAspectRatioChanged = onVideoAspectRatioChanged,
                         onFullscreen = onFullscreen,
                         onBackward = onBackward,
                         onForward = onForward,
-                        modifier = Modifier.fillMaxSize(),
                     )
                 } else {
                     ReferenceStaticArtwork(
@@ -753,10 +850,12 @@ private fun ReferencePlayerPage(
 }
 
 /**
- * Inline music-video player: 16:9, playing the current media through the MAIN player with the
- * YouTube caption overlay. Tapping the video toggles a control overlay (fullscreen, rewind /
- * forward 5s, captions) that auto-hides — it only holds buttons that don't already exist in the
- * layout below (transport, progress, pills), so nothing is duplicated.
+ * Inline music-video player: dynamically adapts to the playing video's aspect ratio (1:1 square,
+ * 4:3, 16:9, 9:16, etc.) with the same 16dp corner radius, shadow, border, and pause shrink as
+ * [ReferenceStaticArtwork], playing the current media through the MAIN player with the YouTube
+ * caption overlay. Tapping the video toggles a control overlay (fullscreen, rewind / forward 5s,
+ * captions) that auto-hides — it only holds buttons that don't already exist in the layout below
+ * (transport, progress, pills), so nothing is duplicated.
  */
 @Composable
 private fun ReferenceInlineVideo(
@@ -764,6 +863,8 @@ private fun ReferenceInlineVideo(
     isInPipMode: Boolean,
     timeLine: TimeLine,
     isPlaying: Boolean,
+    videoAspectRatio: Float,
+    onVideoAspectRatioChanged: (Float) -> Unit,
     onFullscreen: () -> Unit,
     onBackward: () -> Unit,
     onForward: () -> Unit,
@@ -788,11 +889,27 @@ private fun ReferenceInlineVideo(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "videoPauseScale",
     )
-    val baseModifier =
-        if (sharedState != null && sharedScope != null && sharedTransitionScope != null) {
-            with(sharedTransitionScope) { modifier.sharedElement(sharedState, sharedScope) }
+    val animatedAspectRatio by animateFloatAsState(
+        targetValue = videoAspectRatio.coerceIn(0.35f, 3.0f),
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "videoAspectRatio",
+    )
+    val shape = RoundedCornerShape(16.dp)
+    val sizeModifier =
+        if (animatedAspectRatio >= 1f) {
+            modifier
+                .fillMaxWidth()
+                .aspectRatio(animatedAspectRatio)
         } else {
             modifier
+                .fillMaxHeight()
+                .aspectRatio(animatedAspectRatio, matchHeightConstraintsFirst = true)
+        }
+    val baseModifier =
+        if (sharedState != null && sharedScope != null && sharedTransitionScope != null) {
+            with(sharedTransitionScope) { sizeModifier.sharedElement(sharedState, sharedScope) }
+        } else {
+            sizeModifier
         }
     Box(
         modifier =
@@ -801,8 +918,9 @@ private fun ReferenceInlineVideo(
                     scaleX = pauseScale
                     scaleY = pauseScale
                 }
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(8.dp))
+                .shadow(10.dp, shape, spotColor = Color.Black.copy(alpha = 0.45f))
+                .border(1.dp, Color.White.copy(alpha = 0.3f), shape)
+                .clip(shape)
                 .background(Color.Black),
     ) {
         Box(Modifier.fillMaxSize()) {
@@ -818,6 +936,7 @@ private fun ReferenceInlineVideo(
                 translatedLyricsData = screenDataState.lyricsData?.translatedLyrics?.first,
                 mainTextStyle = typo().bodyLarge,
                 translatedTextStyle = typo().bodyMedium,
+                onVideoAspectRatioChanged = onVideoAspectRatioChanged,
             )
         }
         Box(
@@ -892,6 +1011,8 @@ private fun ReferenceLyricsPage(
     shouldShowVideo: Boolean = false,
     isInPipMode: Boolean = false,
     timelineValue: TimeLine? = null,
+    videoAspectRatio: Float = 16f / 9f,
+    onVideoAspectRatioChanged: (Float) -> Unit = {},
     onLike: () -> Unit,
     onMore: () -> Unit,
     onArtistClick: () -> Unit,
@@ -915,6 +1036,8 @@ private fun ReferenceLyricsPage(
                 shouldShowVideo = shouldShowVideo,
                 isInPipMode = isInPipMode,
                 timeLine = timelineValue,
+                videoAspectRatio = videoAspectRatio,
+                onVideoAspectRatioChanged = onVideoAspectRatioChanged,
                 onLike = onLike,
                 onMore = onMore,
                 onArtistClick = onArtistClick,
@@ -1098,6 +1221,8 @@ private fun ReferenceQueuePage(
     shouldShowVideo: Boolean = false,
     isInPipMode: Boolean = false,
     timelineValue: TimeLine? = null,
+    videoAspectRatio: Float = 16f / 9f,
+    onVideoAspectRatioChanged: (Float) -> Unit = {},
     onLike: () -> Unit,
     onMore: () -> Unit,
     onArtistClick: () -> Unit,
@@ -1183,6 +1308,8 @@ private fun ReferenceQueuePage(
             shouldShowVideo = shouldShowVideo,
             isInPipMode = isInPipMode,
             timeLine = timelineValue,
+            videoAspectRatio = videoAspectRatio,
+            onVideoAspectRatioChanged = onVideoAspectRatioChanged,
             onLike = onLike,
             onMore = onMore,
             onArtistClick = onArtistClick,
@@ -1362,9 +1489,9 @@ private fun queueDataPlaylistName(screenDataState: NowPlayingScreenData): String
     screenDataState.playlistName.ifBlank { "Favourite Songs" }
 
 /**
- * The small 16:9 video window in the lyrics/queue headers: the shared-element destination of the
- * big inline video (same key, same 8dp radius, same pause scale) so switching tabs morphs the
- * video instead of fading. Subtitles are off — they are unreadable at this size.
+ * The small video window in the lyrics/queue headers: the shared-element destination of the
+ * big inline video (same key, same 16dp radius, same pause scale, matching dynamic aspect ratio)
+ * so switching tabs morphs the video seamlessly. Subtitles are off — unreadable at this size.
  */
 @Composable
 private fun ReferenceMiniVideo(
@@ -1373,16 +1500,25 @@ private fun ReferenceMiniVideo(
     timeLine: TimeLine,
     isPlaying: Boolean,
     pauseScale: Float,
+    videoAspectRatio: Float,
+    onVideoAspectRatioChanged: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sharedState = LocalSharedArtworkState.current
     val sharedScope = LocalSharedArtworkScope.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedAspectRatio by animateFloatAsState(
+        targetValue = videoAspectRatio.coerceIn(0.35f, 3.0f),
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "miniVideoAspectRatio",
+    )
+    val shape = RoundedCornerShape(16.dp)
+    val sizedModifier = modifier.aspectRatio(animatedAspectRatio, matchHeightConstraintsFirst = true)
     val baseModifier =
         if (sharedState != null && sharedScope != null && sharedTransitionScope != null) {
-            with(sharedTransitionScope) { modifier.sharedElement(sharedState, sharedScope) }
+            with(sharedTransitionScope) { sizedModifier.sharedElement(sharedState, sharedScope) }
         } else {
-            modifier
+            sizedModifier
         }
     Box(
         modifier =
@@ -1391,8 +1527,9 @@ private fun ReferenceMiniVideo(
                     scaleX = pauseScale
                     scaleY = pauseScale
                 }
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(8.dp))
+                .shadow(10.dp, shape, spotColor = Color.Black.copy(alpha = 0.45f))
+                .border(1.dp, Color.White.copy(alpha = 0.3f), shape)
+                .clip(shape)
                 .background(Color.Black),
     ) {
         MediaPlayerViewWithSubtitle(
@@ -1407,6 +1544,7 @@ private fun ReferenceMiniVideo(
             translatedLyricsData = null,
             mainTextStyle = typo().bodyLarge,
             translatedTextStyle = typo().bodyMedium,
+            onVideoAspectRatioChanged = onVideoAspectRatioChanged,
         )
     }
 }
@@ -1468,6 +1606,8 @@ private fun ReferenceTrackHeader(
     shouldShowVideo: Boolean = false,
     isInPipMode: Boolean = false,
     timeLine: TimeLine? = null,
+    videoAspectRatio: Float = 16f / 9f,
+    onVideoAspectRatioChanged: (Float) -> Unit = {},
     onLike: () -> Unit,
     onMore: () -> Unit,
     onArtistClick: () -> Unit,
@@ -1493,15 +1633,17 @@ private fun ReferenceTrackHeader(
 
             Box(modifier = artworkClickModifier) {
                 if (shouldShowVideo && screenDataState.isVideo && timeLine != null) {
-                    // The video track keeps playing in the header — a small 16:9 window that is the
-                    // shared-element destination of the big video (same 8dp radius so the morph
-                    // never radius-cuts).
+                    // The video track keeps playing in the header — dynamically sized to the
+                    // playing video's aspect ratio with 16dp corner radius, matching
+                    // ReferenceInlineVideo so the shared-element morph never cuts.
                     ReferenceMiniVideo(
                         screenDataState = screenDataState,
                         isInPipMode = isInPipMode,
                         timeLine = timeLine,
                         isPlaying = controllerState.isPlaying,
                         pauseScale = pauseScale,
+                        videoAspectRatio = videoAspectRatio,
+                        onVideoAspectRatioChanged = onVideoAspectRatioChanged,
                         modifier = Modifier.height(44.dp),
                     )
                 } else {
@@ -2126,7 +2268,9 @@ private fun ReferenceTransportButton(
 @Composable
 private fun ReferenceBottomNavigation(
     selectedTab: Int,
+    castState: GenericCastState,
     onSelect: (Int) -> Unit,
+    onOpenDevicePicker: () -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // Resting transport buttons each take (width - 48.dp - 2*8.dp) / 3; the pill spans
@@ -2169,12 +2313,19 @@ private fun ReferenceBottomNavigation(
                         )
                     }
                     ReferencePageSegment(
-                        selected = false,
-                        onClick = {},
+                        selected = castState.isRemote,
+                        onClick = onOpenDevicePicker,
                     ) {
-                        PlatformCastButton(
-                            modifier = Modifier.size(30.dp),
-                            tint = ReferenceText,
+                        val iconVector = when (castState.deviceType) {
+                            RemoteDeviceType.SONOS -> SimpIcons.Speaker
+                            RemoteDeviceType.CAST -> SimpIcons.Cast
+                            else -> SimpIcons.Devices
+                        }
+                        Icon(
+                            imageVector = iconVector,
+                            contentDescription = castState.deviceName ?: "Connect to a device",
+                            tint = if (castState.isRemote) ReferenceSegmentActiveTint else ReferenceText,
+                            modifier = Modifier.size(24.dp),
                         )
                     }
                     ReferencePageSegment(

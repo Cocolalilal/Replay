@@ -178,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Времето изтече, проверете интернет връзката си (%1$s)</string>
     <string name="save_last_played">Запази последното възпроизвеждане</string>
     <string name="save_last_played_track_and_queue">Запази последната изпълнена песен и опашката</string>
-    <string name="update_available">Налична е нова актуализация</string>
-    <string name="update_message">Версия %1$s е достъпна\nИздание: %2$s\n</string>
-    <string name="check_for_update">Проверка за актуализации</string>
     <string name="last_checked_at">Последна проверка на %1$s</string>
     <string name="checking">Проверява се</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Прескачане на сегмент %1$s</string>
@@ -212,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Копиране в буферната памет</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Копирано е в буферната памет</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Информация за грешката</string>
-    <string name="no_update">Имаш най-новата версия</string>
     <string name="sleep_timer">Таймер за сън - %1$s минута(и)</string>
     <string name="sleep_timer_off">Таймер за сън</string>
     <string name="sleep_minutes">Обратно броене (в минути)</string>
@@ -381,8 +377,6 @@
     <string name="sync_first">Синхронизирай плейлиста първо в YouTube Music</string>
     <string name="endless_queue">Безкрайна опашка</string>
     <string name="do_not_show_again">Не показвай отново</string>
-    <string name="auto_check_for_update">Автоматична проверка за актуализации</string>
-    <string name="auto_check_for_update_description">Проверка за актуализации когато отворите приложението</string>
     <string name="playback_speed_pitch"><![CDATA[Скорост на възпроизвеждане и тон]]></string>
     <string name="playback_speed">Скорост на възпроизвеждане</string>
     <string name="pitch">Тон</string>

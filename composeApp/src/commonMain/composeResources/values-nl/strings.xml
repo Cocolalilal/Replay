@@ -171,8 +171,6 @@
     <string name="skip_no_music_part">Geen muziekonderdeel overslaan</string>
     <string name="save_last_played">Sla laatst gespeeld op</string>
     <string name="save_last_played_track_and_queue">Sla laatst gespeelde nummer en wachtrij op</string>
-    <string name="update_available">Nieuwe update beschikbaar</string>
-    <string name="check_for_update">Controleer op update</string>
     <string name="last_checked_at">Laatst gecontroleerd op %1$s</string>
     <string name="checking">Controleren</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: %1$s segment overslaan</string>

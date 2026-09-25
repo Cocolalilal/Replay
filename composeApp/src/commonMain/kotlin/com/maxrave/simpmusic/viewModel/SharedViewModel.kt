@@ -26,8 +26,8 @@ import com.maxrave.domain.data.model.download.DownloadProgress
 import com.maxrave.domain.data.model.intent.GenericIntent
 import com.maxrave.domain.data.model.metadata.Lyrics
 import com.maxrave.domain.data.model.streams.TimeLine
-import com.maxrave.domain.data.model.update.UpdateData
 import com.maxrave.domain.data.player.GenericCastState
+import com.maxrave.domain.data.player.SonosDevice
 import com.maxrave.domain.extension.decodeHtmlEntities
 import com.maxrave.domain.extension.isVideo
 import com.maxrave.domain.extension.toGenericMediaItem
@@ -50,7 +50,7 @@ import com.maxrave.domain.repository.LyricsRepository
 import com.maxrave.domain.repository.PlaylistRepository
 import com.maxrave.domain.repository.SongRepository
 import com.maxrave.domain.repository.StreamRepository
-import com.maxrave.domain.repository.UpdateRepository
+
 import com.maxrave.domain.utils.Resource
 import com.maxrave.domain.utils.toListName
 import com.maxrave.domain.utils.toLyrics
@@ -111,7 +111,6 @@ import kotlin.reflect.KClass
 class SharedViewModel(
     private val dataStoreManager: DataStoreManager,
     private val streamRepository: StreamRepository,
-    private val updateRepository: UpdateRepository,
     private val songRepository: SongRepository,
     private val albumRepository: AlbumRepository,
     private val localPlaylistRepository: LocalPlaylistRepository,
@@ -122,10 +121,6 @@ class SharedViewModel(
     var isFirstLiked: Boolean = false
     var isFirstMiniplayer: Boolean = false
     var isFirstSuggestions: Boolean = false
-    var showedUpdateDialog: Boolean = false
-
-    private val _isCheckingUpdate = MutableStateFlow(false)
-    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate
 
     private var _liked: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val liked: SharedFlow<Boolean> = _liked.asSharedFlow()
@@ -160,6 +155,16 @@ class SharedViewModel(
     fun getQueueDataState() = mediaPlayerHandler.queueData
 
     val castState: StateFlow<GenericCastState> get() = mediaPlayerHandler.castState
+    val sonosDevices: StateFlow<List<SonosDevice>> get() = mediaPlayerHandler.sonosDevices
+    val isSonosScanning: StateFlow<Boolean> get() = mediaPlayerHandler.isSonosScanning
+    val sonosVolume: StateFlow<Float> get() = mediaPlayerHandler.sonosVolume
+
+    fun startSonosDiscovery() = mediaPlayerHandler.startSonosDiscovery()
+    fun stopSonosDiscovery() = mediaPlayerHandler.stopSonosDiscovery()
+    fun refreshSonosDevices() = mediaPlayerHandler.refreshSonosDevices()
+    fun connectSonos(device: SonosDevice) = mediaPlayerHandler.connectSonos(device)
+    fun disconnectSonos() = mediaPlayerHandler.disconnectSonos()
+    fun setSonosVolume(volume: Float) = mediaPlayerHandler.setSonosVolume(volume)
 
     private var _controllerState =
         MutableStateFlow<ControlState>(
@@ -212,8 +217,6 @@ class SharedViewModel(
 
     private var songInfoJob: Job? = null
 
-    private var _updateResponse = MutableStateFlow<UpdateData?>(null)
-    val updateResponse: StateFlow<UpdateData?> = _updateResponse
 
     private var _recreateActivity: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val recreateActivity: StateFlow<Boolean> = _recreateActivity
@@ -936,48 +939,6 @@ class SharedViewModel(
                     }
                 }
             }
-    }
-
-    fun checkForUpdate() {
-        viewModelScope.launch {
-            _isCheckingUpdate.value = true
-            val updateChannel = dataStoreManager.updateChannel.first()
-            dataStoreManager.putString(
-                "CheckForUpdateAt",
-                System.currentTimeMillis().toString(),
-            )
-            if (updateChannel == DataStoreManager.GITHUB) {
-                updateRepository.checkForGithubReleaseUpdate().collectLatest { response ->
-                    val data = response.data
-                    when (response) {
-                        is Resource.Success if (data != null) -> {
-                            _updateResponse.value = data
-                            showedUpdateDialog = true
-                        }
-
-                        else -> {
-                            log("Check for update error: ${response.message}", LogLevel.WARN)
-                        }
-                    }
-                    _isCheckingUpdate.value = false
-                }
-            } else if (updateChannel == DataStoreManager.FDROID) {
-                updateRepository.checkForFdroidUpdate().collectLatest { response ->
-                    val data = response.data
-                    when (response) {
-                        is Resource.Success if (data != null) -> {
-                            _updateResponse.value = data
-                            showedUpdateDialog = true
-                        }
-
-                        else -> {
-                            log("Check for update error: ${response.message}", LogLevel.WARN)
-                        }
-                    }
-                    _isCheckingUpdate.value = false
-                }
-            }
-        }
     }
 
     fun stopPlayer() {
@@ -1737,8 +1698,6 @@ class SharedViewModel(
     fun reloadDestinationDone() {
         _reloadDestination.value = null
     }
-
-    fun shouldCheckForUpdate(): Boolean = runBlocking { dataStoreManager.autoCheckForUpdates.first() == TRUE }
 
     fun downloadFile(bitmap: ImageBitmap) {
         val fileName =

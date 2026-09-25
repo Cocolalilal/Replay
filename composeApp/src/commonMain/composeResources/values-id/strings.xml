@@ -123,11 +123,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Belikan Aku secangkir kopi</string>
-    <string name="developer_blog">Blog Pengembang</string>
-    <string name="developer_blog_tagline">Baca catatan pengembang, tutorial &amp; cerita di balik layar</string>
-    <string name="blog_promo_title">Sesuatu yang baru dari pengembang</string>
-    <string name="blog_promo_message">Saya baru saja meluncurkan blog pribadi saya di maxrave.dev — di sana saya membagikan kisah di balik SimpMusic, ulasan mendalam seputar teknologi musik, dan catatan teknis. Silakan baca jika Anda penasaran ✨</string>
-    <string name="visit_blog">Kunjungi blog</string>
     <string name="paypal">PayPal</string>
     <string name="title">Judul</string>
     <string name="custom_order">Urutan khusus</string>
@@ -183,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Waktu habis, periksa sambungan internet (%1$s)</string>
     <string name="save_last_played">Simpan Terakhir Diputar</string>
     <string name="save_last_played_track_and_queue">Simpan lagu yang terakhir diputar dan antrean</string>
-    <string name="update_available">Pembaruan baru tersedia</string>
-    <string name="update_message">Versi %1$s tersedia\nRilis: %2$s\n</string>
-    <string name="check_for_update">Periksa pembaruan</string>
     <string name="last_checked_at">Terakhir diperiksa pada %1$s</string>
     <string name="checking">Memeriksa</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Lewati %1$s segmen</string>
@@ -217,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Salin ke papan klip</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Tersalin ke papan klip</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Informasi kesalahan</string>
-    <string name="no_update">Versi Anda adalah yang terbaru</string>
     <string name="sleep_timer">Pengatur Waktu Tidur - %1$s menit</string>
     <string name="sleep_timer_end_of_song">Pewaktu Tidur - Akhir lagu</string>
     <string name="sleep_timer_off">Waktu Tidur</string>
@@ -399,8 +390,6 @@
     <string name="sync_first">Sinkronkan daftar putar ini ke YouTube Music terlebih dahulu</string>
     <string name="endless_queue">Antrean tanpa batas</string>
     <string name="do_not_show_again">Jangan tampilkan lagi</string>
-    <string name="auto_check_for_update">Pemeriksaan pembaruan otomatis</string>
-    <string name="auto_check_for_update_description">Memeriksa pembaruan saat Anda membuka aplikasi</string>
     <string name="playback_speed_pitch"><![CDATA[Kecepatan pemutaran & nada]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Kecepatan pemutaran & nada (dinonaktifkan saat pemudaran diaktifkan)]]></string>
     <string name="playback_speed">Kecepatan pemutaran</string>
@@ -491,7 +480,6 @@
     <string name="no_playlist_found">Tidak ada daftar putar lokal yang ditemukan, silakan buat terlebih dahulu</string>
     <string name="list_all_cookies_of_this_page">Daftar semua cookie dari halaman ini</string>
     <string name="copied_to_clipboard">Disalin ke papan klip</string>
-    <string name="update_channel">Perbaharui saluran</string>
     <string name="enable_liquid_glass_effect">Aktifkan liquid glass (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Aktifkan efek liquid glass iOS di beberapa posisi (Android 13+)</string>
     <string name="your_library">Pustaka Anda</string>
@@ -502,7 +490,6 @@
     <string name="no_mixes_found">Tidak ditemukan campuran</string>
     <string name="no_charts_found">Tidak ditemukan tangga lagu</string>
     <string name="desktop_webview_description">Karena keterbatasan Compose Multiplatform, Saya tidak dapat mengimplementasikan WebView di desktop.\nBaca ini untuk mengetahui cara masuk di desktop:\n</string>
-    <string name="open_blog_post">Buka postingan blog</string>
     <string name="discord_integration">Integrasi Discord</string>
     <string name="log_in_to_discord">Masuk ke Discord</string>
     <string name="intro_login_to_discord">Masuk untuk mengaktifkan Discord Rich Presence</string>
@@ -543,8 +530,6 @@
     <string name="quit_app">Keluar aplikasi</string>
     <string name="local_tracking_title">Riwayat mendengarkan pelacakan lokal</string>
     <string name="local_tracking_description">Catat riwayat mendengarkan Anda ke basis data lokal</string>
-    <string name="blog_notification_title">Pemberitahuan postingan blog</string>
-    <string name="blog_notification_description">Dapatkan pemberitahuan saat ada postingan blog baru yang diterbitkan</string>
     <string name="simpmusic_charts">Tangga lagu SimpMusic</string>
     <string name="crossfading">Memudar</string>
     <string name="your_320kbps_url">URL 320kbps Anda</string>

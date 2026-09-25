@@ -15,6 +15,7 @@ import com.maxrave.domain.manager.DataStoreManager.Values.LRCLIB
 import com.maxrave.domain.manager.DataStoreManager.Values.SIMPMUSIC
 import com.maxrave.domain.manager.DataStoreManager.Values.YOUTUBE
 import com.maxrave.domain.mediaservice.handler.DownloadHandler
+import com.maxrave.domain.mediaservice.handler.PlayerEvent
 import com.maxrave.domain.mediaservice.handler.PlaylistType
 import com.maxrave.domain.mediaservice.handler.QueueData
 import com.maxrave.domain.mediaservice.handler.SleepTimerState
@@ -420,11 +421,51 @@ class NowPlayingBottomSheetViewModel(
                 }
 
                 is NowPlayingBottomSheetUIEvent.NotInterested -> {
+                    dataStoreManager.addNotInterestedVideoId(ev.videoId)
                     makeToast("Feedback submitted: Not interested")
+                    val queueTracks = mediaPlayerHandler.queueData.value?.data?.listTracks.orEmpty()
+                    val currentIdx = mediaPlayerHandler.currentSongIndex()
+                    for (i in queueTracks.indices.reversed()) {
+                        if (i != currentIdx && queueTracks[i].videoId == ev.videoId) {
+                            runCatching { mediaPlayerHandler.removeMediaItem(i) }
+                        }
+                    }
+                    if (mediaPlayerHandler.nowPlayingState.value.songEntity?.videoId == ev.videoId) {
+                        runCatching { mediaPlayerHandler.onPlayerEvent(PlayerEvent.Next) }
+                    }
+                    songRepository.submitNotInterestedFeedback(ev.videoId).collectLatest { }
                 }
 
                 is NowPlayingBottomSheetUIEvent.DontRecommendArtist -> {
+                    dataStoreManager.addBlockedArtist(ev.artistName, ev.artistId)
                     makeToast("Feedback submitted: Don't recommend ${ev.artistName}")
+                    val blockedNameLower = ev.artistName.trim().lowercase()
+                    val blockedIdLower = ev.artistId?.trim()?.lowercase().orEmpty()
+                    val queueTracks = mediaPlayerHandler.queueData.value?.data?.listTracks.orEmpty()
+                    val currentIdx = mediaPlayerHandler.currentSongIndex()
+                    for (i in queueTracks.indices.reversed()) {
+                        if (i != currentIdx) {
+                            val matchesArtist =
+                                queueTracks[i].artists?.any { a ->
+                                    (blockedNameLower.isNotEmpty() && a.name.trim().lowercase() == blockedNameLower) ||
+                                        (blockedIdLower.isNotEmpty() && a.id?.trim()?.lowercase() == blockedIdLower)
+                                } == true
+                            if (matchesArtist) {
+                                runCatching { mediaPlayerHandler.removeMediaItem(i) }
+                            }
+                        }
+                    }
+                    val nowPlayingSong = mediaPlayerHandler.nowPlayingState.value.songEntity
+                    val nowPlayingMatchesArtist =
+                        nowPlayingSong?.videoId == songUIState.videoId ||
+                            nowPlayingSong?.artistName?.any { it.trim().lowercase() == blockedNameLower } == true ||
+                            (blockedIdLower.isNotEmpty() && nowPlayingSong?.artistId?.any { it.trim().lowercase() == blockedIdLower } == true)
+                    if (nowPlayingMatchesArtist) {
+                        runCatching { mediaPlayerHandler.onPlayerEvent(PlayerEvent.Next) }
+                    }
+                    if (songUIState.videoId.isNotEmpty()) {
+                        songRepository.submitNotInterestedFeedback(songUIState.videoId).collectLatest { }
+                    }
                 }
             }
         }
@@ -503,5 +544,6 @@ sealed class NowPlayingBottomSheetUIEvent {
 
     data class DontRecommendArtist(
         val artistName: String,
+        val artistId: String? = null,
     ) : NowPlayingBottomSheetUIEvent()
 }

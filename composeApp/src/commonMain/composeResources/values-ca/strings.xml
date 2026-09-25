@@ -123,11 +123,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Compra'm un cafè</string>
-    <string name="developer_blog">Blog del desenvolupador</string>
-    <string name="developer_blog_tagline">Llegir notes de desenvolupament, tutorials &amp; continguts entre bastidors</string>
-    <string name="blog_promo_title">Novetats del desenvolupador</string>
-    <string name="blog_promo_message">Acabe de llançar el meu blog personal a maxrave.dev — compartisc la història darrere de SimpMusic, anàlisis a fons sobre tecnologia musical i notes d'enginyeria. Dona-li una ullada si tens curiositat ✨</string>
-    <string name="visit_blog">Visita el blog</string>
     <string name="paypal">PayPal</string>
     <string name="title">Títol</string>
     <string name="custom_order">Ordre personalitzat</string>
@@ -183,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Temps esgotat, comprovi la connexió a internet (%1$s)</string>
     <string name="save_last_played">Desa l'última reproducció</string>
     <string name="save_last_played_track_and_queue">Desa la darrera pista reproduïda i la cua</string>
-    <string name="update_available">Nova actualització disponible</string>
-    <string name="update_message">Versió %1$s disponible\nLlançament: %2$s\n</string>
-    <string name="check_for_update">Comproveu si hi ha actualitzacions</string>
     <string name="last_checked_at">Darrera comprovació a %1$s</string>
     <string name="checking">S'està comprovant</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Omet %1$s segment</string>
@@ -217,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Copia al porta-retalls</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">S'ha copiat al porta-retalls</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Informació d'error</string>
-    <string name="no_update">La teva versió és la més nova</string>
     <string name="sleep_timer">Temporitzador de repòs: %1$s minut(s)</string>
     <string name="sleep_timer_end_of_song">Temporitzador de la son - Final de la cançó</string>
     <string name="sleep_timer_off">Temporitzador</string>
@@ -391,8 +382,6 @@
     <string name="sync_first">Sincronitza aquesta llista amb YouTube Music primer</string>
     <string name="endless_queue">Cua de reproducció sense fi</string>
     <string name="do_not_show_again">No ho tornis a mostrar</string>
-    <string name="auto_check_for_update">Busca actualitzacions automàticament</string>
-    <string name="auto_check_for_update_description">Busca actualitzacions cada cop que l'aplicació s'obre</string>
     <string name="playback_speed_pitch"><![CDATA[Velocitat de reproducció i to]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Velocitat de reproducció i to (desactivat quan l'encadenament està activat)]]></string>
     <string name="playback_speed">Velocitat de reproducció</string>
@@ -483,7 +472,6 @@
     <string name="no_playlist_found">No s'han trobat llistes de reproducció locals, per favor, creï'n una primer.</string>
     <string name="list_all_cookies_of_this_page">Fes un llistat de totes les cookies d'aquesta web</string>
     <string name="copied_to_clipboard">S'ha copiat al porta-retalls</string>
-    <string name="update_channel">Canal d'actualitzacions</string>
     <string name="enable_liquid_glass_effect">Activa liquid glass (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Activa l'efecte de vidre líquid d'iOS en alguna posició (Android 13+)</string>
     <string name="your_library">La seva biblioteca</string>
@@ -494,7 +482,6 @@
     <string name="no_mixes_found">No s'han trobat mescles</string>
     <string name="no_charts_found">No s'han trobat gràfics</string>
     <string name="desktop_webview_description">A causa de les limitacions de Compose Multiplatform, no puc implementar WebView a l’entorn d’escriptori.\nLlegeix això per obtenir més informació sobre com iniciar sessió a l’escriptori:\n</string>
-    <string name="open_blog_post">Obre l'entrada del blog</string>
     <string name="discord_integration">Integració amb Discord</string>
     <string name="log_in_to_discord">Inicia sessió a Discord</string>
     <string name="intro_login_to_discord">Inicia sessió per activar el Rich Presence de Discord</string>

@@ -201,6 +201,46 @@ class HomeViewModel(
                         ?.url
             }
         }
+        viewModelScope.launch {
+            combine(
+                dataStoreManager.notInterestedVideoIds,
+                dataStoreManager.blockedArtists,
+            ) { notInterested, blockedArtists ->
+                notInterested to blockedArtists
+            }.collectLatest { (notInterested, blockedArtists) ->
+                if (notInterested.isNotEmpty() || blockedArtists.isNotEmpty()) {
+                    _homeItemList.update { filterBlockedHomeItems(it, notInterested, blockedArtists) }
+                    _newRelease.update { filterBlockedHomeItems(it, notInterested, blockedArtists) }
+                }
+            }
+        }
+    }
+
+    private fun filterBlockedHomeItems(
+        items: List<HomeItem>,
+        notInterested: Set<String>,
+        blockedArtists: Set<String>,
+    ): List<HomeItem> {
+        if (notInterested.isEmpty() && blockedArtists.isEmpty()) return items
+        return items.mapNotNull { homeItem ->
+            val filteredContents =
+                homeItem.contents.filter { content ->
+                    if (content == null) return@filter false
+                    val isBlockedVideo = !content.videoId.isNullOrEmpty() && content.videoId in notInterested
+                    val isBlockedArtistItem =
+                        (!content.browseId.isNullOrEmpty() && content.browseId!!.trim().lowercase() in blockedArtists) ||
+                            (content.videoId.isNullOrEmpty() && content.title.trim().lowercase() in blockedArtists)
+                    val isByBlockedArtist =
+                        content.artists?.any { artist ->
+                            val nameKey = artist.name.trim().lowercase()
+                            val idKey = artist.id?.trim()?.lowercase().orEmpty()
+                            (nameKey.isNotEmpty() && nameKey in blockedArtists) ||
+                                (idKey.isNotEmpty() && idKey in blockedArtists)
+                        } == true
+                    !(isBlockedVideo || isBlockedArtistItem || isByBlockedArtist)
+                }
+            if (filteredContents.isEmpty()) null else homeItem.copy(contents = filteredContents)
+        }
     }
 
     fun doneShowLogInAlert(neverShowAgain: Boolean = false) {
@@ -238,10 +278,17 @@ class HomeViewModel(
                                     is Resource.Success -> {
                                         val newContinuation = home.data?.first
                                         val raw = home.data?.second ?: listOf()
-                                        val filtered = raw.filterNot { item ->
-                                            val t = item.title.lowercase()
-                                            t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show")
-                                        }.distinct()
+                                        val notInterested = dataStoreManager.notInterestedVideoIds.first()
+                                        val blockedArtists = dataStoreManager.blockedArtists.first()
+                                        val filtered =
+                                            filterBlockedHomeItems(
+                                                raw.filterNot { item ->
+                                                    val t = item.title.lowercase()
+                                                    t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show")
+                                                }.distinct(),
+                                                notInterested,
+                                                blockedArtists,
+                                            )
                                         if (filtered.isNotEmpty() || _homeItemList.value.isEmpty()) {
                                             _homeItemList.value = filtered
                                         }
@@ -353,10 +400,17 @@ class HomeViewModel(
                             is Resource.Success -> {
                                 _continuation.value = home.data?.first
                                 val rawNewItems = home.data?.second ?: listOf()
-                                val newItems = rawNewItems.filterNot { item ->
-                                    val t = item.title.lowercase()
-                                    t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show")
-                                }.distinct()
+                                val notInterested = dataStoreManager.notInterestedVideoIds.first()
+                                val blockedArtists = dataStoreManager.blockedArtists.first()
+                                val newItems =
+                                    filterBlockedHomeItems(
+                                        rawNewItems.filterNot { item ->
+                                            val t = item.title.lowercase()
+                                            t.contains("podcast") || t.contains("shows for you") || t.contains("episodes") || t.contains("show")
+                                        }.distinct(),
+                                        notInterested,
+                                        blockedArtists,
+                                    )
                                 var updatedList: List<HomeItem> = emptyList()
                                 _homeItemList.update { currentList ->
                                     val existing = currentList.toSet()

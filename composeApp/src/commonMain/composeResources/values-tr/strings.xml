@@ -178,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Zaman aşımı, internet bağlantısını kontrol edin (%1$s)</string>
     <string name="save_last_played">Son Oynatılanı Kaydet</string>
     <string name="save_last_played_track_and_queue">Son çalınan parçayı ve sırayı kaydet</string>
-    <string name="update_available">Yeni güncelleme mevcut</string>
-    <string name="update_message">Sürüm %1$s mevcut\nSürüm: %2$s\n</string>
-    <string name="check_for_update">Güncellemeleri denetle</string>
     <string name="last_checked_at">Son kontrol: %1$s</string>
     <string name="checking">Kontrol ediliyor</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: %1$s kısmı atla</string>
@@ -212,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Panoya kopyala</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Panoya kopyalandı</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Hata bilgisi</string>
-    <string name="no_update">En yeni sürüme sahipsiniz</string>
     <string name="sleep_timer">Uyku Zamanlayıcısı -%1$s dakika(lar)</string>
     <string name="sleep_timer_off">Uyku Zamanlayıcısı</string>
     <string name="sleep_minutes">Geri sayım süresi (dakika)</string>
@@ -384,8 +380,6 @@
     <string name="sync_first">Önce bu çalma listesini YouTube Music ile senkronize edin</string>
     <string name="endless_queue">Sonsuz sıra</string>
     <string name="do_not_show_again">Tekrar gösterme</string>
-    <string name="auto_check_for_update">Güncellemeleri otomatik denetle</string>
-    <string name="auto_check_for_update_description">Uygulamayı açtığında güncellemeleri denetle</string>
     <string name="playback_speed_pitch"><![CDATA[Oynatma hızı & pitch]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Oynatma hızı ve perdesi (çapraz geçiş etkinleştirildiğinde devre dışıdır)]]></string>
     <string name="playback_speed">Oynatma hızı</string>
@@ -468,7 +462,6 @@
     <string name="no_playlist_found">Yerel çalma listesi bulunamadı, lütfen önce bir tane oluşturun</string>
     <string name="list_all_cookies_of_this_page">Bu sayfadaki tüm çerezleri listele</string>
     <string name="copied_to_clipboard">Panoya kopyalandı</string>
-    <string name="update_channel">Kanalı güncelle</string>
     <string name="enable_liquid_glass_effect">Sıvı camı etkinleştir (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Belirli bir konumda iOS'un sıvı cam efektini etkinleştirin (Android 13+)</string>
     <string name="your_library">Kitaplığınız</string>

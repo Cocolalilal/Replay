@@ -124,11 +124,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Buy me a coffee</string>
-    <string name="developer_blog">Developer Blog</string>
-    <string name="developer_blog_tagline">Read dev notes, tutorials &amp; behind-the-scenes</string>
-    <string name="blog_promo_title">Something new from the dev</string>
-    <string name="blog_promo_message">I just launched my personal blog at maxrave.dev — sharing the story behind SimpMusic, music-tech deep dives, and engineering notes. Give it a read if you're curious ✨</string>
-    <string name="visit_blog">Visit blog</string>
     <string name="paypal">PayPal</string>
     <string name="title">Title</string>
     <string name="custom_order">Custom order</string>
@@ -185,9 +180,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Time out, check internet connection (%1$s)</string>
     <string name="save_last_played">Save Last Played</string>
     <string name="save_last_played_track_and_queue">Save last played track and queue</string>
-    <string name="update_available">New update available</string>
-    <string name="update_message">Version %1$s available\nRelease: %2$s\n</string>
-    <string name="check_for_update">Check for update</string>
     <string name="last_checked_at">Last checked at %1$s</string>
     <string name="checking">Checking</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Skip %1$s segment</string>
@@ -219,7 +211,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Copy to clipboard</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Copied to clipboard</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Error information</string>
-    <string name="no_update">Your version is the newest</string>
     <string name="sleep_timer">Sleep Timer - %1$s minute(s)</string>
     <string name="sleep_timer_end_of_song">Sleep Timer - End of song</string>
     <string name="sleep_timer_off">Sleep Timer</string>
@@ -407,8 +398,6 @@
     <string name="sync_first">Sync this playlist to YouTube Music first</string>
     <string name="endless_queue">Endless queue</string>
     <string name="do_not_show_again">Do not show again</string>
-    <string name="auto_check_for_update">Automatic check for update</string>
-    <string name="auto_check_for_update_description">Checking for update when you open app</string>
     <string name="playback_speed_pitch"><![CDATA[Playback speed & pitch]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Playback speed & pitch (disabled when crossfade is enabled)]]></string>
     <string name="playback_speed">Playback speed</string>
@@ -499,7 +488,6 @@
     <string name="no_playlist_found">No local playlists found, please create one first</string>
     <string name="list_all_cookies_of_this_page">List all cookies of this page</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
-    <string name="update_channel">Update channel</string>
     <string name="enable_liquid_glass_effect">Enable liquid glass (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Enable iOS's liquid glass effect in some position (Android 13+)</string>
     <string name="animated_now_playing_background">Animated now playing background</string>
@@ -512,7 +500,6 @@
     <string name="no_mixes_found">No mixes found</string>
     <string name="no_charts_found">No charts found</string>
     <string name="desktop_webview_description">Because of the limitations of Compose Multiplatform, I can not implement WebView on desktop.\nRead this to learn more how to log in in desktop:\n</string>
-    <string name="open_blog_post">Open blog post</string>
     <string name="discord_integration">Discord integration</string>
     <string name="log_in_to_discord">Log in to Discord</string>
     <string name="intro_login_to_discord">Log in to enable Discord Rich Presence</string>
@@ -569,8 +556,6 @@
     <string name="quit_app">Quit app</string>
     <string name="local_tracking_title">Local tracking listening history</string>
     <string name="local_tracking_description">Log your listening history to local database</string>
-    <string name="blog_notification_title">Blog post notifications</string>
-    <string name="blog_notification_description">Get notified when a new blog post is published</string>
     <string name="simpmusic_charts">Replay Charts</string>
     <string name="crossfading">Crossfading</string>
     <string name="your_320kbps_url">Your 320kbps URL</string>
@@ -601,4 +586,18 @@
     <string name="unpin_from_library">Unpin from Library</string>
     <string name="no_items_in_library">No items in your library</string>
     <string name="add_items_to_library_hint">Save items or use the options menu to add them to your library.</string>
+    <string name="connect_to_a_device">Connect to a device</string>
+    <string name="this_phone">This phone</string>
+    <string name="this_device">This device</string>
+    <string name="listening_on_this_device">Listening on this device</string>
+    <string name="listening_on_this_speaker">Listening on this speaker</string>
+    <string name="select_a_device">Select a device</string>
+    <string name="current_device">Current device</string>
+    <string name="searching_for_devices">Searching for Sonos speakers on Wi-Fi…</string>
+    <string name="no_devices_found">No Sonos speakers found</string>
+    <string name="make_sure_speaker_same_wifi">Make sure your Sonos speaker is turned on and connected to the same Wi-Fi network.</string>
+    <string name="disconnect_speaker">Play on this phone</string>
+    <string name="speaker_volume">Speaker Volume</string>
+    <string name="google_cast_devices">Google Cast</string>
+    <string name="sonos_speaker">Sonos speaker • Wi-Fi</string>
 </resources>

@@ -124,11 +124,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Hỗ trợ tôi</string>
-    <string name="developer_blog">Blog của nhà phát triển</string>
-    <string name="developer_blog_tagline">Đọc các ghi chép của nhà phát triển, hướng dẫn &amp; đằng sau các tính năng</string>
-    <string name="blog_promo_title">Một vài điều mới đến từ nhà phát triển</string>
-    <string name="blog_promo_message">Tôi vừa ra mắt blog cá nhân của mình tại maxrave.dev — nơi chia sẻ câu chuyện đằng sau SimpMusic, những phân tích chuyên sâu về công nghệ âm nhạc và những ghi chú kỹ thuật. Hãy ghé thăm nếu bạn tò mò nhé ✨</string>
-    <string name="visit_blog">Ghé thăm blog</string>
     <string name="paypal">PayPal</string>
     <string name="title">Tiêu đề</string>
     <string name="custom_order">Bộ lọc tuỳ chỉnh</string>
@@ -184,9 +179,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Quá thời gian, kiểm qua kết nối internet (%1$s)</string>
     <string name="save_last_played">Lưu phiên phát lại cuối cùng</string>
     <string name="save_last_played_track_and_queue">Lưu bài hát đang phát và danh sách chờ cuối cùng</string>
-    <string name="update_available">Phiên bản mới có sẵn</string>
-    <string name="update_message">Phiên bản %1$s có sẵn\nXuất bản ngày: %2$s\n</string>
-    <string name="check_for_update">Kiểm tra cập nhật</string>
     <string name="last_checked_at">Lần kiểm tra cuối vào %1$s</string>
     <string name="checking">Đang kiểm tra</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Bỏ qua phân đoạn %1$s</string>
@@ -218,7 +210,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Sao chép vào bộ nhớ tạm</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Đã sao chép vào bộ nhớ tạm</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Thông tin lỗi</string>
-    <string name="no_update">Phiên bản hiện tại đang là mới nhất</string>
     <string name="sleep_timer">Hẹn giờ ngủ - %1$s phút</string>
     <string name="sleep_timer_end_of_song">Hẹn giờ ngủ - Cuối bài hát</string>
     <string name="sleep_timer_off">Hẹn giờ ngủ</string>
@@ -400,8 +391,6 @@
     <string name="sync_first">Đồng bộ danh sách phát này với YouTube Music trước</string>
     <string name="endless_queue">Hàng đợi không dừng</string>
     <string name="do_not_show_again">Không hiển thị lại</string>
-    <string name="auto_check_for_update">Kiểm tra cập nhật tự động</string>
-    <string name="auto_check_for_update_description">Kiểm tra cập nhật mỗi khi bạn mở ứng dụng</string>
     <string name="playback_speed_pitch"><![CDATA[Tốc độ phát lại và cao độ]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Tốc độ phát lại và cao độ (bị vô hiệu hóa khi chuyển tiếp mượt mà được bật)]]></string>
     <string name="playback_speed">Tốc độ phát lại</string>
@@ -492,7 +481,6 @@
     <string name="no_playlist_found">Không tìm thấy bất kỳ danh sách phát nội bộ nào, hãy tạo một danh sách phát trước</string>
     <string name="list_all_cookies_of_this_page">Danh sách cookie của trang này</string>
     <string name="copied_to_clipboard">Đã sao chép vào bộ nhớ tạm</string>
-    <string name="update_channel">Kênh cập nhật</string>
     <string name="enable_liquid_glass_effect">Bật liquid glass (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Bật thiết kế Liquid glass trong một số vị trí (Android 13+)</string>
     <string name="your_library">Thư viện của bạn</string>
@@ -503,7 +491,6 @@
     <string name="no_mixes_found">Không có bản mix nào</string>
     <string name="no_charts_found">Không tìm thấy bảng xếp hạng nào</string>
     <string name="desktop_webview_description">Do những hạn chế của Compose Multiplatform, tôi không thể triển khai WebView trên máy tính để bàn.\nĐọc bài viết này để tìm hiểu thêm về cách đăng nhập trên máy tính để bàn:\n</string>
-    <string name="open_blog_post">Mở bài blog</string>
     <string name="discord_integration">Tích hợp Discord</string>
     <string name="log_in_to_discord">Đăng nhập vào Discord</string>
     <string name="intro_login_to_discord">Đăng nhập đề bật Discord Rich Presence</string>
@@ -560,8 +547,6 @@
     <string name="quit_app">Thoát ứng dụng</string>
     <string name="local_tracking_title">Theo dõi lịch sử nghe cục bộ</string>
     <string name="local_tracking_description">Ghi lại lịch sử nghe nhạc vào cơ sở dữ liệu cục bộ</string>
-    <string name="blog_notification_title">Thông báo về các bài blog mới</string>
-    <string name="blog_notification_description">Nhận thông báo khi có bài blog mới được phát hành</string>
     <string name="simpmusic_charts">SimpMusic Charts</string>
     <string name="crossfading">Đang chuyển bài mượt mà</string>
     <string name="your_320kbps_url">Đường dẫn link 320kbps của bạn</string>

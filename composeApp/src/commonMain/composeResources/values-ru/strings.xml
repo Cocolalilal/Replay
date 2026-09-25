@@ -123,11 +123,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Купите мне кофе</string>
-    <string name="developer_blog">Блог разработчика</string>
-    <string name="developer_blog_tagline">Читайте заметки разработчика, руководства и информацию о процессе разработки.</string>
-    <string name="blog_promo_title">Что-то новое из разработки</string>
-    <string name="blog_promo_message">Я только что запустил свой персональный блог на maxrave.dev — поделитесь историей за SimpMusic, музыкальными погружениями и инженерными заметками. Читайте, если интересно ✨</string>
-    <string name="visit_blog">Посетить блог</string>
     <string name="paypal">PayPal</string>
     <string name="title">Название</string>
     <string name="custom_order">Свой порядок</string>
@@ -183,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Время ожидания истекло, проверьте подключение к Интернету (%1$s)</string>
     <string name="save_last_played">Сохранить последнюю воспроизводимую</string>
     <string name="save_last_played_track_and_queue">Сохранить последний воспроизведенный трек и очередь</string>
-    <string name="update_available">Доступно новое обновление</string>
-    <string name="update_message">Версия %1$s доступна\nВерсия:%2$s\n</string>
-    <string name="check_for_update">Проверить на наличие обновлений</string>
     <string name="last_checked_at">Последняя проверка %1$s</string>
     <string name="checking">Выполняется проверка</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Пропустить %1$s сегмент</string>
@@ -217,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Скопировать в буфер обмена</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Скопировано в буфер обмена</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Информация об ошибке</string>
-    <string name="no_update">У вас скачана последняя версия приложения</string>
     <string name="sleep_timer">Таймер сна - %1$s минут(ы)</string>
     <string name="sleep_timer_end_of_song">Таймер сна - Конец песни</string>
     <string name="sleep_timer_off">Таймер сна</string>
@@ -402,8 +393,6 @@
     <string name="sync_first">Сначала синхронизируйте этот плейлист с YouTube Music</string>
     <string name="endless_queue">Бесконечная очередь</string>
     <string name="do_not_show_again">Больше не показывать</string>
-    <string name="auto_check_for_update">Автоматически проверять обновления</string>
-    <string name="auto_check_for_update_description">Проверьте наличие обновлений при открытии приложения</string>
     <string name="playback_speed_pitch"><![CDATA[Скорость и высота воспроизведения]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Скорость и высота тона воспроизведения (отключено при включенном кроссфейде)]]></string>
     <string name="playback_speed">Скорость воспроизведения</string>
@@ -494,7 +483,6 @@
     <string name="no_playlist_found">Локальные плейлисты не найдены. Для начала создайте их</string>
     <string name="list_all_cookies_of_this_page">Список всех cookies этой страницы</string>
     <string name="copied_to_clipboard">Скопировано в буфер обмена</string>
-    <string name="update_channel">Канал обновлений</string>
     <string name="enable_liquid_glass_effect">Включить эффект жидкого стекла (БЕТА)</string>
     <string name="enable_liquid_glass_effect_description">Включить эффект жидкого стекла из iOS в некоторых местах (Android 13+)</string>
     <string name="your_library">Ваша библиотека</string>
@@ -506,7 +494,6 @@
     <string name="no_charts_found">Чарты не найдены</string>
     <string name="desktop_webview_description">В связи с ограничениями Compose Multiplatform, WebView невозможно реализовать на настольных устройствах.\n
 Ознакомьтесь с этим руководством, чтобы узнать, как выполнить вход на настольной версии:\n</string>
-    <string name="open_blog_post">Читать в блоге</string>
     <string name="discord_integration">Интеграция Discord</string>
     <string name="log_in_to_discord">Войти в Discord</string>
     <string name="intro_login_to_discord">Войдите, чтобы включить Discord Rich Presence</string>
@@ -547,8 +534,6 @@
     <string name="quit_app">Выйти из приложения</string>
     <string name="local_tracking_title">Локальная история прослушивания</string>
     <string name="local_tracking_description">Записывать историю прослушивания в локальную базу данных</string>
-    <string name="blog_notification_title">Уведомления о публикациях в блоге</string>
-    <string name="blog_notification_description">Получайте уведомления о публикации новых записей в блоге</string>
     <string name="simpmusic_charts">Чарты SimpMusic</string>
     <string name="crossfading">Кроссфейд</string>
     <string name="your_320kbps_url">Ваш URL 320 кбит/с</string>

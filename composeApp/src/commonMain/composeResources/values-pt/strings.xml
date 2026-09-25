@@ -123,11 +123,6 @@
     <string name="github">GitHub</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Compre-me um café</string>
-    <string name="developer_blog">Blog do Desenvolvedor</string>
-    <string name="developer_blog_tagline">Leia notas de desenvolvimento, tutoriais &amp; nos bastidores</string>
-    <string name="blog_promo_title">Algo novo do desenvolvimento</string>
-    <string name="blog_promo_message">Acabei de lançar meu blog pessoal no maxrave. ev — compartilhando a história por trás da SimpMusic, mergulhos profundos na música e notas de engenharia. Dê uma lida se você estiver curioso ✨</string>
-    <string name="visit_blog">Visite o Blog</string>
     <string name="paypal">PayPal</string>
     <string name="title">Título</string>
     <string name="custom_order">Manual</string>
@@ -183,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Tempo esgotado, verifique sua conexão com a internet</string>
     <string name="save_last_played">Salvar Última Reprodução</string>
     <string name="save_last_played_track_and_queue">Salvar a última faixa e fila reproduzidas</string>
-    <string name="update_available">Nova atualização disponível</string>
-    <string name="update_message"></string>
-    <string name="check_for_update">Verificar atualizações</string>
     <string name="last_checked_at">Última verificação: %1$s</string>
     <string name="checking">Verificando</string>
     <string name="sponsorblock_skip_segment">SponsorShip: Pular parte %1$s</string>
@@ -217,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Copiar para área de transferência</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Copiado para a área de transferência</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Informações do erro</string>
-    <string name="no_update">Sua versão é a mais recente</string>
     <string name="sleep_timer">Tempo de inatividade - %1$s minuto(s)</string>
     <string name="sleep_timer_end_of_song">Timer de sono - Fim da Música</string>
     <string name="sleep_timer_off">Temporizador de sono</string>
@@ -397,8 +388,6 @@
     <string name="sync_first">Sincronize esta lista de reprodução com o YouTube Music primeiro</string>
     <string name="endless_queue">Fila infinita</string>
     <string name="do_not_show_again">Não mostrar novamente</string>
-    <string name="auto_check_for_update">Verificar atualizações automaticamente</string>
-    <string name="auto_check_for_update_description">Procurar atualizações quando abre o aplicativo</string>
     <string name="playback_speed_pitch"><![CDATA[Velocidade de reprodução e tom]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Velocidade e tom de reprodução (desativado quando o crossfade está habilitado)]]></string>
     <string name="playback_speed">Velocidade de reprodução</string>
@@ -489,7 +478,6 @@
     <string name="no_playlist_found">Não foram encontradas listas de reprodução locais, por favor crie uma primeiro</string>
     <string name="list_all_cookies_of_this_page">Listar todos os cookies desta página</string>
     <string name="copied_to_clipboard">Copiado para a área de transferência</string>
-    <string name="update_channel">Canal De Atualizações</string>
     <string name="enable_liquid_glass_effect">Enable liquid glass (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Ativar o efeito de vidro líquido do iOS em alguma posição (Android 13+)</string>
     <string name="your_library">Your library</string>
@@ -500,7 +488,6 @@
     <string name="no_mixes_found">No mixes found</string>
     <string name="no_charts_found">Nenhuma parada encontrada</string>
     <string name="desktop_webview_description">Devido às limitações do Compose Multiplataform, não posso implementar WebView no desktop. U\nLeia isso para saber mais como fazer login no desktop:\n</string>
-    <string name="open_blog_post">Abrir post do blog</string>
     <string name="discord_integration">Integração com o Discord</string>
     <string name="log_in_to_discord">Faça login no Discord</string>
     <string name="intro_login_to_discord">Faça login para ativar o Rich Presence do Discord</string>

@@ -170,8 +170,6 @@
     <string name="skip_no_music_part">Ohita osa ilman musiikkia</string>
     <string name="save_last_played">Muista viimeksi soitettu</string>
     <string name="save_last_played_track_and_queue">Muista viimeksi toistettu kappale ja jono</string>
-    <string name="update_available">Uusi päivitys on saatavilla</string>
-    <string name="check_for_update">Tarkista päivitykset</string>
     <string name="last_checked_at">Viimeksi tarkistettu %1$s</string>
     <string name="checking">Tarkistetaan</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Ohita %1$s-segmentti</string>
@@ -200,7 +198,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Kopioi leikepöydälle</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Kopioitu leikepöydälle</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Virhetiedot</string>
-    <string name="no_update">Versiosi on uusin</string>
     <string name="sleep_timer">Uniajastin - %1$s minuutti(a)</string>
     <string name="sleep_timer_off">Uniajastin</string>
     <string name="sleep_minutes">Ajastimen aika (minuutteina)</string>

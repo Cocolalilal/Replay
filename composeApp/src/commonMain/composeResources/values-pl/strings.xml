@@ -123,11 +123,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Kup mi kawę</string>
-    <string name="developer_blog">Blog dewelopera</string>
-    <string name="developer_blog_tagline">Czytaj notatki deweloperów &amp; poradniki i materiały zza kulis</string>
-    <string name="blog_promo_title">Nowości od dewelopera</string>
-    <string name="blog_promo_message">​Właśnie wystartowałem z moim osobistym blogiem pod adresem maxrave.dev – dzielę się tam historią powstania SimpMusic, technicznymi analizami ze świata music-tech oraz notatkami inżynieryjnymi. Zajrzyj, jeśli jesteś ciekawy ✨</string>
-    <string name="visit_blog">Odwiedź blog</string>
     <string name="paypal">PayPal</string>
     <string name="title">Tytuł</string>
     <string name="custom_order">Kolejność niestandardowa</string>
@@ -183,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Przekroczono czas oczekiwania, sprawdź połączenie internetowe (%1$s)</string>
     <string name="save_last_played">Zapisz ostatnio odtwarzane</string>
     <string name="save_last_played_track_and_queue">Zapisz ostatnio odtwarzany utwór i kolejkę</string>
-    <string name="update_available">Dostępna nowa aktualizacja</string>
-    <string name="update_message">Wersja %1$s dostępna\nWydanie: %2$s\n</string>
-    <string name="check_for_update">Sprawdź dostępne aktualizacje</string>
     <string name="last_checked_at">Ostatnio sprawdzono: %1$s</string>
     <string name="checking">Sprawdzanie</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: pomiń segment %1$s</string>
@@ -217,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Kopiuj do schowka</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Skopiowane do schowka</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Informacje o błędzie</string>
-    <string name="no_update">Twoja wersja jest najnowsza</string>
     <string name="sleep_timer">Wyłącznik czasowy - %1$s minut (y)</string>
     <string name="sleep_timer_off">Wyłącznik czasowy</string>
     <string name="sleep_minutes">Czas odliczania (minuty)</string>
@@ -399,8 +390,6 @@
     <string name="sync_first">Najpierw synchronizuj tę playlistę z YouTube Music</string>
     <string name="endless_queue">Kolejka bez końca</string>
     <string name="do_not_show_again">Nie pokazuj ponownie</string>
-    <string name="auto_check_for_update">Automatyczne sprawdzanie aktualizacji</string>
-    <string name="auto_check_for_update_description">Sprawdzanie aktualizacji po otwarciu aplikacji</string>
     <string name="playback_speed_pitch"><![CDATA[Prędkość odtwarzania i tonacja]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Prędkość i tonacja odtwarzania (wyłączone, gdy płynne przejście jest włączone)]]></string>
     <string name="playback_speed">Szybkość odtwarzania</string>
@@ -483,7 +472,6 @@
     <string name="no_playlist_found">Nie znaleziono lokalnych playlist, proszę utworzyć przynajmniej jedną</string>
     <string name="list_all_cookies_of_this_page">Lista wszystkich plików cookie na tej stronie</string>
     <string name="copied_to_clipboard">Skopiowane do schowka</string>
-    <string name="update_channel">Zaktualizuj kanał</string>
     <string name="enable_liquid_glass_effect">Włącz efekt płynnego szkła (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Włącz efekt płynnego szkła z iOS w pewnej pozycji (Android 13+)</string>
     <string name="your_library">Twoja biblioteka</string>
@@ -494,7 +482,6 @@
     <string name="no_mixes_found">Nie znaleziono miksów</string>
     <string name="no_charts_found">Nie znaleziono list przebojów</string>
     <string name="desktop_webview_description">Ze względu na ograniczenia Compose Multiplatform nie mogę zaimplementować WebView na komputerach.\nPrzeczytaj, aby dowiedzieć się, jak zalogować się na pulpicie:\n</string>
-    <string name="open_blog_post">Otwórz post bloga</string>
     <string name="discord_integration">Integracja z Discord</string>
     <string name="log_in_to_discord">Zaloguj się na Discordzie</string>
     <string name="intro_login_to_discord">Zaloguj się, aby włączyć Discord Rich Presence</string>

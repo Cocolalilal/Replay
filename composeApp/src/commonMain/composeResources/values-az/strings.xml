@@ -170,8 +170,6 @@
     <string name="skip_no_music_part">Musiqisiz hissəni ötür</string>
     <string name="save_last_played">Son Oynadılanı Saxla</string>
     <string name="save_last_played_track_and_queue">Son səslənən axını və növbəni saxla</string>
-    <string name="update_available">Yeni quraşdırma mövcuddur</string>
-    <string name="check_for_update">Yeniləmələri yoxla</string>
     <string name="last_checked_at">Son dəfə yoxlanılıb: %1$s</string>
     <string name="checking">Yoxlanılır</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: %1$s bölümün ötür</string>
@@ -201,7 +199,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Buferə köçür</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Buferə köçürüldü</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Xəta məlumatı</string>
-    <string name="no_update">Versiyanız ən yenidir</string>
     <string name="sleep_timer">Yuxu Taymeri - %1$s dəqiqə</string>
     <string name="sleep_timer_off">Yuxu Taymeri</string>
     <string name="sleep_minutes">Geri sayım müddəti (dəqiqə)</string>
@@ -362,8 +359,6 @@
     <string name="sync_first">Əvvəlcə bu pleylisti YouTube Music ilə sinxronlaşdır</string>
     <string name="endless_queue">Sonsuz növbə</string>
     <string name="do_not_show_again">Təkrar göstərmə</string>
-    <string name="auto_check_for_update">Yeniləmə üçün avtomatik yoxla</string>
-    <string name="auto_check_for_update_description">Tətbiqi açdığınızda yeniləmə yoxlanılır</string>
     <string name="playback_speed_pitch"><![CDATA[Səslənmə sürəti və ucalıq]]></string>
     <string name="playback_speed">Səslənmə sürəti</string>
     <string name="pitch">Ucalıq</string>

@@ -123,7 +123,6 @@
     <string name="github">गिट्हब</string>
     <string name="maxrave_dev">मैक्सरेव-देव</string>
     <string name="buy_me_a_coffee">मुझे एक कॉफी खरीदें</string>
-    <string name="developer_blog">डेवलपर ब्लॉग</string>
     <string name="paypal">पेयपाल</string>
     <string name="title">शीर्षक</string>
     <string name="album">एल्बम</string>
@@ -178,8 +177,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">समय समाप्त, इंटरनेट कनेक्शन जांचें (%1$s)</string>
     <string name="save_last_played">अंतिम चलाया गया सहेजें</string>
     <string name="save_last_played_track_and_queue">अंतिम चलाया गया गाना और कतार सहेजें</string>
-    <string name="update_available">नया अपडेट उपलब्ध है</string>
-    <string name="check_for_update">अपडेट के लिए जांचें</string>
     <string name="last_checked_at">आखिरी जांच %1$s को</string>
     <string name="checking">जांच हो रही है</string>
     <string name="sponsorblock_skip_segment">स्पॉन्सरब्लॉक: %1$s सेगमेंट छोड़ें</string>
@@ -211,7 +208,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">क्लिपबोर्ड में कॉपी करें</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">क्लिपबोर्ड में कॉपी किया गया</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">त्रुटि जानकारी</string>
-    <string name="no_update">आपका वर्जन नवीनतम है</string>
     <string name="sleep_timer">स्लीप टाइमर - %1$s मिनट</string>
     <string name="sleep_timer_off">स्लीप टाइमर</string>
     <string name="sleep_minutes">उलटी गिनती समय (मिनट)</string>
@@ -378,8 +374,6 @@
     <string name="sync_first">पहले इस प्लेलिस्ट को YouTube Music के साथ सिंक करें</string>
     <string name="endless_queue">अंतहीन कतार</string>
     <string name="do_not_show_again">दोबारा न दिखाएं</string>
-    <string name="auto_check_for_update">अपडेट की स्वतः जाँच</string>
-    <string name="auto_check_for_update_description">ऐप खोलते समय अपडेट की जाँच करना</string>
     <string name="playback_speed_pitch"><![CDATA[प्लेबैक गति और पिच]]></string>
     <string name="playback_speed">प्लेबैक गति</string>
     <string name="pitch">पिच</string>
@@ -447,7 +441,6 @@
     <string name="no_playlist_found">कोई लोकल प्लेलिस्ट नहीं मिली, कृपया पहले एक बनाएं</string>
     <string name="list_all_cookies_of_this_page">इस पृष्ठ की सभी कुकीज़ सूचीबद्ध करें</string>
     <string name="copied_to_clipboard">क्लिपबोर्ड पर कॉपी किया गया</string>
-    <string name="update_channel">चैनल अपडेट करें</string>
     <string name="enable_liquid_glass_effect">लिक्विड ग्लास सक्षम करें (बीटा)</string>
     <string name="your_library">आपकी लाइब्रेरी</string>
     <string name="play_explicit_content">आपत्तिजनक कंटेंट चलाएं</string>

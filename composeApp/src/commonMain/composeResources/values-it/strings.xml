@@ -123,11 +123,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Offrimi un caffè</string>
-    <string name="developer_blog">Blog degli sviluppatori</string>
-    <string name="developer_blog_tagline">Leggi le note degli sviluppatori, i tutorial e i dietro le quinte</string>
-    <string name="blog_promo_title">Novità dagli sviluppatori</string>
-    <string name="blog_promo_message">Ho appena lanciato il mio blog personale, lo trovi su maxrave.dev — troverai la storia dietro SimpMusic, riflessioni su music-tech e note d'ingegneria</string>
-    <string name="visit_blog">Visita il blog</string>
     <string name="paypal">PayPal</string>
     <string name="title">Titolo</string>
     <string name="custom_order">Ordine personalizzato</string>
@@ -183,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Tempo scaduto, controlla la connessione internet (%1$s)</string>
     <string name="save_last_played">Salva l'ultima riproduzione</string>
     <string name="save_last_played_track_and_queue">Salva l'ultima traccia riprodotta e la coda</string>
-    <string name="update_available">Nuovo aggiornamento disponibile</string>
-    <string name="update_message">Versione %1$s disponibile\n Rilascio: %2$s\n</string>
-    <string name="check_for_update">Ricerca aggiornamenti</string>
     <string name="last_checked_at">Ultimo controllo alle %1$s</string>
     <string name="checking">Controllo</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Salta il segmento dello sponsor %1$s</string>
@@ -217,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Copia negli appunti</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Copiato negli appunti</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Informazioni sull'errore</string>
-    <string name="no_update">La tua versione è la più recente</string>
     <string name="sleep_timer">Timer sospensione - %1$s minuto</string>
     <string name="sleep_timer_end_of_song">Timer di spegnimento - fine canzone</string>
     <string name="sleep_timer_off">Timer sospensione</string>
@@ -400,8 +391,6 @@
     <string name="sync_first">Sincronizza prima questa playlist con YouTube Music</string>
     <string name="endless_queue">Coda infinita</string>
     <string name="do_not_show_again">Non mostrare più</string>
-    <string name="auto_check_for_update">Controllo automatico degli aggiornamenti</string>
-    <string name="auto_check_for_update_description">Controllo degli aggiornamenti all'apertura dell'app</string>
     <string name="playback_speed_pitch"><![CDATA[Velocità di riproduzione e tono]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Velocità e tono brano (disabilitato quando la dissolvenza è abilitata)]]></string>
     <string name="playback_speed">Velocità di riproduzione</string>
@@ -492,7 +481,6 @@
     <string name="no_playlist_found">Nessuna playlist locale trovata, per favore creane prima una</string>
     <string name="list_all_cookies_of_this_page">Elenca tutti i cookie di questa pagina</string>
     <string name="copied_to_clipboard">Copiato negli appunti</string>
-    <string name="update_channel">Aggiorna il canale</string>
     <string name="enable_liquid_glass_effect">Abilita liquid glass (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Abilita l'effetto liquid glass di iOS in alcuni punti (Android 13+)</string>
     <string name="your_library">La tua libreria</string>
@@ -503,7 +491,6 @@
     <string name="no_mixes_found">Nessun mix trovato</string>
     <string name="no_charts_found">Nessuna classifica trovata</string>
     <string name="desktop_webview_description">A causa delle limitazioni di Compose Multiplatform, non posso implementare WebView sul desktop.\nLeggi questo per saperne di più su come accedere su desktop:\n</string>
-    <string name="open_blog_post">Apri post del blog</string>
     <string name="discord_integration">Integrazione con Discord</string>
     <string name="log_in_to_discord">Accedi con Discord</string>
     <string name="intro_login_to_discord">Accedi per abilitare Discord Rich Presence</string>
@@ -544,8 +531,6 @@
     <string name="quit_app">Esci dall'applicazione</string>
     <string name="local_tracking_title">Tracciamento locale della cronologia degli ascolti</string>
     <string name="local_tracking_description">Registra la cronologia di ascolto nel database locale</string>
-    <string name="blog_notification_title">Notifiche post blog</string>
-    <string name="blog_notification_description">Ricevi una notifica quando viene pubblicato un nuovo post sul blog</string>
     <string name="simpmusic_charts">Classifica SimpMusic</string>
     <string name="crossfading">Dissolvenza incrociata</string>
     <string name="your_320kbps_url">Il tuo URL 320kbps</string>

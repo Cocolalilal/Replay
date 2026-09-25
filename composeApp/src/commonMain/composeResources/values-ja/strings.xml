@@ -175,9 +175,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">タイムアウトしました。インターネット接続を確認してください (%1$s)</string>
     <string name="save_last_played">最後に再生したものを保存</string>
     <string name="save_last_played_track_and_queue">最後に再生した曲とキューを保存</string>
-    <string name="update_available">最新版があります</string>
-    <string name="update_message">バージョン %1$s が利用可能です\nRelease: %2$s\n</string>
-    <string name="check_for_update">更新を確認</string>
     <string name="last_checked_at">最終確認 %1$s</string>
     <string name="checking">確認中</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: %1$s シーンをスキップ</string>
@@ -209,7 +206,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">クリップボードにコピー</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">クリップボードにコピーしました</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">エラー情報</string>
-    <string name="no_update">お使いのバージョンは最新です</string>
     <string name="sleep_timer">スリープタイマー - %1$s 分</string>
     <string name="sleep_timer_off">スリープタイマー</string>
     <string name="sleep_minutes">カウントダウン（分）</string>
@@ -375,8 +371,6 @@
     <string name="sync_first">この再生リストをYouTube Music に同期</string>
     <string name="endless_queue">無限のキュー</string>
     <string name="do_not_show_again">再び表示しない</string>
-    <string name="auto_check_for_update">最新版を自動で確認</string>
-    <string name="auto_check_for_update_description">アプリを開いた時に更新を確認します</string>
     <string name="playback_speed_pitch"><![CDATA[再生速度とピッチ]]></string>
     <string name="playback_speed">再生速度</string>
     <string name="pitch">ピッチ</string>
@@ -452,7 +446,6 @@
     <string name="no_playlist_found">ローカルプレイリストが見つかりませんでした。最初に作成してください</string>
     <string name="list_all_cookies_of_this_page">このページのすべてのクッキーを一覧表示</string>
     <string name="copied_to_clipboard">クリップボードにコピーしました</string>
-    <string name="update_channel">更新チャンネル</string>
     <string name="enable_liquid_glass_effect">Liquid Glassを有効にする (BETA)</string>
     <string name="your_library">あなたのライブラリ</string>
     <string name="play_explicit_content">明示的なコンテンツを再生</string>
@@ -461,7 +454,6 @@
     <string name="mix_for_you">あなたのミックス</string>
     <string name="no_mixes_found">ミックスが見つかりませんでした</string>
     <string name="desktop_webview_description">Compose Multiplatformの制限のため、デスクトップ上にWebViewを実装できません。\nデスクトップでのログイン方法については、こちらをご覧ください:\n</string>
-    <string name="open_blog_post">ブログ記事を開く</string>
     <string name="discord_integration">Discord連携</string>
     <string name="log_in_to_discord">Discordにログイン</string>
     <string name="intro_login_to_discord">ログインしてDiscord Rich Presenceを有効にします</string>

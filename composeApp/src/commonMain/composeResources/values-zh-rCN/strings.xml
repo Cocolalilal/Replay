@@ -123,11 +123,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">请我喝杯咖啡（捐赠）</string>
-    <string name="developer_blog">开发者博客</string>
-    <string name="developer_blog_tagline">阅读开发日志、教程及幕后花絮</string>
-    <string name="blog_promo_title">开发中的一些新内容</string>
-    <string name="blog_promo_message">我刚刚上线了个人博客 maxrave.dev，内容涵盖 SimpMusic 背后的故事、音乐科技深度解析以及工程技术笔记。感兴趣的话不妨去看看 ✨</string>
-    <string name="visit_blog">访问博客</string>
     <string name="paypal">PayPal</string>
     <string name="title">标题</string>
     <string name="custom_order">自定义顺序</string>
@@ -183,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">超时，检查网络连接（%1$s）</string>
     <string name="save_last_played">保存上次播放</string>
     <string name="save_last_played_track_and_queue">保存上次播放的曲目和队列</string>
-    <string name="update_available">有可用的更新</string>
-    <string name="update_message">版本 %1$s 可用\n发布版本：%2$s\n</string>
-    <string name="check_for_update">检查更新</string>
     <string name="last_checked_at">上次检查于 %1$s</string>
     <string name="checking">检查中</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: 跳过 %1$s 段</string>
@@ -217,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">复制到剪贴板</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">已复制到剪贴板</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">错误信息</string>
-    <string name="no_update">您的版本是最新版本</string>
     <string name="sleep_timer">睡眠计时器 - %1$s 分钟</string>
     <string name="sleep_timer_end_of_song">睡眠定时器 - 歌曲结束</string>
     <string name="sleep_timer_off">睡眠定时器</string>
@@ -399,8 +390,6 @@
     <string name="sync_first">首先将此播放列表同步到 YouTube 音乐</string>
     <string name="endless_queue">无尽队列</string>
     <string name="do_not_show_again">不再显示</string>
-    <string name="auto_check_for_update">自动检查更新</string>
-    <string name="auto_check_for_update_description">当您打开应用程序时检查更新</string>
     <string name="playback_speed_pitch"><![CDATA[播放速度与音调]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[播放速度和音调 (启用交叉淡入淡出时禁用)]]></string>
     <string name="playback_speed">播放速度</string>
@@ -491,7 +480,6 @@
     <string name="no_playlist_found">未找到本地播放列表, 请先创建一个</string>
     <string name="list_all_cookies_of_this_page">列出此页面的所有 cookie</string>
     <string name="copied_to_clipboard">已复制到剪贴板</string>
-    <string name="update_channel">更新频道</string>
     <string name="enable_liquid_glass_effect">启用液体玻璃(BETA)</string>
     <string name="enable_liquid_glass_effect_description">在部分区域启用类似于 iOS 的液体玻璃效果 (Android 13+)</string>
     <string name="your_library">您的库</string>
@@ -503,7 +491,6 @@
     <string name="no_charts_found">未找到榜单</string>
     <string name="desktop_webview_description">受 Compose 的多平台限制，目前无法在桌面端实现 WebView。\n
 请参阅此处，了解如何在桌面端进行登录：\n</string>
-    <string name="open_blog_post">打开博客文章</string>
     <string name="discord_integration">Discord 集成</string>
     <string name="log_in_to_discord">登录 Discord</string>
     <string name="intro_login_to_discord">登录以启用 Discord 丰富媒体状态</string>
@@ -558,8 +545,6 @@
     <string name="quit_app">退出应用</string>
     <string name="local_tracking_title">在本地保存播放历史记录</string>
     <string name="local_tracking_description">将您的收听历史记录到本地数据库</string>
-    <string name="blog_notification_title">博客文章通知</string>
-    <string name="blog_notification_description">在开发者发布新博文时接收通知</string>
     <string name="simpmusic_charts">SimpMusic 排行榜</string>
     <string name="crossfading">交叉淡入淡出</string>
     <string name="your_320kbps_url">您的 320kbps URL</string>

@@ -36,6 +36,7 @@ actual fun MediaPlayerViewWithSubtitle(
     translatedLyricsData: Lyrics?,
     mainTextStyle: TextStyle,
     translatedTextStyle: TextStyle,
+    onVideoAspectRatioChanged: ((Float) -> Unit)?,
 ) {
     MediaPlayerViewWithSubtitleJvm(
         playerName = playerName,
@@ -47,5 +48,6 @@ actual fun MediaPlayerViewWithSubtitle(
         translatedLyricsData = translatedLyricsData,
         mainTextStyle = typo().bodyLarge,
         translatedTextStyle = typo().bodyMedium,
+        onVideoAspectRatioChanged = onVideoAspectRatioChanged,
     )
 }

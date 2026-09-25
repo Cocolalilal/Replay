@@ -218,9 +218,6 @@ fun runDesktopApp(args: Array<String> = emptyArray()) {
     WindowsProtocolRegistrar.register()
 
     val sharedViewModel = getKoin().get<SharedViewModel>()
-    if (sharedViewModel.shouldCheckForUpdate()) {
-        sharedViewModel.checkForUpdate()
-    }
 
     // Connect deep link handler to SharedViewModel
     DesktopDeepLinkHandler.listener = { intent ->
