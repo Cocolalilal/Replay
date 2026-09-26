@@ -146,6 +146,7 @@ import com.maxrave.simpmusic.ui.component.rememberHolderPainter
 import com.maxrave.simpmusic.ui.icon.Cast
 import com.maxrave.simpmusic.ui.icon.Devices
 import com.maxrave.simpmusic.ui.icon.Speaker
+import com.maxrave.simpmusic.ui.theme.LocalPerformanceMode
 import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
 import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
 import com.maxrave.simpmusic.ui.theme.nowPlayingTitleFontFamily
@@ -162,6 +163,8 @@ import com.maxrave.simpmusic.ui.icon.Forward5
 import com.maxrave.simpmusic.ui.icon.Fullscreen
 import com.maxrave.simpmusic.ui.icon.Lyrics
 import com.maxrave.simpmusic.ui.icon.MoreVert
+import com.maxrave.simpmusic.ui.icon.MusicNote
+import com.maxrave.simpmusic.ui.icon.Videocam
 import com.maxrave.simpmusic.ui.icon.Pause
 import com.maxrave.simpmusic.ui.icon.PlayArrow
 import com.maxrave.simpmusic.ui.icon.Repeat
@@ -344,6 +347,11 @@ fun ReferenceNowPlayingLayout(
         animationSpec = tween(1500, easing = FastOutSlowInEasing),
         label = "nowPlayingTint",
     )
+    val mainSongColor = remember(paletteState.palette) {
+        paletteState.palette?.dominantSwatch?.rgb?.let { Color(it) }
+            ?: paletteState.palette?.getDominantColor(0)?.takeIf { it != 0 }?.let { Color(it) }
+            ?: Color(0xFF1E1E1E)
+    }
 
     // The first colour is the tint at 30% opacity (button fills, played progress); the second is
     // the tint at 20% opacity (backing surfaces, unplayed progress). Nothing is solid: icons stay
@@ -414,6 +422,7 @@ fun ReferenceNowPlayingLayout(
                     artworkUrl = screenDataState.thumbnailURL,
                     artworkBitmap = screenDataState.bitmap,
                     paletteColor = animatedTint,
+                    mainColor = mainSongColor,
                     mode =
                         when (selectedTab) {
                             1 -> BackgroundMode.LYRICS
@@ -554,6 +563,7 @@ fun ReferenceNowPlayingLayout(
 
                                 else -> {
                                     Crossfade(targetState = hasAnimatedArtwork, label = "playerArtworkMode") { animated ->
+                                        val swapState by sharedViewModel.songVideoSwapState.collectAsStateWithLifecycle()
                                         ReferencePlayerPage(
                                             screenDataState = screenDataState,
                                             controllerState = controllerState,
@@ -563,6 +573,9 @@ fun ReferenceNowPlayingLayout(
                                             timeLine = timelineState,
                                             videoAspectRatio = videoAspectRatio,
                                             onVideoAspectRatioChanged = onVideoAspectRatioChanged,
+                                            swapState = swapState,
+                                            onSongSelected = { sharedViewModel.toggleSongVideo(preferSong = true) },
+                                            onVideoSelected = { sharedViewModel.toggleSongVideo(preferSong = false) },
                                             onFullscreen = {
                                                 onDismiss()
                                                 navController.navigate(FullscreenDestination)
@@ -685,9 +698,34 @@ private fun ReferenceBackdrop(
     artworkUrl: String?,
     artworkBitmap: androidx.compose.ui.graphics.ImageBitmap?,
     paletteColor: Color,
+    mainColor: Color = Color(0xFF1E1E1E),
     mode: BackgroundMode,
     isAnimationEnabled: Boolean,
 ) {
+    val isPerformanceMode = LocalPerformanceMode.current
+    if (isPerformanceMode) {
+        val animatedMainColor by androidx.compose.animation.animateColorAsState(
+            targetValue = mainColor,
+            animationSpec = tween(1000, easing = FastOutSlowInEasing),
+            label = "performanceNowPlayingBg",
+        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(animatedMainColor)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.20f),
+                                Color.Black.copy(alpha = 0.65f),
+                            ),
+                        ),
+                    ),
+        )
+        return
+    }
+
     if (hasAnimatedArtwork && animatedArtwork != null) {
         Crossfade(targetState = animatedArtwork.isVideo, label = "animatedArtwork") { isVideo ->
             if (isVideo) {
@@ -740,6 +778,73 @@ private fun ReferenceBackdrop(
     )
 }
 
+/**
+ * YTM-style song/video hot-swap toggle, centered above the cover art.
+ * Music icon on the left, video icon on the right. The missing side is dimmed
+ * and does nothing when pressed (no counterpart found).
+ */
+@Composable
+private fun SongVideoToggle(
+    currentIsVideo: Boolean,
+    songAvailable: Boolean,
+    videoAvailable: Boolean,
+    isResolving: Boolean,
+    onSongSelected: () -> Unit,
+    onVideoSelected: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Row(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White.copy(alpha = 0.12f))
+                .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(20.dp))
+                .padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val songSelected = !currentIsVideo
+        val videoSelected = currentIsVideo
+        Box(
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (songSelected) Color.White else Color.Transparent)
+                    .clickable(enabled = songAvailable && !songSelected) {
+                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onSongSelected()
+                    }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                SimpIcons.MusicNote,
+                contentDescription = "Song",
+                tint = if (songSelected) Color.Black else Color.White.copy(alpha = if (songAvailable) 0.85f else 0.35f),
+                modifier = Modifier.size(20.dp).alpha(if (isResolving && !songAvailable) 0.5f else 1f),
+            )
+        }
+        Box(
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (videoSelected) Color.White else Color.Transparent)
+                    .clickable(enabled = videoAvailable && !videoSelected) {
+                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onVideoSelected()
+                    }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                SimpIcons.Videocam,
+                contentDescription = "Music video",
+                tint = if (videoSelected) Color.Black else Color.White.copy(alpha = if (videoAvailable) 0.85f else 0.35f),
+                modifier = Modifier.size(20.dp).alpha(if (isResolving && !videoAvailable) 0.5f else 1f),
+            )
+        }
+    }
+}
+
 @Composable
 private fun ReferencePlayerPage(
     screenDataState: NowPlayingScreenData,
@@ -750,6 +855,9 @@ private fun ReferencePlayerPage(
     timeLine: TimeLine,
     videoAspectRatio: Float = 16f / 9f,
     onVideoAspectRatioChanged: (Float) -> Unit = {},
+    swapState: com.maxrave.simpmusic.viewModel.SharedViewModel.SongVideoSwapState? = null,
+    onSongSelected: () -> Unit = {},
+    onVideoSelected: () -> Unit = {},
     onFullscreen: () -> Unit,
     onBackward: () -> Unit,
     onForward: () -> Unit,
@@ -790,6 +898,22 @@ private fun ReferencePlayerPage(
             )
         Column(Modifier.fillMaxSize()) {
             Spacer(Modifier.weight(1f))
+            // YTM-style song/video hot-swap, centered above the cover art.
+            if (swapState != null) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    SongVideoToggle(
+                        currentIsVideo = swapState.currentIsVideo,
+                        songAvailable = swapState.songAvailable,
+                        videoAvailable = swapState.videoAvailable,
+                        isResolving = swapState.isResolving,
+                        onSongSelected = onSongSelected,
+                        onVideoSelected = onVideoSelected,
+                    )
+                }
+            }
             // Cover art / video: gently shrinks when paused (like the miniplayer) and sits a
             // touch higher than the plain position.
             // The pause scale must live INSIDE the shared element's content (ReferenceStaticArtwork)
@@ -1490,8 +1614,9 @@ private fun queueDataPlaylistName(screenDataState: NowPlayingScreenData): String
 
 /**
  * The small video window in the lyrics/queue headers: the shared-element destination of the
- * big inline video (same key, same 16dp radius, same pause scale, matching dynamic aspect ratio)
- * so switching tabs morphs the video seamlessly. Subtitles are off — unreadable at this size.
+ * big inline video (same key, same pause scale, matching dynamic aspect ratio) with a
+ * smaller 8dp radius so the 44dp mini reads as a soft square. Subtitles are off —
+ * unreadable at this size.
  */
 @Composable
 private fun ReferenceMiniVideo(
@@ -1512,7 +1637,7 @@ private fun ReferenceMiniVideo(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "miniVideoAspectRatio",
     )
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(8.dp)
     val sizedModifier = modifier.aspectRatio(animatedAspectRatio, matchHeightConstraintsFirst = true)
     val baseModifier =
         if (sharedState != null && sharedScope != null && sharedTransitionScope != null) {
@@ -1634,8 +1759,8 @@ private fun ReferenceTrackHeader(
             Box(modifier = artworkClickModifier) {
                 if (shouldShowVideo && screenDataState.isVideo && timeLine != null) {
                     // The video track keeps playing in the header — dynamically sized to the
-                    // playing video's aspect ratio with 16dp corner radius, matching
-                    // ReferenceInlineVideo so the shared-element morph never cuts.
+                    // playing video's aspect ratio with an 8dp corner radius, matching
+                    // the mini artwork so the header reads as a soft square.
                     ReferenceMiniVideo(
                         screenDataState = screenDataState,
                         isInPipMode = isInPipMode,
@@ -1647,13 +1772,14 @@ private fun ReferenceTrackHeader(
                         modifier = Modifier.height(44.dp),
                     )
                 } else {
-                    // Perfect square, and the shared-element destination of the big artwork — it MUST
-                    // use the same corner radius (16dp) or the radius hard-cuts at the start of the
-                    // morph.
+                    // Perfect square, and the shared-element destination of the big artwork —
+                    // deliberately uses a smaller 8dp radius (vs 16dp on the big artwork) so
+                    // the 44dp mini reads as a soft square rather than a bubble.
                     ReferenceStaticArtwork(
                         url = screenDataState.thumbnailURL,
                         onSuccess = onArtworkLoaded,
                         modifier = Modifier.size(44.dp),
+                        cornerRadius = 8.dp,
                         scale = pauseScale,
                     )
                 }

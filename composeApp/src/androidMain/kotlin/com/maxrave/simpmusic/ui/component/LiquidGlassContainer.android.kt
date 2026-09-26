@@ -2,9 +2,12 @@ package com.maxrave.simpmusic.ui.component
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -39,7 +43,10 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.expect.ui.PlatformBackdrop
+import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
 import com.maxrave.simpmusic.ui.theme.LocalIsDarkTheme
+import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
+import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.sign
@@ -51,15 +58,20 @@ actual fun Modifier.liquidGlass(
     interactive: Boolean,
 ): Modifier {
     val isDark = LocalIsDarkTheme.current
+    val isLastChat = isLastChatFloatingStyle()
+    val isBlur = isFloatingSurfaceBlurEnabled()
     val layer = rememberGraphicsLayer()
     val interaction = rememberGlassInteraction()
     return this.drawInteractiveGlass(
         isDark = isDark,
+        colorScheme = MaterialTheme.colorScheme,
         backdrop = backdrop,
         layer = layer,
         luminanceAnimation = 0.5f,
         shape = shape,
         interaction = if (interactive) interaction else null,
+        isLastChat = isLastChat,
+        isBlur = isBlur,
     )
 }
 
@@ -72,9 +84,12 @@ actual fun Modifier.liquidGlass(
     interactive: Boolean,
 ): Modifier {
     val isDark = LocalIsDarkTheme.current
+    val isLastChat = isLastChatFloatingStyle()
+    val isBlur = isFloatingSurfaceBlurEnabled()
     val interaction = rememberGlassInteraction()
     return this.drawInteractiveGlass(
         isDark = isDark,
+        colorScheme = MaterialTheme.colorScheme,
         backdrop = backdrop,
         layer = layer,
         luminanceAnimation = luminanceAnimation,
@@ -83,6 +98,8 @@ actual fun Modifier.liquidGlass(
         // MiniPlayer (the only caller of this layer + luminance overload) is a wide surface, so the
         // shared 1.12 press scale bulges too hard; use a gentler scale here.
         pressedScale = 1.04f,
+        isLastChat = isLastChat,
+        isBlur = isBlur,
     )
 }
 
@@ -141,14 +158,62 @@ fun rememberGlassInteraction(): GlassInteraction {
  */
 fun Modifier.drawInteractiveGlass(
     isDark: Boolean,
+    colorScheme: ColorScheme,
     backdrop: LayerBackdrop,
     layer: GraphicsLayer,
     luminanceAnimation: Float,
     shape: Shape,
     interaction: GlassInteraction?,
     pressedScale: Float = 1.12f,
-): Modifier =
-    this
+    isLastChat: Boolean = false,
+    isBlur: Boolean = true,
+): Modifier {
+    if (isLastChat) {
+        val surfaceColor = LastChatSurfaceTokens.surfaceColor(colorScheme = colorScheme, isDark = isDark, isBlur = isBlur)
+        val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = colorScheme)
+        val base = if (isBlur) {
+            this
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { shape },
+                    effects = {
+                        blur(7.dp.toPx())
+                    },
+                    onDrawBackdrop = { drawBackdrop ->
+                        drawBackdrop()
+                        layer.record { drawBackdrop() }
+                    },
+                    onDrawSurface = {
+                        drawRect(surfaceColor)
+                    },
+                    layerBlock =
+                        if (interaction != null) {
+                            {
+                                val scale = lerp(1f, pressedScale, interaction.pressProgress)
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                        } else {
+                            null
+                        },
+                )
+                .border(outlineBorder, shape)
+        } else {
+            this
+                .clip(shape)
+                .background(surfaceColor)
+                .border(outlineBorder, shape)
+        }
+        return base.then(
+            if (interaction != null) {
+                Modifier.pointerInput(interaction) { interaction.detectPress(this) }
+            } else {
+                Modifier
+            },
+        )
+    }
+
+    return this
         .drawBackdrop(
             backdrop = backdrop,
             shape = { shape },
@@ -221,6 +286,7 @@ fun Modifier.drawInteractiveGlass(
                 Modifier
             },
         )
+}
 
 /**
  * Observe-only drag/press recogniser ported from Kyant's catalog

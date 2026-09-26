@@ -461,6 +461,19 @@
     <string name="crossfade_auto_description">Automatically calculate duration based on BPM (requires 320kbps stream with BPM data)</string>
     <string name="crossfade_dj_mode">DJ-Style Transition</string>
     <string name="crossfade_dj_mode_description">Apply low-pass and high-pass filter sweeps during crossfade for a smoother, DJ-like transition (similar to Apple Music Automix).</string>
+    <string name="dj_transition_style">DJ Transition Style</string>
+    <string name="dj_transition_style_smart_ai">Smart AI Automix (Recommended)</string>
+    <string name="dj_transition_style_smart_ai_desc">Analyzes BPM and Camelot keys to dynamically select the best mix technique.</string>
+    <string name="dj_transition_style_bass_swap">Club Bass Swap</string>
+    <string name="dj_transition_style_bass_swap_desc">Low-cuts incoming track and executes a clean bass drop at the midpoint.</string>
+    <string name="dj_transition_style_filter_sweep">Filter Sweep Washout</string>
+    <string name="dj_transition_style_filter_sweep_desc">Sweeps a 24dB/octave high-pass filter on outgoing track to build tension.</string>
+    <string name="dj_transition_style_vinyl_brake">Turntable Vinyl Brake</string>
+    <string name="dj_transition_style_vinyl_brake_desc">Simulates a turntable motor stop on beat 1 for high tempo disparity.</string>
+    <string name="dj_transition_style_smooth">Smooth Equal-Power Crossfade</string>
+    <string name="dj_transition_style_smooth_desc">Classic sinusoidal power-matched crossfade with no frequency cuts.</string>
+    <string name="dj_bpm_matching">Beat &amp; Tempo Sync</string>
+    <string name="dj_bpm_matching_desc">Phase-aligns beat drops and matches tempo between tracks for seamless blending.</string>
     <string name="youtube_subtitle_language">YouTube Subtitle Translation Language</string>
     <string name="youtube_subtitle_language_message">Type language code (Eg: en) (2 letters). This is the preferred translation language for YouTube subtitles.</string>
     <string name="use_anonymous">Use anonymous name to contribute</string>
@@ -600,4 +613,10 @@
     <string name="speaker_volume">Speaker Volume</string>
     <string name="google_cast_devices">Google Cast</string>
     <string name="sonos_speaker">Sonos speaker • Wi-Fi</string>
+    <string name="floating_surfaces_style">Floating surfaces style</string>
+    <string name="floating_surface_glassy">Glassy</string>
+    <string name="floating_surface_lastchat">LastChat</string>
+    <string name="floating_surface_lastchat_blur">LastChat blur</string>
+    <string name="performance_mode">Performance mode</string>
+    <string name="performance_mode_description">Disables blur, forces LastChat UI, and simplifies playback background for better performance</string>
 </resources>

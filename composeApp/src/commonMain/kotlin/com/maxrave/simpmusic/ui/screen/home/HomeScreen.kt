@@ -118,7 +118,6 @@ import com.maxrave.simpmusic.ui.navigation.destination.library.LibraryDynamicPla
 import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.PlaylistDestination
-import com.maxrave.simpmusic.ui.navigation.destination.login.LoginDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.PodcastDestination
 import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistType
 import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
@@ -300,11 +299,7 @@ fun HomeScreen(
                         ReplayTopBar(
                             avatarUrl = accountInfo?.second,
                             onAvatarClick = {
-                                if (accountInfo != null) {
-                                    navController.navigate(SettingsDestination)
-                                } else {
-                                    navController.navigate(LoginDestination)
-                                }
+                                navController.navigate(SettingsDestination)
                             },
                         )
                         HomeShimmer()
@@ -314,11 +309,7 @@ fun HomeScreen(
                         ReplayTopBar(
                             avatarUrl = accountInfo?.second,
                             onAvatarClick = {
-                                if (accountInfo != null) {
-                                    navController.navigate(SettingsDestination)
-                                } else {
-                                    navController.navigate(LoginDestination)
-                                }
+                                navController.navigate(SettingsDestination)
                             },
                         )
                         OfflineErrorState(
@@ -349,11 +340,7 @@ fun HomeScreen(
                             ReplayTopBar(
                                 avatarUrl = accountInfo?.second,
                                 onAvatarClick = {
-                                    if (accountInfo != null) {
-                                        navController.navigate(SettingsDestination)
-                                    } else {
-                                        navController.navigate(LoginDestination)
-                                    }
+                                    navController.navigate(SettingsDestination)
                                 },
                             )
                         }

@@ -13,6 +13,10 @@ import com.maxrave.domain.data.model.browse.playlist.Author
 import com.maxrave.domain.data.model.browse.playlist.PlaylistBrowse
 import com.maxrave.domain.data.model.browse.playlist.PlaylistState
 import com.maxrave.domain.extension.now
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_ALL
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_SONGS
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_VIDEOS
 import com.maxrave.domain.mediaservice.handler.DownloadHandler
 import com.maxrave.domain.mediaservice.handler.PlaylistType
 import com.maxrave.domain.mediaservice.handler.QueueData
@@ -64,6 +68,7 @@ class PlaylistViewModel(
     private val localPlaylistRepository: LocalPlaylistRepository,
     private val playlistRepository: PlaylistRepository,
 ) : BaseViewModel() {
+    private val dataStoreManager: DataStoreManager by inject<DataStoreManager>()
     val downloadUtils: DownloadHandler by inject<DownloadHandler>()
     private var _uiState = MutableStateFlow<PlaylistUIState>(Loading)
     val uiState: StateFlow<PlaylistUIState> = _uiState
@@ -176,6 +181,8 @@ class PlaylistViewModel(
         _playlistEntity.value = null
         _downloadedList.value = emptyList()
         _listColors.value = emptyList()
+        _songSubstitutions.value = emptyMap()
+        substitutionJob?.cancel()
         checkDownloadedPlaylist?.cancel()
         checkDownloadedPlaylist = null
     }
@@ -183,6 +190,17 @@ class PlaylistViewModel(
     fun getData(id: String) {
         resetData()
         viewModelScope.launch {
+            // Restore the All/Songs/Videos filter the user left this playlist on.
+            runCatching {
+                dataStoreManager.getPlaylistTag(id).firstOrNull()?.let { saved ->
+                    _selectedTag.value =
+                        when (saved) {
+                            PLAYLIST_TAG_SONGS -> PlaylistTag.SONGS
+                            PLAYLIST_TAG_VIDEOS -> PlaylistTag.VIDEOS
+                            else -> PlaylistTag.ALL
+                        }
+                }
+            }
             // Check radio
             if (id.isRadioPlaylistId()) {
                 playlistRepository
@@ -418,20 +436,93 @@ class PlaylistViewModel(
     private var _selectedTag = MutableStateFlow(PlaylistTag.ALL)
     val selectedTag: StateFlow<PlaylistTag> = _selectedTag
 
+    /** Loved-track substitution: original videoId -> resolved song counterpart (LM only). */
+    private val _songSubstitutions = MutableStateFlow<Map<String, Track>>(emptyMap())
+    val songSubstitutions: StateFlow<Map<String, Track>> = _songSubstitutions
+    private val _isSubstituting = MutableStateFlow(false)
+    val isSubstituting: StateFlow<Boolean> = _isSubstituting
+    private var substitutionJob: Job? = null
+
+    fun isLikedSongsPlaylist(id: String?): Boolean =
+        id == "LM" || id == "VLLM" || id == "FEmusic_liked_videos"
+
     fun setSelectedTag(tag: PlaylistTag) {
         _selectedTag.value = tag
+        // Remember per playlist so reopening restores the filter left on.
+        val playlistId = uiState.value.data?.id ?: return
+        viewModelScope.launch {
+            runCatching {
+                dataStoreManager.setPlaylistTag(
+                    playlistId,
+                    when (tag) {
+                        PlaylistTag.SONGS -> PLAYLIST_TAG_SONGS
+                        PlaylistTag.VIDEOS -> PLAYLIST_TAG_VIDEOS
+                        PlaylistTag.ALL -> PLAYLIST_TAG_ALL
+                    },
+                )
+            }
+        }
     }
 
     /**
      * Applies the active All/Songs/Videos tag filter to [list]. Used both for the track list
      * shown in the UI and for the queue built when a filtered track is played.
+     *
+     * For the Liked Songs playlist, videos are replaced by their song counterparts
+     * (falling back to the video when none exists); SONGS then only keeps tracks
+     * with a proper song counterpart, VIDEOS keeps the original videos.
      */
-    fun filterBySelectedTag(list: List<Track>): List<Track> =
-        when (_selectedTag.value) {
-            PlaylistTag.ALL -> list
-            PlaylistTag.SONGS -> list.filterNot { it.isVideoTrack() }
+    fun filterBySelectedTag(list: List<Track>): List<Track> {
+        val playlistId = uiState.value.data?.id
+        if (!isLikedSongsPlaylist(playlistId)) {
+            return when (_selectedTag.value) {
+                PlaylistTag.ALL -> list
+                PlaylistTag.SONGS -> list.filterNot { it.isVideoTrack() }
+                PlaylistTag.VIDEOS -> list.filter { it.isVideoTrack() }
+            }
+        }
+        val subs = _songSubstitutions.value
+        return when (_selectedTag.value) {
+            PlaylistTag.ALL -> list.map { subs[it.videoId] ?: it }
+            PlaylistTag.SONGS ->
+                list.mapNotNull { track ->
+                    if (!track.isVideoTrack()) {
+                        track
+                    } else {
+                        subs[track.videoId]
+                    }
+                }
             PlaylistTag.VIDEOS -> list.filter { it.isVideoTrack() }
         }
+    }
+
+    /**
+     * Progressively resolves song counterparts for video tracks in a Liked Songs
+     * playlist. The UI repaints as [songSubstitutions] fills; unresolved videos
+     * keep showing (and playing) as videos until their match arrives.
+     */
+    fun ensureLikedSubstitution(source: List<Track>) {
+        val playlistId = uiState.value.data?.id
+        if (!isLikedSongsPlaylist(playlistId)) return
+        substitutionJob?.cancel()
+        substitutionJob =
+            viewModelScope.launch(Dispatchers.IO) {
+                _isSubstituting.value = true
+                try {
+                    for (track in source) {
+                        if (!track.isVideoTrack()) continue
+                        if (_songSubstitutions.value.containsKey(track.videoId)) continue
+                        val song =
+                            runCatching {
+                                songRepository.getSongCounterpartForVideo(track)
+                            }.getOrNull() ?: continue
+                        _songSubstitutions.update { it + (track.videoId to song) }
+                    }
+                } finally {
+                    _isSubstituting.value = false
+                }
+            }
+    }
 
     fun updatePlaylistLiked(
         liked: Boolean,

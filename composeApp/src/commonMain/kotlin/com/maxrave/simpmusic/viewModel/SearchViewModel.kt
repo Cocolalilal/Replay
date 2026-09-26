@@ -18,6 +18,7 @@ import com.maxrave.domain.utils.toQueryList
 import com.maxrave.logger.LogLevel
 import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -348,17 +349,33 @@ class SearchViewModel(
         }
     }
 
+    private var suggestJob: Job? = null
+
     fun suggestQuery(query: String) {
-        viewModelScope.launch {
+        suggestJob?.cancel()
+        if (query.isBlank()) {
+            _searchScreenState.update { state ->
+                state.copy(
+                    suggestQueries = emptyList(),
+                    suggestYTItems = emptyList(),
+                )
+            }
+            return
+        }
+        suggestJob = viewModelScope.launch {
             searchRepository.getSuggestQuery(query).collect { values ->
                 when (values) {
                     is Resource.Success -> {
                         values.data?.let { suggestData ->
                             _searchScreenState.update { state ->
-                                state.copy(
-                                    suggestQueries = suggestData.queries,
-                                    suggestYTItems = suggestData.recommendedItems,
-                                )
+                                if (state.barQuery == query) {
+                                    state.copy(
+                                        suggestQueries = suggestData.queries,
+                                        suggestYTItems = suggestData.recommendedItems,
+                                    )
+                                } else {
+                                    state
+                                }
                             }
                         }
                     }
@@ -536,8 +553,35 @@ class SearchViewModel(
     /** Live text of the liquid-glass search bar; lets SearchScreen show suggestions while typing. */
     fun setSearchBarQuery(text: String) {
         _searchScreenState.update { state ->
-            state.copy(barQuery = text)
+            state.copy(
+                barQuery = text,
+                suggestQueries = if (text.isEmpty()) emptyList() else state.suggestQueries,
+                suggestYTItems = if (text.isEmpty()) emptyList() else state.suggestYTItems,
+            )
         }
+    }
+
+    /** Clears active search query, results and suggestions, keeping search field tapped so history is visible. */
+    fun clearQuery() {
+        suggestJob?.cancel()
+        _searchScreenState.update { state ->
+            state.copy(
+                query = "",
+                barQuery = "",
+                suggestQueries = emptyList(),
+                suggestYTItems = emptyList(),
+                searchAllResult = emptyList(),
+                searchSongsResult = emptyList(),
+                searchVideosResult = emptyList(),
+                searchAlbumsResult = emptyList(),
+                searchArtistsResult = emptyList(),
+                searchPlaylistsResult = emptyList(),
+                searchFeaturedPlaylistsResult = emptyList(),
+                searchPodcastsResult = emptyList(),
+                searchFieldTapped = true,
+            )
+        }
+        _searchScreenUIState.value = SearchScreenUIState.Empty
     }
 
     /** Whether the liquid-glass search field is open (its circle/field expanded). */

@@ -215,6 +215,11 @@ fun PlaylistScreen(
     val tracks by viewModel.tracks.collectAsStateWithLifecycle()
     val tracksListState by viewModel.tracksListState.collectAsStateWithLifecycle()
     val selectedTag by viewModel.selectedTag.collectAsStateWithLifecycle()
+    val songSubstitutions by viewModel.songSubstitutions.collectAsStateWithLifecycle()
+
+    LaunchedEffect(tracks, uiState.data?.id) {
+        viewModel.ensureLikedSubstitution(tracks)
+    }
 
     val dataStoreManager: DataStoreManager = koinInject()
     val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
@@ -254,12 +259,11 @@ fun PlaylistScreen(
 
     val filteredTrack by remember {
         derivedStateOf {
-            val tagFiltered =
-                when (selectedTag) {
-                    PlaylistTag.ALL -> tracks
-                    PlaylistTag.SONGS -> tracks.filterNot { it.isVideoTrack() }
-                    PlaylistTag.VIDEOS -> tracks.filter { it.isVideoTrack() }
-                }
+            // Subscribe to these so the list repaints on tag or substitution updates
+            // (filterBySelectedTag reads the ViewModel flows directly).
+            selectedTag
+            songSubstitutions
+            val tagFiltered = viewModel.filterBySelectedTag(tracks)
             if (query.isEmpty() || !showSearchBar) {
                 tagFiltered
             } else {
@@ -339,7 +343,8 @@ fun PlaylistScreen(
         )
     }
     val onItemMoreClick: (videoId: String) -> Unit = { videoId ->
-        currentItem = tracks.firstOrNull { it.videoId == videoId }
+        currentItem = viewModel.filterBySelectedTag(tracks).firstOrNull { it.videoId == videoId }
+            ?: tracks.firstOrNull { it.videoId == videoId }
         if (currentItem != null) {
             itemBottomSheetShow = true
         }

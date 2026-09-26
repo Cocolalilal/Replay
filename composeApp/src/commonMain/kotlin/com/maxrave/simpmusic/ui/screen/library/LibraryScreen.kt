@@ -100,7 +100,6 @@ import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.LocalPlaylistDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.PlaylistDestination
-import com.maxrave.simpmusic.ui.navigation.destination.login.LoginDestination
 import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistType
 import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
 import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
@@ -392,11 +391,7 @@ fun LibraryScreen(
                     ReplayTopBar(
                         avatarUrl = accountThumbnail,
                         onAvatarClick = {
-                            if (!accountThumbnail.isNullOrEmpty()) {
-                                navController.navigate(SettingsDestination)
-                            } else {
-                                navController.navigate(LoginDestination)
-                            }
+                            navController.navigate(SettingsDestination)
                         },
                     )
                 }

@@ -277,8 +277,18 @@ class NowPlayingBottomSheetViewModel(
                 }
 
                 is NowPlayingBottomSheetUIEvent.ToggleLike -> {
+                    // Liking a video persists its attached song when one exists.
+                    val entity = songRepository.getSongById(songUIState.videoId).singleOrNull()
+                    val targetId =
+                        if (entity != null) {
+                            runCatching {
+                                songRepository.getLikeTargetId(entity.toTrack())
+                            }.getOrDefault(songUIState.videoId)
+                        } else {
+                            songUIState.videoId
+                        }
                     songRepository.updateLikeStatus(
-                        songUIState.videoId,
+                        targetId,
                         if (songUIState.liked) 0 else 1,
                     )
                 }
@@ -421,10 +431,9 @@ class NowPlayingBottomSheetViewModel(
                 }
 
                 is NowPlayingBottomSheetUIEvent.NotInterested -> {
-                    dataStoreManager.addNotInterestedVideoId(ev.videoId)
                     makeToast("Feedback submitted: Not interested")
                     val queueTracks = mediaPlayerHandler.queueData.value?.data?.listTracks.orEmpty()
-                    val currentIdx = mediaPlayerHandler.currentSongIndex()
+                    val currentIdx = mediaPlayerHandler.currentSongIndex.value
                     for (i in queueTracks.indices.reversed()) {
                         if (i != currentIdx && queueTracks[i].videoId == ev.videoId) {
                             runCatching { mediaPlayerHandler.removeMediaItem(i) }
@@ -433,16 +442,14 @@ class NowPlayingBottomSheetViewModel(
                     if (mediaPlayerHandler.nowPlayingState.value.songEntity?.videoId == ev.videoId) {
                         runCatching { mediaPlayerHandler.onPlayerEvent(PlayerEvent.Next) }
                     }
-                    songRepository.submitNotInterestedFeedback(ev.videoId).collectLatest { }
                 }
 
                 is NowPlayingBottomSheetUIEvent.DontRecommendArtist -> {
-                    dataStoreManager.addBlockedArtist(ev.artistName, ev.artistId)
                     makeToast("Feedback submitted: Don't recommend ${ev.artistName}")
                     val blockedNameLower = ev.artistName.trim().lowercase()
                     val blockedIdLower = ev.artistId?.trim()?.lowercase().orEmpty()
                     val queueTracks = mediaPlayerHandler.queueData.value?.data?.listTracks.orEmpty()
-                    val currentIdx = mediaPlayerHandler.currentSongIndex()
+                    val currentIdx = mediaPlayerHandler.currentSongIndex.value
                     for (i in queueTracks.indices.reversed()) {
                         if (i != currentIdx) {
                             val matchesArtist =
@@ -462,9 +469,6 @@ class NowPlayingBottomSheetViewModel(
                             (blockedIdLower.isNotEmpty() && nowPlayingSong?.artistId?.any { it.trim().lowercase() == blockedIdLower } == true)
                     if (nowPlayingMatchesArtist) {
                         runCatching { mediaPlayerHandler.onPlayerEvent(PlayerEvent.Next) }
-                    }
-                    if (songUIState.videoId.isNotEmpty()) {
-                        songRepository.submitNotInterestedFeedback(songUIState.videoId).collectLatest { }
                     }
                 }
             }

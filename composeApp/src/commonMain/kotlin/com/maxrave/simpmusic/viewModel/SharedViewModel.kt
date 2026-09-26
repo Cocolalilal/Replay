@@ -30,8 +30,12 @@ import com.maxrave.domain.data.player.GenericCastState
 import com.maxrave.domain.data.player.SonosDevice
 import com.maxrave.domain.extension.decodeHtmlEntities
 import com.maxrave.domain.extension.isVideo
+import com.maxrave.domain.extension.isVideoContent
+import com.maxrave.domain.extension.contentTypeMode
 import com.maxrave.domain.extension.toGenericMediaItem
 import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.domain.manager.DataStoreManager.Values.CONTENT_TYPE_SONG
+import com.maxrave.domain.manager.DataStoreManager.Values.CONTENT_TYPE_VIDEO
 import com.maxrave.domain.manager.DataStoreManager.Values.FALSE
 import com.maxrave.domain.manager.DataStoreManager.Values.TRUE
 import com.maxrave.domain.mediaservice.handler.ControlState
@@ -69,6 +73,7 @@ import com.maxrave.simpmusic.viewModel.base.BaseViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -77,6 +82,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
@@ -182,6 +188,143 @@ class SharedViewModel(
     val controllerState: StateFlow<ControlState> = _controllerState
     private val _getVideo: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val getVideo: StateFlow<Boolean> = _getVideo
+
+    /**
+     * Sticky song/video content mode. Set by the Now Playing toggle and by picking
+     * a track anywhere in the app; Next/Previous from Now Playing keeps it.
+     */
+    val contentTypeMode: StateFlow<String> =
+        dataStoreManager.contentTypeMode.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            CONTENT_TYPE_SONG,
+        )
+
+    private val _songCounterpart = MutableStateFlow<Track?>(null)
+    val songCounterpart: StateFlow<Track?> = _songCounterpart.asStateFlow()
+    private val _videoCounterpart = MutableStateFlow<Track?>(null)
+    val videoCounterpart: StateFlow<Track?> = _videoCounterpart.asStateFlow()
+    private val _isResolvingCounterpart = MutableStateFlow(false)
+    val isResolvingCounterpart: StateFlow<Boolean> = _isResolvingCounterpart.asStateFlow()
+
+    data class SongVideoSwapState(
+        val currentIsVideo: Boolean,
+        val songAvailable: Boolean,
+        val videoAvailable: Boolean,
+        val isResolving: Boolean,
+    )
+
+    val songVideoSwapState: StateFlow<SongVideoSwapState> =
+        combine(
+            _nowPlayingState,
+            _songCounterpart,
+            _videoCounterpart,
+            _isResolvingCounterpart,
+        ) { nowPlaying, song, video, resolving ->
+            val track = nowPlaying?.track ?: nowPlaying?.songEntity?.toTrack()
+            val currentIsVideo = track?.isVideoContent() ?: nowPlaying?.mediaItem?.isVideo() ?: false
+            SongVideoSwapState(
+                currentIsVideo = currentIsVideo,
+                songAvailable = song != null || !currentIsVideo,
+                videoAvailable = video != null || currentIsVideo,
+                isResolving = resolving,
+            )
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            SongVideoSwapState(false, true, false, false),
+        )
+
+    private var counterpartJob: Job? = null
+
+    fun setContentModeFromTrack(track: Track) {
+        viewModelScope.launch {
+            runCatching { dataStoreManager.setContentTypeMode(track.contentTypeMode()) }
+        }
+    }
+
+    private fun currentTrackForSwap(): Track? =
+        _nowPlayingState.value?.track
+            ?: _nowPlayingState.value?.songEntity?.toTrack()
+            ?: mediaPlayerHandler.queueData.value?.data?.let { queue ->
+                val id = _nowPlayingState.value?.mediaItem?.mediaId
+                    ?: _nowPlayingState.value?.songEntity?.videoId
+                queue.listTracks.firstOrNull { it.videoId == id }
+            }
+
+    private fun observeCounterpartFor(videoId: String) {
+        counterpartJob?.cancel()
+        counterpartJob =
+            viewModelScope.launch {
+                _isResolvingCounterpart.value = true
+                try {
+                    val current = currentTrackForSwap() ?: return@launch
+                    if (current.videoId != videoId && _nowPlayingState.value?.songEntity?.videoId != videoId) {
+                        return@launch
+                    }
+                    val wantSong = current.isVideoContent()
+                    // The current side is always available; resolve the opposite side.
+                    if (wantSong) {
+                        _videoCounterpart.value = null
+                        _songCounterpart.value = null
+                        val song = runCatching { songRepository.getCounterpart(current, preferSong = true) }.getOrNull()
+                        if (currentTrackForSwap()?.videoId == current.videoId) {
+                            _songCounterpart.value = song?.takeIf { it.videoId != current.videoId }
+                        }
+                    } else {
+                        _songCounterpart.value = null
+                        _videoCounterpart.value = null
+                        val video = runCatching { songRepository.getCounterpart(current, preferSong = false) }.getOrNull()
+                        if (currentTrackForSwap()?.videoId == current.videoId) {
+                            _videoCounterpart.value = video?.takeIf { it.videoId != current.videoId }
+                        }
+                    }
+                } finally {
+                    _isResolvingCounterpart.value = false
+                }
+            }
+    }
+
+    /**
+     * Hot-swap between the song and the music video, preserving the playback
+     * position. Does nothing when no counterpart is known (per spec: no toast,
+     * the missing side simply stays inactive).
+     */
+    fun toggleSongVideo(preferSong: Boolean) {
+        viewModelScope.launch {
+            val current = currentTrackForSwap() ?: return@launch
+            val cached =
+                if (preferSong) _songCounterpart.value else _videoCounterpart.value
+            val target =
+                cached?.takeIf { it.videoId != current.videoId }
+                    ?: runCatching { songRepository.getCounterpart(current, preferSong) }.getOrNull()
+                        ?.takeIf { it.videoId != current.videoId }
+                    ?: return@launch
+            if (preferSong) _songCounterpart.value = target else _videoCounterpart.value = target
+            runCatching { dataStoreManager.setContentTypeMode(if (preferSong) CONTENT_TYPE_SONG else CONTENT_TYPE_VIDEO) }
+            val resumeAt = mediaPlayerHandler.getProgress().coerceAtLeast(0L)
+            runCatching {
+                mediaPlayerHandler.loadMediaItem(
+                    target,
+                    if (preferSong) SONG_CLICK else VIDEO_CLICK,
+                    null,
+                )
+            }
+            // Restore the position once the new source is playing (best-effort retries).
+            launch {
+                repeat(10) { attempt ->
+                    delay(if (attempt == 0) 1200L else 800L)
+                    runCatching {
+                        val duration = mediaPlayerHandler.getPlayerDuration()
+                        if (duration > 0L && resumeAt in 1L until duration) {
+                            mediaPlayerHandler.player.seekTo(resumeAt)
+                            return@launch
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     private var _timeline =
         MutableStateFlow<TimeLine>(
@@ -303,6 +446,16 @@ class SharedViewModel(
                     _shareSavedLyrics.value = it == TRUE
                 }
             }
+            launch {
+                // Explicit selections anywhere in the app reset the queue with a new
+                // firstPlayedTrack; transport Next/Previous never touches the queue,
+                // so the sticky song/video mode survives track advancement.
+                mediaPlayerHandler.queueData
+                    .distinctUntilChangedBy { it?.data?.firstPlayedTrack?.videoId }
+                    .collectLatest { queue ->
+                        queue?.data?.firstPlayedTrack?.let { setContentModeFromTrack(it) }
+                    }
+            }
         }
 
         runBlocking {
@@ -323,6 +476,7 @@ class SharedViewModel(
                 }.collectLatest { state ->
                     Logger.w(tag, "NowPlayingState is $state")
                     _nowPlayingState.value = state
+                    state.songEntity?.videoId?.let { observeCounterpartFor(it) }
                     val currentProg = mediaPlayerHandler.getProgress()
                     val currentDur = mediaPlayerHandler.getPlayerDuration()
                     if (currentProg >= 0L || currentDur > 0L) {
@@ -707,6 +861,8 @@ class SharedViewModel(
         index: Int? = null,
     ) {
         quality = runBlocking { dataStoreManager.quality.first() }
+        // Explicit selection anywhere in the app defines the sticky content mode.
+        setContentModeFromTrack(track)
         viewModelScope.launch {
             mediaPlayerHandler.clearMediaItems()
             songRepository.insertSong(track.toSongEntity()).lastOrNull()?.let {
@@ -1664,6 +1820,22 @@ class SharedViewModel(
     fun getTranslucentBottomBar() = dataStoreManager.translucentBottomBar
 
     fun getEnableLiquidGlass() = dataStoreManager.enableLiquidGlass
+
+    fun getFloatingSurfaceStyle() = dataStoreManager.floatingSurfaceStyle
+
+    fun setFloatingSurfaceStyle(style: String) {
+        viewModelScope.launch {
+            dataStoreManager.setFloatingSurfaceStyle(style)
+        }
+    }
+
+    fun getPerformanceMode() = dataStoreManager.performanceMode
+
+    fun setPerformanceMode(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setPerformanceMode(enabled)
+        }
+    }
 
     fun getAnimatedNowPlayingBackground() = dataStoreManager.animatedNowPlayingBackground
 

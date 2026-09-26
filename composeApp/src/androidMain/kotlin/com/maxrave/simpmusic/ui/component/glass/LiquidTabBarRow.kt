@@ -48,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.lerp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.material3.MaterialTheme
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
@@ -63,6 +66,9 @@ import com.kyant.shapes.Capsule
 import com.maxrave.simpmusic.ui.icon.Home
 import com.maxrave.simpmusic.ui.icon.LibraryMusic
 import com.maxrave.simpmusic.ui.icon.SimpIcons
+import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
+import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
+import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -106,7 +112,11 @@ private fun LiquidBottomTabs(
     val scope = rememberCoroutineScope()
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val isDark = isSystemInDarkTheme()
+    val isLastChat = isLastChatFloatingStyle()
+    val isBlur = isFloatingSurfaceBlurEnabled()
     val containerColor = Color(if (isDark) 0xFF1E1E1E else 0xFFFAFAFA).copy(alpha = if (isDark) 0.38f else 0.45f)
+    val surfaceColor = if (isLastChat) LastChatSurfaceTokens.surfaceColor(colorScheme = MaterialTheme.colorScheme, isDark = isDark, isBlur = isBlur) else containerColor
+    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = MaterialTheme.colorScheme)
     val activeColor = Color(0xFF82BEFF)
     val inactiveColor = if (isDark) Color.White.copy(alpha = 0.84f) else Color.Black.copy(alpha = 0.75f)
 
@@ -130,14 +140,14 @@ private fun LiquidBottomTabs(
             tabWidthState.floatValue = liveTabWidthPx
         }
 
-        val drag = remember(scope, tabCount) {
+        val drag = remember(scope, tabCount, isLastChat) {
             DampedDragAnimation(
                 animationScope = scope,
                 initialValue = selectedTabIndex.toFloat(),
                 valueRange = 0f..(tabs.size - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
-                pressedScale = 1.15f,
+                pressedScale = if (isLastChat) 1f else 1.15f,
                 onDragStarted = { damped, downOffset ->
                     isDragging[0] = false
                     val touchedVal = if (isLtr) {
@@ -182,7 +192,7 @@ private fun LiquidBottomTabs(
         val selectorHeightPx = totalHeightPx - with(density) { 8.dp.toPx() }
         val selectorOffsetYPx = (totalHeightPx - selectorHeightPx) / 2f
 
-        val floatAmount = ((drag.pressProgress * (1f - collapseProgress)) + touchAnimatable.value).fastCoerceIn(0f, 1f)
+        val floatAmount = if (isLastChat) 0f else (((drag.pressProgress * (1f - collapseProgress)) + touchAnimatable.value).fastCoerceIn(0f, 1f))
         val textAlpha = (1f - (2.5f * collapseProgress)).fastCoerceIn(0f, 1f)
         val pillAlpha = (1f - (2f * collapseProgress)).fastCoerceIn(0f, 1f)
 
@@ -193,39 +203,93 @@ private fun LiquidBottomTabs(
                 .graphicsLayer {
                     val fadeVal = ((collapseProgress * 2f) - 0.8f) * 2f
                     alpha *= lerp(1f, fadeVal.fastCoerceIn(0f, 1f), collapseProgress)
-                    scaleX *= 1f + 0.03f * floatAmount
-                    scaleY *= 1f + 0.02f * floatAmount
+                    if (!isLastChat) {
+                        scaleX *= 1f + 0.03f * floatAmount
+                        scaleY *= 1f + 0.02f * floatAmount
+                    }
                 }
-                .elasticGlassTouch(
-                    enabled = collapseProgress > 0.4f,
-                    dragEnabled = false,
-                    onTap = {
-                        if (collapseProgress > 0.4f) {
-                            onTabSelected(currentIndex.intValue)
-                        }
+                .then(
+                    if (!isLastChat) {
+                        Modifier.elasticGlassTouch(
+                            enabled = collapseProgress > 0.4f,
+                            dragEnabled = false,
+                            onTap = {
+                                if (collapseProgress > 0.4f) {
+                                    onTabSelected(currentIndex.intValue)
+                                }
+                            }
+                        )
+                    } else {
+                        Modifier
                     }
                 )
-                .layerBackdrop(contentBackdrop)
+                .then(
+                    if (!isLastChat) Modifier.layerBackdrop(contentBackdrop) else Modifier
+                )
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { Capsule() },
-                        effects = {
-                            vibrancy()
-                            blur(7.dp.toPx())
-                            lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
-                        },
-                        highlight = { Highlight.Default.copy(alpha = 0.80f) },
-                        shadow = { Shadow(alpha = 0.35f) },
-                        innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
-                        onDrawSurface = { drawRect(containerColor) }
-                    )
-            )
+            if (!isLastChat) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                vibrancy()
+                                blur(7.dp.toPx())
+                                lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
+                            },
+                            highlight = { Highlight.Default.copy(alpha = 0.80f) },
+                            shadow = { Shadow(alpha = 0.35f) },
+                            innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
+                            onDrawSurface = { drawRect(containerColor) }
+                        )
+                )
+            } else if (isBlur) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                blur(7.dp.toPx())
+                            },
+                            highlight = { Highlight.Default.copy(alpha = 0.15f) },
+                            shadow = { Shadow(alpha = 0.15f) },
+                            onDrawSurface = { drawRect(surfaceColor) }
+                        )
+                        .border(outlineBorder, Capsule())
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(Capsule())
+                        .background(surfaceColor)
+                        .border(outlineBorder, Capsule())
+                )
+            }
 
-            // 2. Tab items (text and icon) rendered into contentBackdrop
+            // Selection indicator tint for LastChat themes (smooth sliding tint, no resizing/stretching)
+            if (pillAlpha > 0f && isLastChat) {
+                val tintColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.08f)
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(selectorX.roundToInt(), selectorOffsetYPx.roundToInt()) }
+                        .size(
+                            width = with(density) { selectorWidthPx.toDp() },
+                            height = with(density) { selectorHeightPx.toDp() }
+                        )
+                        .graphicsLayer {
+                            alpha = pillAlpha
+                        }
+                        .clip(Capsule())
+                        .background(tintColor)
+                )
+            }
+
+            // 2. Tab items (text and icon)
             if (textAlpha > 0f) {
                 Row(
                     modifier = Modifier
@@ -266,8 +330,8 @@ private fun LiquidBottomTabs(
             }
         }
 
-        // 3. Floating Selection Bubble: Combines app backdrop and tab contentBackdrop to refract text & icons behind it
-        if (pillAlpha > 0f) {
+        // 3. Floating Selection Bubble for Glassy theme
+        if (pillAlpha > 0f && !isLastChat) {
             val combinedBackdrop = rememberCombinedBackdrop(backdrop, contentBackdrop)
             Box(
                 modifier = Modifier
@@ -332,15 +396,19 @@ private fun LiquidBottomTabs(
                             .fillMaxHeight()
                             .clip(Capsule())
                             .semantics { role = Role.Tab }
-                            .pointerInput(index, onTabSelected) {
+                            .pointerInput(index, onTabSelected, isLastChat) {
                                 detectTapGestures(
                                     onPress = {
-                                        scope.launch {
-                                            touchAnimatable.animateTo(1f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                        if (!isLastChat) {
+                                            scope.launch {
+                                                touchAnimatable.animateTo(1f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                            }
                                         }
                                         tryAwaitRelease()
-                                        scope.launch {
-                                            touchAnimatable.animateTo(0f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                        if (!isLastChat) {
+                                            scope.launch {
+                                                touchAnimatable.animateTo(0f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                            }
                                         }
                                     },
                                     onTap = {

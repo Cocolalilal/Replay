@@ -138,6 +138,10 @@ class SettingsViewModel(
     val crossfadeDuration: StateFlow<Int> = _crossfadeDuration
     private val _crossfadeDjMode = MutableStateFlow<Boolean>(true)
     val crossfadeDjMode: StateFlow<Boolean> = _crossfadeDjMode
+    private val _djTransitionStyle = MutableStateFlow<String>(DataStoreManager.DJ_TRANSITION_STYLE_SMART_AI)
+    val djTransitionStyle: StateFlow<String> = _djTransitionStyle
+    private val _djBpmMatching = MutableStateFlow<Boolean>(true)
+    val djBpmMatching: StateFlow<Boolean> = _djBpmMatching
     private val _youtubeSubtitleLanguage = MutableStateFlow<String>("")
     val youtubeSubtitleLanguage: StateFlow<String> = _youtubeSubtitleLanguage
 
@@ -151,6 +155,12 @@ class SettingsViewModel(
 
     private var _enableLiquidGlass: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val enableLiquidGlass: StateFlow<Boolean> = _enableLiquidGlass
+
+    private var _floatingSurfaceStyle: MutableStateFlow<String> = MutableStateFlow(DataStoreManager.FLOATING_SURFACE_GLASSY)
+    val floatingSurfaceStyle: StateFlow<String> = _floatingSurfaceStyle
+
+    private var _performanceMode: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    val performanceMode: StateFlow<Boolean> = _performanceMode
 
     private var _animatedNowPlayingBackground: MutableStateFlow<Boolean> = MutableStateFlow(true)
     val animatedNowPlayingBackground: StateFlow<Boolean> = _animatedNowPlayingBackground
@@ -278,9 +288,13 @@ class SettingsViewModel(
         getCrossfadeEnabled()
         getCrossfadeDuration()
         getCrossfadeDjMode()
+        getDjTransitionStyle()
+        getDjBpmMatching()
         getContributorNameAndEmail()
         getBackupDownloaded()
         getEnableLiquidGlass()
+        getFloatingSurfaceStyle()
+        getPerformanceMode()
         getAnimatedNowPlayingBackground()
         getExplicitContentEnabled()
         getDiscordLoggedIn()
@@ -451,6 +465,36 @@ class SettingsViewModel(
         }
     }
 
+    private fun getDjTransitionStyle() {
+        viewModelScope.launch {
+            dataStoreManager.djTransitionStyle.collect { style ->
+                _djTransitionStyle.value = style
+            }
+        }
+    }
+
+    fun setDjTransitionStyle(style: String) {
+        viewModelScope.launch {
+            dataStoreManager.setDjTransitionStyle(style)
+            getDjTransitionStyle()
+        }
+    }
+
+    private fun getDjBpmMatching() {
+        viewModelScope.launch {
+            dataStoreManager.djBpmMatching.collect { enabled ->
+                _djBpmMatching.value = enabled == DataStoreManager.TRUE
+            }
+        }
+    }
+
+    fun setDjBpmMatching(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setDjBpmMatching(enabled)
+            getDjBpmMatching()
+        }
+    }
+
     private fun getDiscordLoggedIn() {
         viewModelScope.launch {
             dataStoreManager.discordToken.collect { loggedIn ->
@@ -547,6 +591,34 @@ class SettingsViewModel(
         viewModelScope.launch {
             dataStoreManager.setEnableLiquidGlass(enableLiquidGlass)
             getEnableLiquidGlass()
+        }
+    }
+
+    private fun getFloatingSurfaceStyle() {
+        viewModelScope.launch {
+            dataStoreManager.floatingSurfaceStyle.collect {
+                _floatingSurfaceStyle.value = it
+            }
+        }
+    }
+
+    fun setFloatingSurfaceStyle(style: String) {
+        viewModelScope.launch {
+            dataStoreManager.setFloatingSurfaceStyle(style)
+        }
+    }
+
+    private fun getPerformanceMode() {
+        viewModelScope.launch {
+            dataStoreManager.performanceMode.collect {
+                _performanceMode.value = it == DataStoreManager.TRUE
+            }
+        }
+    }
+
+    fun setPerformanceMode(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setPerformanceMode(enabled)
         }
     }
 

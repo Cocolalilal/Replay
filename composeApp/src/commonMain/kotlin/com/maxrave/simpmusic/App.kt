@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -43,6 +44,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.maxrave.simpmusic.ui.theme.LocalFloatingSurfaceStyle
+import com.maxrave.simpmusic.ui.theme.LocalPerformanceMode
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -125,6 +128,16 @@ fun App(viewModel: SharedViewModel = koinInject()) {
     val isTranslucentBottomBar by viewModel.getTranslucentBottomBar().collectAsStateWithLifecycle(DataStoreManager.FALSE)
     val isLiquidGlassEnabled = if (getPlatform() == Platform.Android) TRUE else DataStoreManager.FALSE
 
+    val rawFloatingSurfaceStyle by viewModel.getFloatingSurfaceStyle().collectAsStateWithLifecycle(DataStoreManager.FLOATING_SURFACE_GLASSY)
+    val performanceModeString by viewModel.getPerformanceMode().collectAsStateWithLifecycle(DataStoreManager.FALSE)
+    val isPerformanceMode = performanceModeString == DataStoreManager.TRUE
+
+    val effectiveFloatingSurfaceStyle = if (isPerformanceMode) {
+        DataStoreManager.FLOATING_SURFACE_LASTCHAT
+    } else {
+        rawFloatingSurfaceStyle
+    }
+
     val themeMode by viewModel.getThemeMode().collectAsStateWithLifecycle(DataStoreManager.THEME_MODE_DARK)
     val themeColorSource by viewModel.getThemeColorSource().collectAsStateWithLifecycle(DataStoreManager.THEME_COLOR_DEFAULT)
     val customThemeColorHex by viewModel.getCustomThemeColor().collectAsStateWithLifecycle(DataStoreManager.DEFAULT_THEME_COLOR_HEX)
@@ -147,10 +160,9 @@ fun App(viewModel: SharedViewModel = koinInject()) {
         mutableStateOf(true)
     }
 
-
     val hazeState =
         rememberHazeState(
-            blurEnabled = true,
+            blurEnabled = !isPerformanceMode,
         )
 
     LaunchedEffect(nowPlayingData) {
@@ -334,15 +346,19 @@ fun App(viewModel: SharedViewModel = koinInject()) {
         themeColorSource = themeColorSource,
         customThemeColor = parseThemeColorHex(customThemeColorHex),
     ) {
-        // Backdrop base must match the theme: white page → white glass, dark/AMOLED → black glass.
-        // Read inside AppTheme so MaterialTheme reflects the resolved scheme (light background is #FFFFFF).
-        val backdrop =
-            rememberBackdrop(
-                if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.White else Color.Black,
-            )
-        Scaffold(
+        CompositionLocalProvider(
+            LocalFloatingSurfaceStyle provides effectiveFloatingSurfaceStyle,
+            LocalPerformanceMode provides isPerformanceMode,
+        ) {
+            // Backdrop base must match the theme: white page → white glass, dark/AMOLED → black glass.
+            // Read inside AppTheme so MaterialTheme reflects the resolved scheme (light background is #FFFFFF).
+            val backdrop =
+                rememberBackdrop(
+                    if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.White else Color.Black,
+                )
+            Scaffold(
             bottomBar = {
-                if (!isTablet) {
+                if (isLiquidGlassEnabled == TRUE || !isTablet) {
                     AnimatedVisibility(
                         isNavBarVisible,
                         enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
@@ -402,7 +418,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                     Modifier
                         .fillMaxSize()
                         .then(
-                            if (isLiquidGlassEnabled == TRUE && !isTablet) {
+                            if (isLiquidGlassEnabled == TRUE) {
                                 Modifier.layerBackdrop(backdrop)
                             } else {
                                 Modifier
@@ -412,7 +428,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                     Row(
                         Modifier.fillMaxSize(),
                     ) {
-                        if (isTablet && !isInFullscreen) {
+                        if (isLiquidGlassEnabled != TRUE && isTablet && !isInFullscreen) {
                             AppNavigationRail(
                                 navController = navController,
                             ) { klass ->
@@ -427,13 +443,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                             Box(
                                 Modifier
                                     .fillMaxSize()
-                                    .then(
-                                        if (isLiquidGlassEnabled == TRUE && isTablet && !isInFullscreen) {
-                                            Modifier.layerBackdrop(backdrop)
-                                        } else {
-                                            Modifier
-                                        },
-                                    ).hazeSource(hazeState),
+                                    .hazeSource(hazeState),
                             ) {
                                 AppNavigationGraph(
                                     innerPadding = innerPadding,
@@ -454,46 +464,37 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                                     },
                                 )
                             }
-                            this@Row.AnimatedVisibility(
-                                modifier =
-                                    Modifier
-                                        .padding(innerPadding)
-                                        .align(Alignment.BottomCenter),
-                                visible = isShowMiniPlayer && isTablet && !isInFullscreen,
-                                enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
-                                exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it / 2 },
-                            ) {
-                                MiniPlayer(
-                                    if (getPlatform() == Platform.Android) {
+                            if (isLiquidGlassEnabled != TRUE) {
+                                this@Row.AnimatedVisibility(
+                                    modifier =
                                         Modifier
-                                            .height(56.dp)
-                                            .fillMaxWidth(0.8f)
-                                            .padding(
-                                                horizontal = 12.dp,
-                                            ).padding(
-                                                bottom = 4.dp,
-                                            )
-                                    } else {
+                                            .padding(innerPadding)
+                                            .align(Alignment.BottomCenter),
+                                    visible = isShowMiniPlayer && isTablet && !isInFullscreen,
+                                    enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                                    exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it / 2 },
+                                ) {
+                                    MiniPlayer(
                                         Modifier
                                             .fillMaxWidth()
                                             .height(84.dp)
                                             .background(Color.Transparent)
                                             .hazeEffect(hazeState, style = HazeMaterials.ultraThin()) {
                                                 blurEnabled = true
-                                            }
-                                    },
-                                    backdrop = backdrop,
-                                    onClick = {
-                                        isShowNowPlaylistScreen = true
-                                    },
-                                    onClose = {
-                                        viewModel.stopPlayer()
-                                        viewModel.isServiceRunning = false
-                                    },
-                                )
+                                            },
+                                        backdrop = backdrop,
+                                        onClick = {
+                                            isShowNowPlaylistScreen = true
+                                        },
+                                        onClose = {
+                                            viewModel.stopPlayer()
+                                            viewModel.isServiceRunning = false
+                                        },
+                                    )
+                                }
                             }
                         }
-                        if (isTablet && isTabletLandscape && !isInFullscreen) {
+                        if (isLiquidGlassEnabled != TRUE && isTablet && isTabletLandscape && !isInFullscreen) {
                             AnimatedVisibility(
                                 isShowNowPlaylistScreen,
                                 enter = expandHorizontally() + fadeIn(),
@@ -534,7 +535,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                     }
                 }
 
-                if (isShowNowPlaylistScreen && !isTabletLandscape) {
+                if (isShowNowPlaylistScreen && (isLiquidGlassEnabled == TRUE || !isTabletLandscape)) {
                     ForceDarkContent {
                         NowPlayingScreen(
                             navController = navController,
@@ -633,5 +634,6 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                 }
             },
         )
+        }
     }
 }

@@ -1,9 +1,12 @@
 package com.maxrave.simpmusic.ui.component.glass
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.lerp
 import coil3.compose.AsyncImage
+import com.kmpalette.rememberPaletteState
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -53,11 +59,15 @@ import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
+import com.maxrave.simpmusic.expect.ui.toImageBitmap
 import com.maxrave.simpmusic.ui.icon.Pause
 import com.maxrave.simpmusic.ui.icon.PlayArrow
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.icon.SkipNext
 import com.maxrave.simpmusic.ui.icon.SkipPrevious
+import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
+import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
+import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -81,6 +91,36 @@ fun LiquidMiniPlayer(
     val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = if (isDark) 0.38f else 0.45f)
     val textColor = if (isDark) Color.White else Color.Black
     val subtitleColor = if (isDark) Color.White.copy(alpha = 0.65f) else Color.Black.copy(alpha = 0.65f)
+
+    val isLastChat = isLastChatFloatingStyle()
+    val isBlur = isFloatingSurfaceBlurEnabled()
+
+    val paletteState = rememberPaletteState()
+    val dominantColor = remember(paletteState.palette) {
+        paletteState.palette?.dominantSwatch?.rgb?.let { Color(it) }
+            ?: paletteState.palette?.getDominantColor(0)?.takeIf { it != 0 }?.let { Color(it) }
+    }
+
+    val baseSurfaceColor = if (isLastChat) {
+        LastChatSurfaceTokens.surfaceColor(colorScheme = MaterialTheme.colorScheme, isDark = isDark, isBlur = isBlur)
+    } else {
+        containerColor
+    }
+
+    val targetSurfaceColor = if (isLastChat && dominantColor != null) {
+        val tintedRgb = lerp(baseSurfaceColor.copy(alpha = 1f), dominantColor, 0.16f)
+        tintedRgb.copy(alpha = baseSurfaceColor.alpha)
+    } else {
+        baseSurfaceColor
+    }
+
+    val finalContainerColor by animateColorAsState(
+        targetValue = targetSurfaceColor,
+        animationSpec = tween(500),
+        label = "miniPlayerContainerColor"
+    )
+
+    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = MaterialTheme.colorScheme)
 
     var isPressed by remember { mutableStateOf(false) }
     val pressScale by animateFloatAsState(
@@ -141,18 +181,40 @@ fun LiquidMiniPlayer(
                     }
                 )
             }
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { Capsule() },
-                effects = {
-                    vibrancy()
-                    blur(7.dp.toPx())
-                    lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
-                },
-                highlight = { Highlight.Default.copy(alpha = 0.80f) },
-                shadow = { Shadow(alpha = 0.35f) },
-                innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
-                onDrawSurface = { drawRect(containerColor) }
+            .then(
+                if (!isLastChat) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { Capsule() },
+                        effects = {
+                            vibrancy()
+                            blur(7.dp.toPx())
+                            lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
+                        },
+                        highlight = { Highlight.Default.copy(alpha = 0.80f) },
+                        shadow = { Shadow(alpha = 0.35f) },
+                        innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
+                        onDrawSurface = { drawRect(containerColor) }
+                    )
+                } else if (isBlur) {
+                    Modifier
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                blur(7.dp.toPx())
+                            },
+                            highlight = { Highlight.Default.copy(alpha = 0.15f) },
+                            shadow = { Shadow(alpha = 0.15f) },
+                            onDrawSurface = { drawRect(finalContainerColor) }
+                        )
+                        .border(outlineBorder, Capsule())
+                } else {
+                    Modifier
+                        .clip(Capsule())
+                        .background(finalContainerColor)
+                        .border(outlineBorder, Capsule())
+                }
             )
             .height(lerp(68.dp, 56.dp, inlineProgress))
             .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -183,6 +245,12 @@ fun LiquidMiniPlayer(
                     model = artworkUrl,
                     contentDescription = "Album Artwork",
                     contentScale = ContentScale.Crop,
+                    onSuccess = { success ->
+                        try {
+                            val bm = success.result.image.toImageBitmap()
+                            scope.launch { paletteState.generate(bm) }
+                        } catch (_: Throwable) {}
+                    },
                     modifier = Modifier
                         .size(lerp(48.dp, 40.dp, inlineProgress))
                         .offset(x = (-2).dp)

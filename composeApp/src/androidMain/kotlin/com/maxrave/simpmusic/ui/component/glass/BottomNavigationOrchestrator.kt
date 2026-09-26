@@ -2,6 +2,8 @@ package com.maxrave.simpmusic.ui.component.glass
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -20,6 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -52,6 +56,9 @@ import com.kyant.shapes.Capsule
 import com.maxrave.simpmusic.ui.icon.Close
 import com.maxrave.simpmusic.ui.icon.Search
 import com.maxrave.simpmusic.ui.icon.SimpIcons
+import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
+import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
+import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
 import kotlin.math.roundToInt
 
 @Composable
@@ -76,6 +83,7 @@ fun BottomNavigationOrchestrator(
     onSearchTextChange: (String) -> Unit = {},
     onSearchSubmit: (String) -> Unit = {},
     onSearchFieldTapped: () -> Unit = {},
+    onClearSearch: () -> Unit = {},
     onExpandRequested: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -91,7 +99,7 @@ fun BottomNavigationOrchestrator(
         label = "miniPlayerPresence"
     )
 
-    val rawCollapse = scrollCollapseProgress
+    val rawCollapse = if (isSearchActive) 0f else scrollCollapseProgress
     val effectiveCollapse = maxOf(searchProgress, rawCollapse).fastCoerceIn(0f, 1f)
 
     // Height follows the same springs as the collapse/presence animations so the
@@ -130,9 +138,6 @@ fun BottomNavigationOrchestrator(
             LiquidTabBarRow(
                 selectedTabIndex = selectedTabIndex,
                 onTabSelected = { index ->
-                    if (isSearchActive) {
-                        onSearchActiveChange(false)
-                    }
                     if (effectiveCollapse > 0.4f) {
                         onExpandRequested?.invoke()
                     }
@@ -169,9 +174,9 @@ fun BottomNavigationOrchestrator(
                     onSearchSubmit = onSearchSubmit,
                     onSearchFieldTapped = onSearchFieldTapped,
                     onCircleClick = { onSearchActiveChange(true) },
-                    onCloseClick = {
+                    onClearClick = {
                         onSearchTextChange("")
-                        onSearchActiveChange(false)
+                        onClearSearch()
                     }
                 )
             }
@@ -222,36 +227,66 @@ private fun SearchFieldOrCircle(
     onSearchSubmit: (String) -> Unit,
     onSearchFieldTapped: () -> Unit,
     onCircleClick: () -> Unit,
-    onCloseClick: () -> Unit,
+    onClearClick: () -> Unit,
 ) {
     val isDark = isSystemInDarkTheme()
+    val isLastChat = isLastChatFloatingStyle()
+    val isBlur = isFloatingSurfaceBlurEnabled()
     val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = if (isDark) 0.38f else 0.45f)
+    val surfaceColor = if (isLastChat) LastChatSurfaceTokens.surfaceColor(colorScheme = MaterialTheme.colorScheme, isDark = isDark, isBlur = isBlur) else containerColor
+    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = MaterialTheme.colorScheme)
     val textColor = if (isDark) Color.White else Color.Black
+    val focusManager = LocalFocusManager.current
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .elasticGlassTouch(
-                enabled = true,
-                dragEnabled = false,
-                onTap = {
-                    if (!isSearchActive) {
-                        onCircleClick()
-                    }
+            .then(
+                if (!isLastChat) {
+                    Modifier
+                        .elasticGlassTouch(
+                            enabled = true,
+                            dragEnabled = false,
+                            onTap = {
+                                if (!isSearchActive) {
+                                    onCircleClick()
+                                }
+                            }
+                        )
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                vibrancy()
+                                blur(7.dp.toPx())
+                                lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
+                            },
+                            highlight = { Highlight.Default.copy(alpha = 0.80f) },
+                            shadow = { Shadow(alpha = 0.35f) },
+                            innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
+                            onDrawSurface = { drawRect(containerColor) }
+                        )
+                } else if (isBlur) {
+                    Modifier
+                        .clickable(enabled = !isSearchActive, onClick = onCircleClick)
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                blur(7.dp.toPx())
+                            },
+                            highlight = { Highlight.Default.copy(alpha = 0.15f) },
+                            shadow = { Shadow(alpha = 0.15f) },
+                            onDrawSurface = { drawRect(surfaceColor) }
+                        )
+                        .border(outlineBorder, Capsule())
+                } else {
+                    Modifier
+                        .clickable(enabled = !isSearchActive, onClick = onCircleClick)
+                        .clip(Capsule())
+                        .background(surfaceColor)
+                        .border(outlineBorder, Capsule())
                 }
-            )
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { Capsule() },
-                effects = {
-                    vibrancy()
-                    blur(7.dp.toPx())
-                    lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
-                },
-                highlight = { Highlight.Default.copy(alpha = 0.80f) },
-                shadow = { Shadow(alpha = 0.35f) },
-                innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
-                onDrawSurface = { drawRect(containerColor) }
             ),
         contentAlignment = Alignment.Center
     ) {
@@ -306,7 +341,12 @@ private fun SearchFieldOrCircle(
                         cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { onSearchSubmit(searchText) })
+                        keyboardActions = KeyboardActions(onSearch = {
+                            focusManager.clearFocus()
+                            if (searchText.isNotBlank()) {
+                                onSearchSubmit(searchText.trim())
+                            }
+                        })
                     )
                 }
                 if (searchText.isNotEmpty()) {
@@ -315,7 +355,7 @@ private fun SearchFieldOrCircle(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .clickable { onCloseClick() },
+                            .clickable { onClearClick() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(

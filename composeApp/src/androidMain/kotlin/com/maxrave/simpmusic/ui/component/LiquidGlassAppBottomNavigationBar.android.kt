@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -81,6 +83,14 @@ actual fun LiquidGlassAppBottomNavigationBar(
     var lastLiveAtTop by remember { mutableStateOf(true) }
 
     LaunchedEffect(isScrolledToTop, scrollDirection, scrollEpoch) {
+        val inSearchDest = currentRouteKey == "search" || currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) == true
+        if (inSearchDest) {
+            downwardScrollTicks = 0
+            isManuallyExpanded = true
+            lastLiveAtTop = true
+            routeAtTop["search"] = true
+            return@LaunchedEffect
+        }
         if (isScrolledToTop) {
             downwardScrollTicks = 0
             isManuallyExpanded = false
@@ -125,7 +135,11 @@ actual fun LiquidGlassAppBottomNavigationBar(
             if (key != currentRouteKey) {
                 routeAtTop[currentRouteKey] = lastLiveAtTop
                 currentRouteKey = key
-                if (!isManuallyExpanded) {
+                if (inSearch) {
+                    lastLiveAtTop = true
+                    isManuallyExpanded = true
+                    downwardScrollTicks = 0
+                } else if (!isManuallyExpanded) {
                     lastLiveAtTop = routeAtTop[key] ?: true
                 }
                 Logger.d(TAG, "route change -> $key, restored lastLive=$lastLiveAtTop, manual=$isManuallyExpanded, map=$routeAtTop")
@@ -138,7 +152,8 @@ actual fun LiquidGlassAppBottomNavigationBar(
         }
     }
 
-    val targetCollapse = if (!isShowMiniPlayer || isManuallyExpanded || lastLiveAtTop) 0f else 1f
+    val isSearchScreen = isSearchActive || currentRouteKey == "search" || currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) == true
+    val targetCollapse = if (isSearchScreen || !isShowMiniPlayer || isManuallyExpanded || lastLiveAtTop) 0f else 1f
     val scrollCollapseProgress by animateFloatAsState(
         targetValue = targetCollapse,
         animationSpec = spring(dampingRatio = 0.88f, stiffness = 500f),
@@ -178,78 +193,92 @@ actual fun LiquidGlassAppBottomNavigationBar(
     val artworkUrl = songEntity?.thumbnails ?: nowPlayingData?.track?.thumbnails?.lastOrNull()?.url ?: ""
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(WindowInsets.navigationBars.asPaddingValues())
-            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
-            .imePadding()
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        BottomNavigationOrchestrator(
-            selectedTabIndex = selectedIndex,
-            onTabSelected = { index -> selectTab(index) },
-            isSearchActive = isSearchActive,
-            onSearchActiveChange = { active ->
-                isSearchActive = active
-                searchViewModel.setSearchBarActive(active)
-                if (active) {
-                    if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) != true) {
-                        navController.navigate(SearchDestination) {
-                            launchSingleTop = true
+        Box(
+            modifier = Modifier
+                .widthIn(max = 680.dp)
+                .fillMaxWidth()
+                .padding(WindowInsets.navigationBars.asPaddingValues())
+                .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
+                .imePadding()
+        ) {
+            BottomNavigationOrchestrator(
+                selectedTabIndex = selectedIndex,
+                onTabSelected = { index -> selectTab(index) },
+                isSearchActive = isSearchActive,
+                onSearchActiveChange = { active ->
+                    isSearchActive = active
+                    searchViewModel.setSearchBarActive(active)
+                    if (active) {
+                        isManuallyExpanded = true
+                        downwardScrollTicks = 0
+                        lastLiveAtTop = true
+                        routeAtTop["search"] = true
+                        if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) != true) {
+                            navController.navigate(SearchDestination) {
+                                launchSingleTop = true
+                            }
+                        }
+                    } else {
+                        isManuallyExpanded = true
+                        downwardScrollTicks = 0
+                        if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) == true) {
+                            navController.popBackStack()
                         }
                     }
-                } else {
+                },
+                backdrop = backdrop as LayerBackdrop,
+                scrollCollapseProgress = scrollCollapseProgress,
+                isShowMiniPlayer = isShowMiniPlayer,
+                trackTitle = trackTitle,
+                trackArtist = trackArtist,
+                artworkUrl = artworkUrl,
+                isPlaying = controllerState.isPlaying,
+                onPlayPauseToggle = {
+                    viewModel.onUIEvent(UIEvent.PlayPause)
+                },
+                onPreviousTrack = { viewModel.onUIEvent(UIEvent.Previous) },
+                onNextTrack = { viewModel.onUIEvent(UIEvent.Next) },
+                onExpandFullPlayer = onOpenNowPlaying,
+                onDismissMiniPlayer = {
                     isManuallyExpanded = true
                     downwardScrollTicks = 0
-                    if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) == true) {
-                        navController.popBackStack()
+                    viewModel.onUIEvent(UIEvent.Stop)
+                    viewModel.isServiceRunning = false
+                },
+                searchText = searchScreenState.barQuery,
+                onSearchTextChange = { text ->
+                    searchViewModel.setSearchBarQuery(text)
+                    if (text.isNotEmpty()) {
+                        searchViewModel.suggestQuery(text)
                     }
-                }
-            },
-            backdrop = backdrop as LayerBackdrop,
-            scrollCollapseProgress = scrollCollapseProgress,
-            isShowMiniPlayer = isShowMiniPlayer,
-            trackTitle = trackTitle,
-            trackArtist = trackArtist,
-            artworkUrl = artworkUrl,
-            isPlaying = controllerState.isPlaying,
-            onPlayPauseToggle = {
-                viewModel.onUIEvent(UIEvent.PlayPause)
-            },
-            onPreviousTrack = { viewModel.onUIEvent(UIEvent.Previous) },
-            onNextTrack = { viewModel.onUIEvent(UIEvent.Next) },
-            onExpandFullPlayer = onOpenNowPlaying,
-            onDismissMiniPlayer = {
-                isManuallyExpanded = true
-                downwardScrollTicks = 0
-                viewModel.onUIEvent(UIEvent.Stop)
-                viewModel.isServiceRunning = false
-            },
-            searchText = searchScreenState.barQuery,
-            onSearchTextChange = { text ->
-                searchViewModel.setSearchBarQuery(text)
-                if (text.isNotEmpty()) {
-                    searchViewModel.suggestQuery(text)
-                }
-            },
-            onSearchSubmit = { query ->
-                if (query.isNotEmpty()) {
-                    searchViewModel.insertSearchHistory(query)
-                    searchViewModel.searchAll(query)
-                    if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) != true) {
-                        navController.navigate(SearchDestination) {
-                            launchSingleTop = true
+                },
+                onSearchSubmit = { query ->
+                    val trimmed = query.trim()
+                    if (trimmed.isNotEmpty()) {
+                        searchViewModel.insertSearchHistory(trimmed)
+                        searchViewModel.searchAll(trimmed)
+                        if (currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) != true) {
+                            navController.navigate(SearchDestination) {
+                                launchSingleTop = true
+                            }
                         }
                     }
+                },
+                onSearchFieldTapped = {
+                    searchViewModel.setSearchFieldTapped(true)
+                },
+                onClearSearch = {
+                    searchViewModel.clearQuery()
+                },
+                onExpandRequested = {
+                    isManuallyExpanded = true
+                    downwardScrollTicks = 0
+                    Logger.d(TAG, "manual expand requested -> $isManuallyExpanded")
                 }
-            },
-            onSearchFieldTapped = {
-                searchViewModel.setSearchFieldTapped(true)
-            },
-            onExpandRequested = {
-                isManuallyExpanded = true
-                downwardScrollTicks = 0
-                Logger.d(TAG, "manual expand requested -> $isManuallyExpanded")
-            }
-        )
+            )
+        }
     }
 }

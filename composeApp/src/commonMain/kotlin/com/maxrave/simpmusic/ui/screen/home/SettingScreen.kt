@@ -214,6 +214,14 @@ import simpmusic.composeapp.generated.resources.crossfade_description
 import simpmusic.composeapp.generated.resources.crossfade_dj_mode
 import simpmusic.composeapp.generated.resources.crossfade_dj_mode_description
 import simpmusic.composeapp.generated.resources.crossfade_duration
+import simpmusic.composeapp.generated.resources.dj_bpm_matching
+import simpmusic.composeapp.generated.resources.dj_bpm_matching_desc
+import simpmusic.composeapp.generated.resources.dj_transition_style
+import simpmusic.composeapp.generated.resources.dj_transition_style_bass_swap
+import simpmusic.composeapp.generated.resources.dj_transition_style_filter_sweep
+import simpmusic.composeapp.generated.resources.dj_transition_style_smart_ai
+import simpmusic.composeapp.generated.resources.dj_transition_style_smooth
+import simpmusic.composeapp.generated.resources.dj_transition_style_vinyl_brake
 import simpmusic.composeapp.generated.resources.custom_ai_model_id
 import simpmusic.composeapp.generated.resources.custom_color
 import simpmusic.composeapp.generated.resources.custom_model_id_messages
@@ -228,8 +236,14 @@ import simpmusic.composeapp.generated.resources.downloaded_cache
 import simpmusic.composeapp.generated.resources.enable_rich_presence
 import simpmusic.composeapp.generated.resources.enable_sponsor_block
 import simpmusic.composeapp.generated.resources.enable_spotify_lyrics
+import simpmusic.composeapp.generated.resources.floating_surfaces_style
+import simpmusic.composeapp.generated.resources.floating_surface_glassy
+import simpmusic.composeapp.generated.resources.floating_surface_lastchat
+import simpmusic.composeapp.generated.resources.floating_surface_lastchat_blur
 import simpmusic.composeapp.generated.resources.free_space
 import simpmusic.composeapp.generated.resources.gemini
+import simpmusic.composeapp.generated.resources.performance_mode
+import simpmusic.composeapp.generated.resources.performance_mode_description
 import simpmusic.composeapp.generated.resources.guest
 import simpmusic.composeapp.generated.resources.help_build_lyrics_database
 import simpmusic.composeapp.generated.resources.help_build_lyrics_database_description
@@ -498,10 +512,14 @@ fun SettingScreen(
     val richPresenceEnabled by viewModel.richPresenceEnabled.collectAsStateWithLifecycle()
     val keepServiceAlive by viewModel.keepServiceAlive.collectAsStateWithLifecycle()
     val animatedNowPlayingBackground by viewModel.animatedNowPlayingBackground.collectAsStateWithLifecycle()
+    val floatingSurfaceStyle by viewModel.floatingSurfaceStyle.collectAsStateWithLifecycle()
+    val performanceMode by viewModel.performanceMode.collectAsStateWithLifecycle()
 
     val crossfadeEnabled by viewModel.crossfadeEnabled.collectAsStateWithLifecycle()
     val crossfadeDuration by viewModel.crossfadeDuration.collectAsStateWithLifecycle()
     val crossfadeDjMode by viewModel.crossfadeDjMode.collectAsStateWithLifecycle()
+    val djTransitionStyle by viewModel.djTransitionStyle.collectAsStateWithLifecycle()
+    val djBpmMatching by viewModel.djBpmMatching.collectAsStateWithLifecycle()
     val castState by viewModel.castState.collectAsStateWithLifecycle()
 
     val hazeState =
@@ -619,6 +637,46 @@ fun SettingScreen(
                     subtitle = stringResource(Res.string.animated_now_playing_background_description),
                     smallSubtitle = true,
                     switch = (animatedNowPlayingBackground to { viewModel.setAnimatedNowPlayingBackground(it) }),
+                )
+                SettingItem(
+                    title = stringResource(Res.string.performance_mode),
+                    subtitle = stringResource(Res.string.performance_mode_description),
+                    smallSubtitle = true,
+                    switch = (performanceMode to { viewModel.setPerformanceMode(it) }),
+                )
+                val floatingSurfaceLabels =
+                    listOf(
+                        DataStoreManager.FLOATING_SURFACE_GLASSY to stringResource(Res.string.floating_surface_glassy),
+                        DataStoreManager.FLOATING_SURFACE_LASTCHAT to stringResource(Res.string.floating_surface_lastchat),
+                        DataStoreManager.FLOATING_SURFACE_LASTCHAT_BLUR to stringResource(Res.string.floating_surface_lastchat_blur),
+                    )
+                SettingItem(
+                    title = stringResource(Res.string.floating_surfaces_style),
+                    subtitle = if (performanceMode) {
+                        stringResource(Res.string.floating_surface_lastchat)
+                    } else {
+                        floatingSurfaceLabels.firstOrNull { it.first == floatingSurfaceStyle }?.second ?: ""
+                    },
+                    isEnable = !performanceMode,
+                    onClick = {
+                        viewModel.setAlertData(
+                            SettingAlertState(
+                                title = runBlocking { getString(Res.string.floating_surfaces_style) },
+                                selectOne =
+                                    SettingAlertState.SelectData(
+                                        listSelect = floatingSurfaceLabels.map { (it.first == floatingSurfaceStyle) to it.second },
+                                    ),
+                                confirm =
+                                    runBlocking { getString(Res.string.change) } to { state ->
+                                        val selected = state.selectOne?.getSelected()
+                                        floatingSurfaceLabels.firstOrNull { it.second == selected }?.first?.let {
+                                            viewModel.setFloatingSurfaceStyle(it)
+                                        }
+                                    },
+                                dismiss = runBlocking { getString(Res.string.cancel) },
+                            ),
+                        )
+                    },
                 )
             }
         }
@@ -1154,6 +1212,60 @@ fun SettingScreen(
                             switch = ((crossfadeDjMode) to { viewModel.setCrossfadeDjMode(it) }),
                             isEnable = !castState.isRemote,
                         )
+                        AnimatedVisibility(visible = crossfadeDjMode) {
+                            Column {
+                                val djStyleLabels =
+                                    listOf(
+                                        DataStoreManager.DJ_TRANSITION_STYLE_SMART_AI to stringResource(Res.string.dj_transition_style_smart_ai),
+                                        DataStoreManager.DJ_TRANSITION_STYLE_BASS_SWAP to stringResource(Res.string.dj_transition_style_bass_swap),
+                                        DataStoreManager.DJ_TRANSITION_STYLE_FILTER_SWEEP to stringResource(Res.string.dj_transition_style_filter_sweep),
+                                        DataStoreManager.DJ_TRANSITION_STYLE_VINYL_BRAKE to stringResource(Res.string.dj_transition_style_vinyl_brake),
+                                        DataStoreManager.DJ_TRANSITION_STYLE_SMOOTH to stringResource(Res.string.dj_transition_style_smooth),
+                                    )
+                                SettingItem(
+                                    title = stringResource(Res.string.dj_transition_style),
+                                    subtitle =
+                                        if (castState.isRemote) {
+                                            stringResource(Res.string.not_available_while_casting)
+                                        } else {
+                                            djStyleLabels.firstOrNull { it.first == djTransitionStyle }?.second ?: ""
+                                        },
+                                    smallSubtitle = true,
+                                    isEnable = !castState.isRemote,
+                                    onClick = {
+                                        viewModel.setAlertData(
+                                            SettingAlertState(
+                                                title = runBlocking { getString(Res.string.dj_transition_style) },
+                                                selectOne =
+                                                    SettingAlertState.SelectData(
+                                                        listSelect = djStyleLabels.map { (it.first == djTransitionStyle) to it.second },
+                                                    ),
+                                                confirm =
+                                                    runBlocking { getString(Res.string.change) } to { state ->
+                                                        val selected = state.selectOne?.getSelected()
+                                                        djStyleLabels.firstOrNull { it.second == selected }?.first?.let {
+                                                            viewModel.setDjTransitionStyle(it)
+                                                        }
+                                                    },
+                                                dismiss = runBlocking { getString(Res.string.cancel) },
+                                            ),
+                                        )
+                                    },
+                                )
+                                SettingItem(
+                                    title = stringResource(Res.string.dj_bpm_matching),
+                                    subtitle =
+                                        if (castState.isRemote) {
+                                            stringResource(Res.string.not_available_while_casting)
+                                        } else {
+                                            stringResource(Res.string.dj_bpm_matching_desc)
+                                        },
+                                    smallSubtitle = true,
+                                    switch = ((djBpmMatching) to { viewModel.setDjBpmMatching(it) }),
+                                    isEnable = !castState.isRemote,
+                                )
+                            }
+                        }
 //                        }
                     }
                 }
