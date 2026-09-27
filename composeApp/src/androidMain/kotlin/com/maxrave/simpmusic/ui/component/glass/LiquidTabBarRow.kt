@@ -50,7 +50,9 @@ import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.lerp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
@@ -69,6 +71,7 @@ import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
 import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
 import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
+import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -209,21 +212,6 @@ private fun LiquidBottomTabs(
                     }
                 }
                 .then(
-                    if (!isLastChat) {
-                        Modifier.elasticGlassTouch(
-                            enabled = collapseProgress > 0.4f,
-                            dragEnabled = false,
-                            onTap = {
-                                if (collapseProgress > 0.4f) {
-                                    onTabSelected(currentIndex.intValue)
-                                }
-                            }
-                        )
-                    } else {
-                        Modifier
-                    }
-                )
-                .then(
                     if (!isLastChat) Modifier.layerBackdrop(contentBackdrop) else Modifier
                 )
         ) {
@@ -253,10 +241,11 @@ private fun LiquidBottomTabs(
                             backdrop = backdrop,
                             shape = { Capsule() },
                             effects = {
-                                blur(7.dp.toPx())
+                                blur(LastChatSurfaceTokens.BlurRadius.toPx())
                             },
-                            highlight = { Highlight.Default.copy(alpha = 0.15f) },
-                            shadow = { Shadow(alpha = 0.15f) },
+                            highlight = null,
+                            shadow = null,
+                            innerShadow = null,
                             onDrawSurface = { drawRect(surfaceColor) }
                         )
                         .border(outlineBorder, Capsule())
@@ -321,7 +310,9 @@ private fun LiquidBottomTabs(
                                 Text(
                                     text = tab.title,
                                     color = tabColor,
-                                    fontSize = 14.sp
+                                    fontSize = 14.sp,
+                                    fontFamily = itemTitleFontFamily(),
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
@@ -386,7 +377,7 @@ private fun LiquidBottomTabs(
                 modifier = Modifier
                     .fillMaxSize()
                     .alpha(textAlpha)
-                    .then(drag.modifier),
+                    .then(if (!isLastChat) drag.modifier else Modifier),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 tabs.forEachIndexed { index, _ ->
@@ -396,30 +387,42 @@ private fun LiquidBottomTabs(
                             .fillMaxHeight()
                             .clip(Capsule())
                             .semantics { role = Role.Tab }
-                            .pointerInput(index, onTabSelected, isLastChat) {
-                                detectTapGestures(
-                                    onPress = {
-                                        if (!isLastChat) {
+                            .then(
+                                if (isLastChat) {
+                                    Modifier.clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = ripple(bounded = true),
+                                        onClick = {
+                                            currentIndex.intValue = index
                                             scope.launch {
-                                                touchAnimatable.animateTo(1f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                                drag.animateToValue(index.toFloat())
                                             }
+                                            onTabSelected(index)
                                         }
-                                        tryAwaitRelease()
-                                        if (!isLastChat) {
-                                            scope.launch {
-                                                touchAnimatable.animateTo(0f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                    )
+                                } else {
+                                    Modifier.pointerInput(index, onTabSelected) {
+                                        detectTapGestures(
+                                            onPress = {
+                                                scope.launch {
+                                                    touchAnimatable.animateTo(1f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                                }
+                                                tryAwaitRelease()
+                                                scope.launch {
+                                                    touchAnimatable.animateTo(0f, spring(stiffness = 500f, dampingRatio = 0.8f))
+                                                }
+                                            },
+                                            onTap = {
+                                                currentIndex.intValue = index
+                                                scope.launch {
+                                                    drag.animateToValue(index.toFloat())
+                                                }
+                                                onTabSelected(index)
                                             }
-                                        }
-                                    },
-                                    onTap = {
-                                        currentIndex.intValue = index
-                                        scope.launch {
-                                            drag.animateToValue(index.toFloat())
-                                        }
-                                        onTabSelected(index)
+                                        )
                                     }
-                                )
-                            }
+                                }
+                            )
                     )
                 }
             }
@@ -433,9 +436,22 @@ private fun LiquidBottomTabs(
                 modifier = Modifier
                     .fillMaxSize()
                     .alpha(singleIconAlpha)
-                    .clickable(
-                        enabled = collapseProgress > 0.4f,
-                        onClick = { onTabSelected(currentIndex.intValue) }
+                    .clip(Capsule())
+                    .then(
+                        if (isLastChat) {
+                            Modifier.clickable(
+                                enabled = collapseProgress > 0.4f,
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(bounded = true),
+                                onClick = { onTabSelected(currentIndex.intValue) }
+                            )
+                        } else {
+                            Modifier.elasticGlassTouch(
+                                enabled = collapseProgress > 0.4f,
+                                dragEnabled = false,
+                                onTap = { onTabSelected(currentIndex.intValue) }
+                            )
+                        }
                     ),
                 contentAlignment = Alignment.Center
             ) {

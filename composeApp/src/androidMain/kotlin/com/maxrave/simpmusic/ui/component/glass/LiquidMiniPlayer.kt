@@ -68,6 +68,8 @@ import com.maxrave.simpmusic.ui.icon.SkipPrevious
 import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
 import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
 import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
+import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
+import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -108,8 +110,8 @@ fun LiquidMiniPlayer(
     }
 
     val targetSurfaceColor = if (isLastChat && dominantColor != null) {
-        val tintedRgb = lerp(baseSurfaceColor.copy(alpha = 1f), dominantColor, 0.16f)
-        tintedRgb.copy(alpha = baseSurfaceColor.alpha)
+        val stronglyTintedRgb = lerp(baseSurfaceColor.copy(alpha = 1f), dominantColor, 0.65f)
+        stronglyTintedRgb.copy(alpha = baseSurfaceColor.alpha)
     } else {
         baseSurfaceColor
     }
@@ -202,10 +204,11 @@ fun LiquidMiniPlayer(
                             backdrop = backdrop,
                             shape = { Capsule() },
                             effects = {
-                                blur(7.dp.toPx())
+                                blur(LastChatSurfaceTokens.BlurRadius.toPx())
                             },
-                            highlight = { Highlight.Default.copy(alpha = 0.15f) },
-                            shadow = { Shadow(alpha = 0.15f) },
+                            highlight = null,
+                            shadow = null,
+                            innerShadow = null,
                             onDrawSurface = { drawRect(finalContainerColor) }
                         )
                         .border(outlineBorder, Capsule())
@@ -267,6 +270,7 @@ fun LiquidMiniPlayer(
                         text = title,
                         color = textColor,
                         fontSize = 14.sp,
+                        fontFamily = itemTitleFontFamily(),
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -275,6 +279,7 @@ fun LiquidMiniPlayer(
                         text = artist,
                         color = subtitleColor,
                         fontSize = 12.sp,
+                        fontFamily = itemSubtitleFontFamily(),
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

@@ -474,6 +474,12 @@
     <string name="dj_transition_style_smooth_desc">Classic sinusoidal power-matched crossfade with no frequency cuts.</string>
     <string name="dj_bpm_matching">Beat &amp; Tempo Sync</string>
     <string name="dj_bpm_matching_desc">Phase-aligns beat drops and matches tempo between tracks for seamless blending.</string>
+    <string name="dj_transitions_title">DJ Automix Transitions</string>
+    <string name="dj_transitions_description">Intelligent DJ mixing between tracks with beat matching, phase alignment, and dynamic EQ/filter sweeps.</string>
+    <string name="dj_transitions_enabled">AI DJ Automix</string>
+    <string name="dj_transitions_enabled_desc">Automatically mix songs using AI harmonic key analysis and beat phrasing</string>
+    <string name="dj_transition_on_skip">Seamless Mix on Skip</string>
+    <string name="dj_transition_on_skip_desc">Perform a quick DJ blend when pressing Next instead of an abrupt cut</string>
     <string name="youtube_subtitle_language">YouTube Subtitle Translation Language</string>
     <string name="youtube_subtitle_language_message">Type language code (Eg: en) (2 letters). This is the preferred translation language for YouTube subtitles.</string>
     <string name="use_anonymous">Use anonymous name to contribute</string>

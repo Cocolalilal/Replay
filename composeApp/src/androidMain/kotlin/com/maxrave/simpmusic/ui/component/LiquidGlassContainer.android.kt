@@ -177,8 +177,11 @@ fun Modifier.drawInteractiveGlass(
                     backdrop = backdrop,
                     shape = { shape },
                     effects = {
-                        blur(7.dp.toPx())
+                        blur(LastChatSurfaceTokens.BlurRadius.toPx())
                     },
+                    highlight = null,
+                    shadow = null,
+                    innerShadow = null,
                     onDrawBackdrop = { drawBackdrop ->
                         drawBackdrop()
                         layer.record { drawBackdrop() }
@@ -186,16 +189,7 @@ fun Modifier.drawInteractiveGlass(
                     onDrawSurface = {
                         drawRect(surfaceColor)
                     },
-                    layerBlock =
-                        if (interaction != null) {
-                            {
-                                val scale = lerp(1f, pressedScale, interaction.pressProgress)
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                        } else {
-                            null
-                        },
+                    layerBlock = null,
                 )
                 .border(outlineBorder, shape)
         } else {
@@ -204,13 +198,7 @@ fun Modifier.drawInteractiveGlass(
                 .background(surfaceColor)
                 .border(outlineBorder, shape)
         }
-        return base.then(
-            if (interaction != null) {
-                Modifier.pointerInput(interaction) { interaction.detectPress(this) }
-            } else {
-                Modifier
-            },
-        )
+        return base
     }
 
     return this

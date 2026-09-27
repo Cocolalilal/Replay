@@ -20,6 +20,7 @@ object LastChatSurfaceTokens {
     const val GlassAlphaLight = 0.28f
     const val SoftEdgeAlpha = 0.6f
     val SoftEdgeWidth = 1.dp
+    val BlurRadius = 24.dp
 
     fun surfaceColor(colorScheme: ColorScheme, isDark: Boolean, isBlur: Boolean): Color {
         val opaque = colorScheme.surfaceContainer.copy(alpha = 1f)

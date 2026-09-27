@@ -96,6 +96,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.getString
 import org.simpmusic.lastfm.completeLogin
 import simpmusic.composeapp.generated.resources.Res
@@ -207,11 +208,16 @@ class SharedViewModel(
     private val _isResolvingCounterpart = MutableStateFlow(false)
     val isResolvingCounterpart: StateFlow<Boolean> = _isResolvingCounterpart.asStateFlow()
 
+    private val _isSwapping = MutableStateFlow(false)
+    private val _swapTargetIsVideo = MutableStateFlow(false)
+
     data class SongVideoSwapState(
         val currentIsVideo: Boolean,
         val songAvailable: Boolean,
         val videoAvailable: Boolean,
         val isResolving: Boolean,
+        val isSwapping: Boolean = false,
+        val swappingToVideo: Boolean = false,
     )
 
     val songVideoSwapState: StateFlow<SongVideoSwapState> =
@@ -220,7 +226,9 @@ class SharedViewModel(
             _songCounterpart,
             _videoCounterpart,
             _isResolvingCounterpart,
-        ) { nowPlaying, song, video, resolving ->
+            _isSwapping,
+            _swapTargetIsVideo,
+        ) { nowPlaying, song, video, resolving, swapping, swappingToVideo ->
             val track = nowPlaying?.track ?: nowPlaying?.songEntity?.toTrack()
             val currentIsVideo = track?.isVideoContent() ?: nowPlaying?.mediaItem?.isVideo() ?: false
             SongVideoSwapState(
@@ -228,6 +236,8 @@ class SharedViewModel(
                 songAvailable = song != null || !currentIsVideo,
                 videoAvailable = video != null || currentIsVideo,
                 isResolving = resolving,
+                isSwapping = swapping,
+                swappingToVideo = swappingToVideo,
             )
         }.stateIn(
             viewModelScope,
@@ -236,6 +246,14 @@ class SharedViewModel(
         )
 
     private var counterpartJob: Job? = null
+
+    /**
+     * Tracks the user has actually hot-swapped between, both directions. A song
+     * that played earlier is proof its counterpart exists, even when a later
+     * search fails to re-find it — so the toggle side never grays out for a
+     * version the user was just listening to.
+     */
+    private val swapPairs = mutableMapOf<String, Track>()
 
     fun setContentModeFromTrack(track: Track) {
         viewModelScope.launch {
@@ -263,6 +281,21 @@ class SharedViewModel(
                         return@launch
                     }
                     val wantSong = current.isVideoContent()
+                    // A version the user already swapped to/from is known good —
+                    // prefer it over a fresh search.
+                    val known = swapPairs[current.videoId]
+                    if (known != null && known.videoId != current.videoId &&
+                        known.isVideoContent() != wantSong
+                    ) {
+                        if (wantSong) {
+                            _videoCounterpart.value = null
+                            _songCounterpart.value = known
+                        } else {
+                            _songCounterpart.value = null
+                            _videoCounterpart.value = known
+                        }
+                        return@launch
+                    }
                     // The current side is always available; resolve the opposite side.
                     if (wantSong) {
                         _videoCounterpart.value = null
@@ -289,6 +322,11 @@ class SharedViewModel(
      * Hot-swap between the song and the music video, preserving the playback
      * position. Does nothing when no counterpart is known (per spec: no toast,
      * the missing side simply stays inactive).
+     *
+     * The cut is masked two ways: the outgoing volume is ducked to zero before
+     * the source is torn down and faded back in once the new source is playing
+     * at the restored position, and the UI holds an "atmosphere" loading state
+     * ([SongVideoSwapState.isSwapping]) over the artwork area meanwhile.
      */
     fun toggleSongVideo(preferSong: Boolean) {
         viewModelScope.launch {
@@ -301,7 +339,45 @@ class SharedViewModel(
                         ?.takeIf { it.videoId != current.videoId }
                     ?: return@launch
             if (preferSong) _songCounterpart.value = target else _videoCounterpart.value = target
+            // Remember both directions: coming back must find this version again
+            // even if search can't re-match it. Keep the side we came from
+            // populated so it never flashes grayed-out mid-swap.
+            swapPairs[current.videoId] = target
+            swapPairs[target.videoId] = current
+            if (preferSong) _videoCounterpart.value = current else _songCounterpart.value = current
             runCatching { dataStoreManager.setContentTypeMode(if (preferSong) CONTENT_TYPE_SONG else CONTENT_TYPE_VIDEO) }
+            val player = mediaPlayerHandler.player
+            val startVolume = player.volume
+            _swapTargetIsVideo.value = !preferSong
+            _isSwapping.value = true
+            // Generation guard: a newer swap supersedes this one, so only the
+            // latest swap may restore volume / clear the loading state.
+            // (No catch-all here on purpose: the inner launch's finally owns
+            // restoration, including on cancellation.)
+            val generation = ++swapGeneration
+            // Warm the target's stream formats while the current version keeps
+            // playing, so the cutover below hits the format cache (what both
+            // adapters' fast paths read) instead of paying full stream
+            // resolution mid-gap. Bounded: on failure/timeout the cutover
+            // resolves the streams itself, exactly like before.
+            val warmVideo =
+                !preferSong &&
+                    runCatching {
+                        dataStoreManager.watchVideoInsteadOfPlayingAudio.first() == TRUE
+                    }.getOrDefault(false)
+            withTimeoutOrNull(8000L) {
+                runCatching {
+                    streamRepository.getStream(dataStoreManager, target.videoId, false, warmVideo).firstOrNull()
+                    if (warmVideo) {
+                        streamRepository.getStream(dataStoreManager, target.videoId, false, false).firstOrNull()
+                    }
+                }
+            }
+            if (generation != swapGeneration) return@launch
+            // Duck out fast so the teardown doesn't click/pop.
+            if (startVolume > 0.01f) {
+                rampPlayerVolume(player, 0f, steps = 4, stepMs = 40L)
+            }
             val resumeAt = mediaPlayerHandler.getProgress().coerceAtLeast(0L)
             runCatching {
                 mediaPlayerHandler.loadMediaItem(
@@ -310,20 +386,60 @@ class SharedViewModel(
                     null,
                 )
             }
-            // Restore the position once the new source is playing (best-effort retries).
+            // Restore the position once the new source is playing (best-effort retries),
+            // then fade back in at exactly the restored position.
             launch {
-                repeat(10) { attempt ->
-                    delay(if (attempt == 0) 1200L else 800L)
-                    runCatching {
+                var volumeRestored = startVolume <= 0.01f
+                try {
+                        repeat(10) { attempt ->
+                            delay(if (attempt == 0) 1200L else 800L)
+                            // Superseded (newer swap owns volume/state now).
+                            if (generation != swapGeneration) return@launch
+                            // Abandoned (user moved on to an unrelated track):
+                            // hand the volume back so the new track is audible.
+                            if (currentTrackForSwap()?.videoId != target.videoId) {
+                                if (generation == swapGeneration) {
+                                    player.volume = startVolume
+                                    _isSwapping.value = false
+                                }
+                                return@launch
+                            }
                         val duration = mediaPlayerHandler.getPlayerDuration()
                         if (duration > 0L && resumeAt in 1L until duration) {
-                            mediaPlayerHandler.player.seekTo(resumeAt)
+                            player.seekTo(resumeAt)
+                            delay(250L)
+                            if (generation != swapGeneration) return@launch
+                            if (startVolume > 0.01f) {
+                                rampPlayerVolume(player, startVolume, steps = 5, stepMs = 40L)
+                            }
+                            volumeRestored = true
                             return@launch
                         }
+                    }
+                } finally {
+                    if (generation == swapGeneration) {
+                        if (!volumeRestored) player.volume = startVolume
+                        _isSwapping.value = false
                     }
                 }
             }
         }
+    }
+
+    private var swapGeneration = 0
+
+    private suspend fun rampPlayerVolume(
+        player: com.maxrave.domain.mediaservice.player.MediaPlayerInterface,
+        target: Float,
+        steps: Int,
+        stepMs: Long,
+    ) {
+        val from = player.volume
+        repeat(steps) { i ->
+            player.volume = from + (target - from) * (i + 1) / steps
+            delay(stepMs)
+        }
+        player.volume = target
     }
 
     private var _timeline =

@@ -960,18 +960,20 @@ enum class PlaylistTag {
 }
 
 /**
- * Classifies a playlist track as a music video. Official music videos (`MUSIC_VIDEO_TYPE_OMV`),
- * user-generated uploads (`MUSIC_VIDEO_TYPE_UGC`) and any `"Videos"`/`"Video"` category/resultType
- * are videos. Audio tracks (`MUSIC_VIDEO_TYPE_ATV`), tracks without a music config (null), and
- * `"Song"` are songs.
+ * Classifies a playlist track as a music video. Only YTM's authoritative markers
+ * count: `MUSIC_VIDEO_TYPE_OMV`/`MUSIC_VIDEO_TYPE_UGC` (video) and
+ * `MUSIC_VIDEO_TYPE_ATV` (audio). The search parsers' coarse `Video`/`Song`
+ * category labels are honored as a fallback. Anything unknown — including the
+ * `"video"`/`"Video"` junk older parsers hardcoded on every row — is a song:
+ * the filter must never hide playable tracks.
  */
 fun Track.isVideoTrack(): Boolean {
-    val vType = videoType
-    return vType == "MUSIC_VIDEO_TYPE_OMV" ||
-        vType == "MUSIC_VIDEO_TYPE_UGC" ||
-        category == "Videos" ||
+    when (videoType) {
+        "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC" -> return true
+        "MUSIC_VIDEO_TYPE_ATV" -> return false
+    }
+    return category == "Videos" ||
         category == "Video" ||
         resultType == "Videos" ||
-        resultType == "Video" ||
-        (vType != null && vType.contains("VIDEO", ignoreCase = true) && !vType.contains("ATV", ignoreCase = true))
+        resultType == "Video"
 }

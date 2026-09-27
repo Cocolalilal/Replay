@@ -222,6 +222,11 @@ import simpmusic.composeapp.generated.resources.dj_transition_style_filter_sweep
 import simpmusic.composeapp.generated.resources.dj_transition_style_smart_ai
 import simpmusic.composeapp.generated.resources.dj_transition_style_smooth
 import simpmusic.composeapp.generated.resources.dj_transition_style_vinyl_brake
+import simpmusic.composeapp.generated.resources.dj_transitions_title
+import simpmusic.composeapp.generated.resources.dj_transitions_enabled
+import simpmusic.composeapp.generated.resources.dj_transitions_description
+import simpmusic.composeapp.generated.resources.dj_transition_on_skip
+import simpmusic.composeapp.generated.resources.dj_transition_on_skip_desc
 import simpmusic.composeapp.generated.resources.custom_ai_model_id
 import simpmusic.composeapp.generated.resources.custom_color
 import simpmusic.composeapp.generated.resources.custom_model_id_messages
@@ -520,6 +525,7 @@ fun SettingScreen(
     val crossfadeDjMode by viewModel.crossfadeDjMode.collectAsStateWithLifecycle()
     val djTransitionStyle by viewModel.djTransitionStyle.collectAsStateWithLifecycle()
     val djBpmMatching by viewModel.djBpmMatching.collectAsStateWithLifecycle()
+    val djTransitionOnSkip by viewModel.djTransitionOnSkip.collectAsStateWithLifecycle()
     val castState by viewModel.castState.collectAsStateWithLifecycle()
 
     val hazeState =
@@ -1120,16 +1126,16 @@ fun SettingScreen(
                 }
             }
         }
-        // Crossfade Settings (all platforms)
-        item(key = "crossfade_settings") {
+        // DJ Automix Transitions (all platforms)
+        item(key = "dj_automix_settings") {
             Column {
                 SettingItem(
-                    title = stringResource(Res.string.crossfade),
+                    title = stringResource(Res.string.dj_transitions_enabled),
                     subtitle =
                         if (castState.isRemote) {
                             stringResource(Res.string.not_available_while_casting)
                         } else {
-                            stringResource(Res.string.crossfade_description)
+                            stringResource(Res.string.dj_transitions_description)
                         },
                     smallSubtitle = true,
                     switch = (crossfadeEnabled to { viewModel.setCrossfadeEnabled(it) }),
@@ -1137,136 +1143,68 @@ fun SettingScreen(
                 )
                 AnimatedVisibility(visible = crossfadeEnabled) {
                     Column {
+                        val djStyleLabels =
+                            listOf(
+                                DataStoreManager.DJ_TRANSITION_STYLE_SMART_AI to stringResource(Res.string.dj_transition_style_smart_ai),
+                                DataStoreManager.DJ_TRANSITION_STYLE_BASS_SWAP to stringResource(Res.string.dj_transition_style_bass_swap),
+                                DataStoreManager.DJ_TRANSITION_STYLE_FILTER_SWEEP to stringResource(Res.string.dj_transition_style_filter_sweep),
+                                DataStoreManager.DJ_TRANSITION_STYLE_VINYL_BRAKE to stringResource(Res.string.dj_transition_style_vinyl_brake),
+                                DataStoreManager.DJ_TRANSITION_STYLE_SMOOTH to stringResource(Res.string.dj_transition_style_smooth),
+                            )
                         SettingItem(
-                            title = stringResource(Res.string.crossfade_duration),
+                            title = stringResource(Res.string.dj_transition_style),
                             subtitle =
                                 if (castState.isRemote) {
                                     stringResource(Res.string.not_available_while_casting)
-                                } else if (crossfadeDuration == DataStoreManager.CROSSFADE_DURATION_AUTO) {
-                                    stringResource(Res.string.crossfade_auto)
                                 } else {
-                                    "${crossfadeDuration / 1000}s"
+                                    djStyleLabels.firstOrNull { it.first == djTransitionStyle }?.second ?: ""
                                 },
+                            smallSubtitle = true,
                             isEnable = !castState.isRemote,
                             onClick = {
                                 viewModel.setAlertData(
                                     SettingAlertState(
-                                        title = runBlocking { getString(Res.string.crossfade_duration) },
+                                        title = runBlocking { getString(Res.string.dj_transition_style) },
                                         selectOne =
                                             SettingAlertState.SelectData(
-                                                listSelect =
-                                                    listOf(
-                                                        (crossfadeDuration == DataStoreManager.CROSSFADE_DURATION_AUTO) to
-                                                            runBlocking { getString(Res.string.crossfade_auto) },
-                                                        (crossfadeDuration == 1000) to "1s",
-                                                        (crossfadeDuration == 2000) to "2s",
-                                                        (crossfadeDuration == 3000) to "3s",
-                                                        (crossfadeDuration == 5000) to "5s",
-                                                        (crossfadeDuration == 8000) to "8s",
-                                                        (crossfadeDuration == 10000) to "10s",
-                                                        (crossfadeDuration == 12000) to "12s",
-                                                        (crossfadeDuration == 15000) to "15s",
-                                                        (crossfadeDuration == 20000) to "20s",
-                                                        (crossfadeDuration == 30000) to "30s",
-                                                    ),
+                                                listSelect = djStyleLabels.map { (it.first == djTransitionStyle) to it.second },
                                             ),
                                         confirm =
                                             runBlocking { getString(Res.string.change) } to { state ->
-                                                val duration =
-                                                    when (state.selectOne?.getSelected()) {
-                                                        runBlocking {
-                                                            getString(
-                                                                Res.string.crossfade_auto,
-                                                            )
-                                                        },
-                                                        -> DataStoreManager.CROSSFADE_DURATION_AUTO
-                                                        "1s" -> 1000
-                                                        "2s" -> 2000
-                                                        "3s" -> 3000
-                                                        "5s" -> 5000
-                                                        "8s" -> 8000
-                                                        "10s" -> 10000
-                                                        "12s" -> 12000
-                                                        "15s" -> 15000
-                                                        "20s" -> 20000
-                                                        "30s" -> 30000
-                                                        else -> 5000
-                                                    }
-                                                viewModel.setCrossfadeDuration(duration)
+                                                val selected = state.selectOne?.getSelected()
+                                                djStyleLabels.firstOrNull { it.second == selected }?.first?.let {
+                                                    viewModel.setDjTransitionStyle(it)
+                                                }
                                             },
                                         dismiss = runBlocking { getString(Res.string.cancel) },
                                     ),
                                 )
                             },
                         )
-//                        if (getPlatform() == Platform.Android) {
                         SettingItem(
-                            title = stringResource(Res.string.crossfade_dj_mode),
+                            title = stringResource(Res.string.dj_bpm_matching),
                             subtitle =
                                 if (castState.isRemote) {
                                     stringResource(Res.string.not_available_while_casting)
                                 } else {
-                                    stringResource(Res.string.crossfade_dj_mode_description)
+                                    stringResource(Res.string.dj_bpm_matching_desc)
                                 },
                             smallSubtitle = true,
-                            switch = ((crossfadeDjMode) to { viewModel.setCrossfadeDjMode(it) }),
+                            switch = ((djBpmMatching) to { viewModel.setDjBpmMatching(it) }),
                             isEnable = !castState.isRemote,
                         )
-                        AnimatedVisibility(visible = crossfadeDjMode) {
-                            Column {
-                                val djStyleLabels =
-                                    listOf(
-                                        DataStoreManager.DJ_TRANSITION_STYLE_SMART_AI to stringResource(Res.string.dj_transition_style_smart_ai),
-                                        DataStoreManager.DJ_TRANSITION_STYLE_BASS_SWAP to stringResource(Res.string.dj_transition_style_bass_swap),
-                                        DataStoreManager.DJ_TRANSITION_STYLE_FILTER_SWEEP to stringResource(Res.string.dj_transition_style_filter_sweep),
-                                        DataStoreManager.DJ_TRANSITION_STYLE_VINYL_BRAKE to stringResource(Res.string.dj_transition_style_vinyl_brake),
-                                        DataStoreManager.DJ_TRANSITION_STYLE_SMOOTH to stringResource(Res.string.dj_transition_style_smooth),
-                                    )
-                                SettingItem(
-                                    title = stringResource(Res.string.dj_transition_style),
-                                    subtitle =
-                                        if (castState.isRemote) {
-                                            stringResource(Res.string.not_available_while_casting)
-                                        } else {
-                                            djStyleLabels.firstOrNull { it.first == djTransitionStyle }?.second ?: ""
-                                        },
-                                    smallSubtitle = true,
-                                    isEnable = !castState.isRemote,
-                                    onClick = {
-                                        viewModel.setAlertData(
-                                            SettingAlertState(
-                                                title = runBlocking { getString(Res.string.dj_transition_style) },
-                                                selectOne =
-                                                    SettingAlertState.SelectData(
-                                                        listSelect = djStyleLabels.map { (it.first == djTransitionStyle) to it.second },
-                                                    ),
-                                                confirm =
-                                                    runBlocking { getString(Res.string.change) } to { state ->
-                                                        val selected = state.selectOne?.getSelected()
-                                                        djStyleLabels.firstOrNull { it.second == selected }?.first?.let {
-                                                            viewModel.setDjTransitionStyle(it)
-                                                        }
-                                                    },
-                                                dismiss = runBlocking { getString(Res.string.cancel) },
-                                            ),
-                                        )
-                                    },
-                                )
-                                SettingItem(
-                                    title = stringResource(Res.string.dj_bpm_matching),
-                                    subtitle =
-                                        if (castState.isRemote) {
-                                            stringResource(Res.string.not_available_while_casting)
-                                        } else {
-                                            stringResource(Res.string.dj_bpm_matching_desc)
-                                        },
-                                    smallSubtitle = true,
-                                    switch = ((djBpmMatching) to { viewModel.setDjBpmMatching(it) }),
-                                    isEnable = !castState.isRemote,
-                                )
-                            }
-                        }
-//                        }
+                        SettingItem(
+                            title = stringResource(Res.string.dj_transition_on_skip),
+                            subtitle =
+                                if (castState.isRemote) {
+                                    stringResource(Res.string.not_available_while_casting)
+                                } else {
+                                    stringResource(Res.string.dj_transition_on_skip_desc)
+                                },
+                            smallSubtitle = true,
+                            switch = ((djTransitionOnSkip) to { viewModel.setDjTransitionOnSkip(it) }),
+                            isEnable = !castState.isRemote,
+                        )
                     }
                 }
             }

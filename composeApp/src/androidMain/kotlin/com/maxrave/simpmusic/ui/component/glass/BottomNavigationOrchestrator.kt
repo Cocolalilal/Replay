@@ -21,9 +21,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -59,6 +61,7 @@ import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
 import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
 import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
+import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
 import kotlin.math.roundToInt
 
 @Composable
@@ -268,23 +271,35 @@ private fun SearchFieldOrCircle(
                         )
                 } else if (isBlur) {
                     Modifier
-                        .clickable(enabled = !isSearchActive, onClick = onCircleClick)
+                        .clip(Capsule())
                         .drawBackdrop(
                             backdrop = backdrop,
                             shape = { Capsule() },
                             effects = {
-                                blur(7.dp.toPx())
+                                blur(LastChatSurfaceTokens.BlurRadius.toPx())
                             },
-                            highlight = { Highlight.Default.copy(alpha = 0.15f) },
-                            shadow = { Shadow(alpha = 0.15f) },
+                            highlight = null,
+                            shadow = null,
+                            innerShadow = null,
                             onDrawSurface = { drawRect(surfaceColor) }
+                        )
+                        .clickable(
+                            enabled = !isSearchActive,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ripple(bounded = true),
+                            onClick = onCircleClick
                         )
                         .border(outlineBorder, Capsule())
                 } else {
                     Modifier
-                        .clickable(enabled = !isSearchActive, onClick = onCircleClick)
                         .clip(Capsule())
                         .background(surfaceColor)
+                        .clickable(
+                            enabled = !isSearchActive,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ripple(bounded = true),
+                            onClick = onCircleClick
+                        )
                         .border(outlineBorder, Capsule())
                 }
             ),
@@ -319,12 +334,15 @@ private fun SearchFieldOrCircle(
                         Text(
                             text = "Search songs, artists...",
                             color = textColor.copy(alpha = 0.5f),
-                            fontSize = 14.sp
+                            fontSize = 14.sp,
+                            fontFamily = itemSubtitleFontFamily(),
+                            fontWeight = FontWeight.Normal
                         )
                     }
                     val textStyle = TextStyle(
                         color = textColor,
                         fontSize = 14.sp,
+                        fontFamily = itemSubtitleFontFamily(),
                         fontWeight = FontWeight.Normal
                     )
                     BasicTextField(

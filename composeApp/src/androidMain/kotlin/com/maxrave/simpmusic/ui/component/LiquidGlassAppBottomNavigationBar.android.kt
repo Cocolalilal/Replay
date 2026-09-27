@@ -164,19 +164,49 @@ actual fun LiquidGlassAppBottomNavigationBar(
         val dest = if (index == 0) HomeDestination else LibraryDestination
         val destClass = if (index == 0) HomeDestination::class else LibraryDestination::class
 
-        val isCurrentTab = currentBackStackEntry?.destination?.hasRoute(destClass) == true
-
-        if (isSearchActive) {
+        val inSearch = isSearchActive || currentRouteKey == "search" || navController.currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) == true
+        if (inSearch) {
             isSearchActive = false
             searchViewModel.setSearchBarActive(false)
+            if (navController.currentBackStackEntry?.destination?.hasRoute(SearchDestination::class) == true) {
+                navController.popBackStack()
+            }
         }
 
-        if (isCurrentTab) {
-            reloadDestinationIfNeeded(destClass)
-        } else {
-            selectedIndex = index
-            isManuallyExpanded = true
-            downwardScrollTicks = 0
+        isManuallyExpanded = true
+        downwardScrollTicks = 0
+
+        // If the user re-clicks the tab they are currently on (and wasn't in search):
+        if (selectedIndex == index && !inSearch) {
+            val isAtTabRoot = navController.currentBackStackEntry?.destination?.hasRoute(destClass) == true
+            if (isAtTabRoot) {
+                reloadDestinationIfNeeded(destClass)
+            } else {
+                val popped = try {
+                    navController.popBackStack(route = dest, inclusive = false)
+                } catch (e: Exception) {
+                    false
+                }
+                if (!popped) {
+                    reloadDestinationIfNeeded(destClass)
+                }
+            }
+            return
+        }
+
+        // Switching tabs or returning from search:
+        selectedIndex = index
+        if (navController.currentBackStackEntry?.destination?.hasRoute(destClass) == true) {
+            // Already at target tab root after popping search or already there
+            return
+        }
+
+        val popped = try {
+            navController.popBackStack(route = dest, inclusive = false)
+        } catch (e: Exception) {
+            false
+        }
+        if (!popped) {
             navController.navigate(dest) {
                 popUpTo(navController.graph.startDestinationId) {
                     saveState = true

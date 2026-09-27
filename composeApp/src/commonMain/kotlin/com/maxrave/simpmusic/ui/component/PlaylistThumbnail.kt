@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.maxrave.logger.Logger
+import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
 import org.jetbrains.compose.resources.painterResource
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.monochrome
@@ -57,6 +58,7 @@ fun PlaylistThumbnail(
             text = title,
             color = Color.White,
             fontSize = 18.sp,
+            fontFamily = itemTitleFontFamily(),
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .align(Alignment.BottomStart)

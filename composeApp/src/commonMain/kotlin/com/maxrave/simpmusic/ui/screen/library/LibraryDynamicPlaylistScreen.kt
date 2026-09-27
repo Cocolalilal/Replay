@@ -107,13 +107,14 @@ import simpmusic.composeapp.generated.resources.your_top_tracks
 enum class LikedFilter { ALL, SONGS, VIDEOS }
 
 fun SongEntity.isVideoTrack(): Boolean {
-    return videoType == "MUSIC_VIDEO_TYPE_OMV" ||
-        videoType == "MUSIC_VIDEO_TYPE_UGC" ||
-        category == "Videos" ||
+    when (videoType) {
+        "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC" -> return true
+        "MUSIC_VIDEO_TYPE_ATV" -> return false
+    }
+    return category == "Videos" ||
         category == "Video" ||
         resultType == "Videos" ||
-        resultType == "Video" ||
-        (videoType.contains("VIDEO", ignoreCase = true) && !videoType.contains("ATV", ignoreCase = true))
+        resultType == "Video"
 }
 
 @OptIn(ExperimentalHazeMaterialsApi::class)

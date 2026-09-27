@@ -132,9 +132,9 @@ class SettingsViewModel(
     val customOpenAIBaseUrl: StateFlow<String> = _customOpenAIBaseUrl
     private val _customOpenAIHeaders = MutableStateFlow<String>("")
     val customOpenAIHeaders: StateFlow<String> = _customOpenAIHeaders
-    private val _crossfadeEnabled = MutableStateFlow<Boolean>(false)
+    private val _crossfadeEnabled = MutableStateFlow<Boolean>(true)
     val crossfadeEnabled: StateFlow<Boolean> = _crossfadeEnabled
-    private val _crossfadeDuration = MutableStateFlow<Int>(5000)
+    private val _crossfadeDuration = MutableStateFlow<Int>(DataStoreManager.CROSSFADE_DURATION_AUTO)
     val crossfadeDuration: StateFlow<Int> = _crossfadeDuration
     private val _crossfadeDjMode = MutableStateFlow<Boolean>(true)
     val crossfadeDjMode: StateFlow<Boolean> = _crossfadeDjMode
@@ -142,6 +142,8 @@ class SettingsViewModel(
     val djTransitionStyle: StateFlow<String> = _djTransitionStyle
     private val _djBpmMatching = MutableStateFlow<Boolean>(true)
     val djBpmMatching: StateFlow<Boolean> = _djBpmMatching
+    private val _djTransitionOnSkip = MutableStateFlow<Boolean>(true)
+    val djTransitionOnSkip: StateFlow<Boolean> = _djTransitionOnSkip
     private val _youtubeSubtitleLanguage = MutableStateFlow<String>("")
     val youtubeSubtitleLanguage: StateFlow<String> = _youtubeSubtitleLanguage
 
@@ -290,6 +292,7 @@ class SettingsViewModel(
         getCrossfadeDjMode()
         getDjTransitionStyle()
         getDjBpmMatching()
+        getDjTransitionOnSkip()
         getContributorNameAndEmail()
         getBackupDownloaded()
         getEnableLiquidGlass()
@@ -492,6 +495,21 @@ class SettingsViewModel(
         viewModelScope.launch {
             dataStoreManager.setDjBpmMatching(enabled)
             getDjBpmMatching()
+        }
+    }
+
+    private fun getDjTransitionOnSkip() {
+        viewModelScope.launch {
+            dataStoreManager.djTransitionOnSkip.collect { enabled ->
+                _djTransitionOnSkip.value = enabled == DataStoreManager.TRUE
+            }
+        }
+    }
+
+    fun setDjTransitionOnSkip(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setDjTransitionOnSkip(enabled)
+            getDjTransitionOnSkip()
         }
     }
 

@@ -20,11 +20,14 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -57,11 +60,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -88,6 +93,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
@@ -186,6 +192,11 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.unavailable
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.materials.HazeMaterials
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -249,8 +260,11 @@ fun ReferenceNowPlayingLayout(
     val castState by sharedViewModel.castState.collectAsStateWithLifecycle()
     val mediaPlayerHandler: MediaPlayerHandler = koinInject()
     val isInPipMode = com.maxrave.simpmusic.extension.rememberIsInPipMode()
-    val currentVideoId = sharedViewModel.nowPlayingState.value?.songEntity?.videoId
-        ?: sharedViewModel.nowPlayingState.value?.track?.videoId
+    // Collected (not a one-shot .value read) so the queue tab's follow-scroll and the
+    // playing highlight react the moment the track changes, even if nothing else recomposes.
+    val nowPlayingTrack by sharedViewModel.nowPlayingState.collectAsStateWithLifecycle()
+    val currentVideoId = nowPlayingTrack?.songEntity?.videoId
+        ?: nowPlayingTrack?.track?.videoId
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showOverflow by rememberSaveable { mutableStateOf(false) }
@@ -574,6 +588,8 @@ fun ReferenceNowPlayingLayout(
                                             videoAspectRatio = videoAspectRatio,
                                             onVideoAspectRatioChanged = onVideoAspectRatioChanged,
                                             swapState = swapState,
+                                            videoId = currentVideoId,
+                                            tintColor = animatedTint,
                                             onSongSelected = { sharedViewModel.toggleSongVideo(preferSong = true) },
                                             onVideoSelected = { sharedViewModel.toggleSongVideo(preferSong = false) },
                                             onFullscreen = {
@@ -780,7 +796,8 @@ private fun ReferenceBackdrop(
 
 /**
  * YTM-style song/video hot-swap toggle, centered above the cover art.
- * Music icon on the left, video icon on the right. The missing side is dimmed
+ * Music icon on the left, video icon on the right. A perfect pill
+ * ([CircleShape] outside and in, symmetric halves): the missing side is dimmed
  * and does nothing when pressed (no counterpart found).
  */
 @Composable
@@ -789,16 +806,24 @@ private fun SongVideoToggle(
     songAvailable: Boolean,
     videoAvailable: Boolean,
     isResolving: Boolean,
+    isSwapping: Boolean = false,
+    swappingToVideo: Boolean = false,
     onSongSelected: () -> Unit,
     onVideoSelected: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    // While a swap is in flight (formats warming, then buffering), the side
+    // being swapped to spins — the music keeps playing underneath meanwhile.
+    val songBusy = isSwapping && !swappingToVideo
+    val videoBusy = isSwapping && swappingToVideo
+    // Same fill as the back/forward transport buttons below: the artwork tint
+    // at 20% (LocalReferenceSecondary), flat with no border.
+    val pillFill = LocalReferenceSecondary.current
     Row(
         modifier =
             Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White.copy(alpha = 0.12f))
-                .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(20.dp))
+                .clip(CircleShape)
+                .background(pillFill)
                 .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -807,41 +832,114 @@ private fun SongVideoToggle(
         Box(
             modifier =
                 Modifier
-                    .clip(RoundedCornerShape(16.dp))
+                    .widthIn(min = 64.dp)
+                    .height(36.dp)
+                    .clip(CircleShape)
                     .background(if (songSelected) Color.White else Color.Transparent)
                     .clickable(enabled = songAvailable && !songSelected) {
                         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                         onSongSelected()
                     }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                    .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                SimpIcons.MusicNote,
-                contentDescription = "Song",
-                tint = if (songSelected) Color.Black else Color.White.copy(alpha = if (songAvailable) 0.85f else 0.35f),
-                modifier = Modifier.size(20.dp).alpha(if (isResolving && !songAvailable) 0.5f else 1f),
-            )
+            if (songBusy) {
+                CircularProgressIndicator(
+                    color = if (songSelected) Color.Black else Color.White.copy(alpha = 0.85f),
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(18.dp),
+                )
+            } else {
+                Icon(
+                    SimpIcons.MusicNote,
+                    contentDescription = "Song",
+                    tint = if (songSelected) Color.Black else Color.White.copy(alpha = if (songAvailable) 0.85f else 0.35f),
+                    modifier = Modifier.size(20.dp).alpha(if (isResolving && !songAvailable) 0.5f else 1f),
+                )
+            }
         }
         Box(
             modifier =
                 Modifier
-                    .clip(RoundedCornerShape(16.dp))
+                    .widthIn(min = 64.dp)
+                    .height(36.dp)
+                    .clip(CircleShape)
                     .background(if (videoSelected) Color.White else Color.Transparent)
                     .clickable(enabled = videoAvailable && !videoSelected) {
                         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                         onVideoSelected()
                     }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                    .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                SimpIcons.Videocam,
-                contentDescription = "Music video",
-                tint = if (videoSelected) Color.Black else Color.White.copy(alpha = if (videoAvailable) 0.85f else 0.35f),
-                modifier = Modifier.size(20.dp).alpha(if (isResolving && !videoAvailable) 0.5f else 1f),
-            )
+            if (videoBusy) {
+                CircularProgressIndicator(
+                    color = if (videoSelected) Color.Black else Color.White.copy(alpha = 0.85f),
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(18.dp),
+                )
+            } else {
+                Icon(
+                    SimpIcons.Videocam,
+                    contentDescription = "Music video",
+                    tint = if (videoSelected) Color.Black else Color.White.copy(alpha = if (videoAvailable) 0.85f else 0.35f),
+                    modifier = Modifier.size(20.dp).alpha(if (isResolving && !videoAvailable) 0.5f else 1f),
+                )
+            }
         }
+    }
+}
+
+/**
+ * Swap "atmosphere" shown while a music video buffers: the cover art melts into
+ * a blurred color mix of itself (Nothing-OS-atmosphere style) with a loading
+ * spinner, so the wait reads as a transition rather than a stall. The tint
+ * gradient always renders — [Modifier.blur] is a no-op below Android API 31 —
+ * and the artwork is overscaled so blur edges never show.
+ */
+@Composable
+private fun SwapAtmospherePlaceholder(
+    artworkBitmap: androidx.compose.ui.graphics.ImageBitmap?,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.clip(RoundedCornerShape(16.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier =
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        listOf(
+                            tint.copy(alpha = 0.65f),
+                            Color.Black.copy(alpha = 0.78f),
+                            Color.Black.copy(alpha = 0.94f),
+                        ),
+                    ),
+                ),
+        )
+        if (artworkBitmap != null) {
+            Image(
+                bitmap = artworkBitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier =
+                    Modifier.fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = 1.35f
+                            scaleY = 1.35f
+                        }
+                        .blur(28.dp)
+                        .alpha(0.9f),
+            )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
+        }
+        CircularProgressIndicator(
+            color = Color.White,
+            strokeWidth = 3.dp,
+            modifier = Modifier.size(38.dp),
+        )
     }
 }
 
@@ -856,6 +954,8 @@ private fun ReferencePlayerPage(
     videoAspectRatio: Float = 16f / 9f,
     onVideoAspectRatioChanged: (Float) -> Unit = {},
     swapState: com.maxrave.simpmusic.viewModel.SharedViewModel.SongVideoSwapState? = null,
+    videoId: String? = null,
+    tintColor: Color = Color(0xFF1E1E1E),
     onSongSelected: () -> Unit = {},
     onVideoSelected: () -> Unit = {},
     onFullscreen: () -> Unit,
@@ -897,11 +997,11 @@ private fun ReferencePlayerPage(
                 (maxHeight - 140.dp).coerceAtLeast(0.dp),
             )
         Column(Modifier.fillMaxSize()) {
-            Spacer(Modifier.weight(1f))
-            // YTM-style song/video hot-swap, centered above the cover art.
+            // YTM-style song/video hot-swap, vertically centered in the free space
+            // between the top of the screen and the cover art.
             if (swapState != null) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
                     SongVideoToggle(
@@ -909,10 +1009,14 @@ private fun ReferencePlayerPage(
                         songAvailable = swapState.songAvailable,
                         videoAvailable = swapState.videoAvailable,
                         isResolving = swapState.isResolving,
+                        isSwapping = swapState.isSwapping,
+                        swappingToVideo = swapState.swappingToVideo,
                         onSongSelected = onSongSelected,
                         onVideoSelected = onVideoSelected,
                     )
                 }
+            } else {
+                Spacer(Modifier.weight(1f))
             }
             // Cover art / video: gently shrinks when paused (like the miniplayer) and sits a
             // touch higher than the plain position.
@@ -932,29 +1036,76 @@ private fun ReferencePlayerPage(
                         .align(Alignment.CenterHorizontally),
                 contentAlignment = Alignment.Center,
             ) {
-                if (screenDataState.isVideo && shouldShowVideo) {
-                    // The video track dynamically adapts to the actual playing video's aspect ratio
-                    // within the same square footprint the cover art would occupy, centred both
-                    // ways — so a square (1:1) video looks like the cover art playing video, and
-                    // landscape/portrait videos fit without stretching.
-                    ReferenceInlineVideo(
-                        screenDataState = screenDataState,
-                        isInPipMode = isInPipMode,
-                        timeLine = timeLine,
-                        isPlaying = controllerState.isPlaying,
-                        videoAspectRatio = videoAspectRatio,
-                        onVideoAspectRatioChanged = onVideoAspectRatioChanged,
-                        onFullscreen = onFullscreen,
-                        onBackward = onBackward,
-                        onForward = onForward,
-                    )
-                } else {
-                    ReferenceStaticArtwork(
-                        url = screenDataState.thumbnailURL,
-                        onSuccess = onArtworkLoaded,
-                        modifier = Modifier.fillMaxSize(),
-                        scale = pauseScale,
-                    )
+                // Morph between the cover art, the swap "atmosphere" and the inline
+                // video (and between two videos) with a fade + gentle scale, so a
+                // hot-swap never hard-cuts. The container wraps its content so the
+                // square art genuinely morphs into the video rectangle; the fixed
+                // outer box keeps the layout below from jumping.
+                val showVideo = screenDataState.isVideo && shouldShowVideo
+                val swappingToVideo = swapState?.isSwapping == true && swapState.swappingToVideo
+                AnimatedContent(
+                    targetState =
+                        when {
+                            showVideo && swappingToVideo -> "loading:${videoId ?: ""}"
+                            showVideo -> "video:${videoId ?: ""}"
+                            else -> "art"
+                        },
+                    transitionSpec = {
+                        (
+                            fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
+                                scaleIn(
+                                    initialScale = 0.93f,
+                                    animationSpec = tween(350, easing = FastOutSlowInEasing),
+                                )
+                        ).togetherWith(
+                            fadeOut(animationSpec = tween(250, easing = FastOutSlowInEasing)) +
+                                scaleOut(
+                                    targetScale = 0.96f,
+                                    animationSpec = tween(250, easing = FastOutSlowInEasing),
+                                )
+                        ).using(SizeTransform(clip = false))
+                    },
+                    label = "artworkVideoMorph",
+                ) { key ->
+                    when {
+                        key.startsWith("loading:") -> {
+                            // Atmosphere while the video buffers: the square cover art
+                            // melts into a blurred color mix of itself, then this
+                            // morphs into the video rectangle on reveal.
+                            SwapAtmospherePlaceholder(
+                                artworkBitmap = screenDataState.bitmap,
+                                tint = tintColor,
+                                modifier = Modifier.size(artworkSize),
+                            )
+                        }
+
+                        key.startsWith("video:") -> {
+                            // The video track dynamically adapts to the actual playing video's aspect ratio
+                            // within the same square footprint the cover art would occupy, centred both
+                            // ways — so a square (1:1) video looks like the cover art playing video, and
+                            // landscape/portrait videos fit without stretching.
+                            ReferenceInlineVideo(
+                                screenDataState = screenDataState,
+                                isInPipMode = isInPipMode,
+                                timeLine = timeLine,
+                                isPlaying = controllerState.isPlaying,
+                                videoAspectRatio = videoAspectRatio,
+                                onVideoAspectRatioChanged = onVideoAspectRatioChanged,
+                                onFullscreen = onFullscreen,
+                                onBackward = onBackward,
+                                onForward = onForward,
+                            )
+                        }
+
+                        else -> {
+                            ReferenceStaticArtwork(
+                                url = screenDataState.thumbnailURL,
+                                onSuccess = onArtworkLoaded,
+                                modifier = Modifier.size(artworkSize),
+                                scale = pauseScale,
+                            )
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -1234,12 +1385,46 @@ private class QueueDragDropState(
         itemCount: Int,
         onSwap: (Int, Int) -> Unit,
     ) {
-        val currentIdx = draggedIndex ?: return
+        if (draggedIndex == null) return
         dragOffsetY += dragAmount
+        maybeSwap(itemCount, onSwap)
 
+        val currentIdx = draggedIndex ?: return
         val targetLazyIndex = currentIdx + 1
         val visibleItems = lazyListState.layoutInfo.visibleItemsInfo
         val currentItemInfo = visibleItems.firstOrNull { it.index == targetLazyIndex }
+        val itemHeight = (currentItemInfo?.size ?: 60).toFloat()
+
+        val viewportHeight = lazyListState.layoutInfo.viewportSize.height
+        val currentItemTop = (currentItemInfo?.offset ?: 0) + dragOffsetY
+        val scrollZone = 100f
+
+        if (currentItemTop < scrollZone) {
+            val speed = -((scrollZone - currentItemTop).coerceIn(4f, 25f))
+            startAutoScroll(speed, itemCount, onSwap)
+        } else if (currentItemTop + itemHeight > viewportHeight - scrollZone) {
+            val speed = ((currentItemTop + itemHeight) - (viewportHeight - scrollZone)).coerceIn(4f, 25f)
+            startAutoScroll(speed, itemCount, onSwap)
+        } else {
+            stopAutoScroll()
+        }
+    }
+
+    /**
+     * Promotes the dragged card through slots when the finger crosses the swap threshold.
+     * Also clamps overshoot at the ends of the list: with no neighbour to swap with the
+     * offset used to grow unbounded, letting the card detach from its slot, slide over the
+     * header/out of the viewport (where the clip shrinks it) and smear its border across
+     * whatever it overlapped — the "line in the middle".
+     */
+    private fun maybeSwap(
+        itemCount: Int,
+        onSwap: (Int, Int) -> Unit,
+    ) {
+        val currentIdx = draggedIndex ?: return
+        val targetLazyIndex = currentIdx + 1
+        val currentItemInfo =
+            lazyListState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == targetLazyIndex }
         val itemHeight = (currentItemInfo?.size ?: 60).toFloat()
 
         if (dragOffsetY > itemHeight * 0.55f && currentIdx < itemCount - 1) {
@@ -1256,19 +1441,8 @@ private class QueueDragDropState(
             hapticFeedback.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
         }
 
-        val viewportHeight = lazyListState.layoutInfo.viewportSize.height
-        val currentItemTop = (currentItemInfo?.offset ?: 0) + dragOffsetY
-        val scrollZone = 100f
-
-        if (currentItemTop < scrollZone) {
-            val speed = -((scrollZone - currentItemTop).coerceIn(4f, 25f))
-            startAutoScroll(speed)
-        } else if (currentItemTop + itemHeight > viewportHeight - scrollZone) {
-            val speed = ((currentItemTop + itemHeight) - (viewportHeight - scrollZone)).coerceIn(4f, 25f)
-            startAutoScroll(speed)
-        } else {
-            stopAutoScroll()
-        }
+        if (draggedIndex == 0) dragOffsetY = dragOffsetY.coerceAtLeast(-itemHeight * 0.6f)
+        if (draggedIndex == itemCount - 1) dragOffsetY = dragOffsetY.coerceAtMost(itemHeight * 0.6f)
     }
 
     fun onDragEnd(onCommit: () -> Unit) {
@@ -1306,11 +1480,23 @@ private class QueueDragDropState(
         dragOffsetY = 0f
     }
 
-    private fun startAutoScroll(delta: Float) {
+    private fun startAutoScroll(
+        delta: Float,
+        itemCount: Int,
+        onSwap: (Int, Int) -> Unit,
+    ) {
         if (autoScrollJob?.isActive == true) return
         autoScrollJob = scope.launch {
             while (isDragging) {
                 lazyListState.scrollBy(delta)
+                // The content just slid under the card by `delta`: carry the translation
+                // along so the card stays glued to the finger, then let the normal
+                // threshold promote it through slots. Without this the card progressively
+                // detaches from its slot during a sustained edge-drag and ends up
+                // straddling rows (or clipped by the viewport), which is where the stray
+                // opaque line came from.
+                dragOffsetY += delta
+                maybeSwap(itemCount, onSwap)
                 delay(16)
             }
         }
@@ -1361,24 +1547,58 @@ private fun ReferenceQueuePage(
     val hapticFeedback = LocalHapticFeedback.current
     val lazyListState = rememberLazyListState()
     val dragDropState = rememberQueueDragDropState(lazyListState)
+    // Frosted drag card when eye-candy is allowed. The list is the blur source so the
+    // dragged card frosts whatever scrolls behind it; disabled entirely in performance mode.
+    val isPerformanceMode = LocalPerformanceMode.current
+    val queueHazeState = rememberHazeState(blurEnabled = !isPerformanceMode)
 
     var idCounter by remember { mutableIntStateOf(0) }
     val displayQueue = remember { mutableStateListOf<QueueDisplayTrack>() }
 
-    // Sync displayQueue whenever queue changes and user is not actively dragging
+    // Sync displayQueue whenever queue changes and user is not actively dragging.
+    // Duplicate-safe: the same videoId can appear several times in a queue, so stable
+    // ids are pooled per videoId instead of associateBy (which collapses duplicates into
+    // one id and hands LazyColumn duplicate keys).
     LaunchedEffect(queue) {
         if (!dragDropState.isDragging) {
             val currentVideoIds = displayQueue.map { it.track.videoId }
             val newVideoIds = queue.map { it.videoId }
             if (currentVideoIds != newVideoIds) {
-                val existingById = displayQueue.associateBy { it.track.videoId }
+                val poolById = displayQueue.groupBy { it.track.videoId }
+                    .mapValues { (_, items) -> ArrayDeque(items) }
                 val newItems = queue.map { track ->
-                    existingById[track.videoId]?.copy(track = track)
+                    poolById[track.videoId]?.removeFirstOrNull()?.copy(track = track)
                         ?: QueueDisplayTrack(id = "${track.videoId}_${idCounter++}", track = track)
                 }
                 displayQueue.clear()
                 displayQueue.addAll(newItems)
             }
+        }
+    }
+
+    // Follow the actual playback position: when the track changes, bring the now-playing
+    // row into view unless the user is dragging or it is already visible (so casual
+    // browsing is never yanked away, but the list can no longer "stay back").
+    LaunchedEffect(currentVideoId, displayQueue.size) {
+        val targetId = currentVideoId ?: return@LaunchedEffect
+        if (dragDropState.isDragging) return@LaunchedEffect
+        if (lazyListState.isScrollInProgress) return@LaunchedEffect
+        var displayIndex = displayQueue.indexOfFirst { it.track.videoId == targetId }
+        if (displayIndex < 0) {
+            // The queue sync above may not have run yet on first composition.
+            delay(200)
+            if (dragDropState.isDragging) return@LaunchedEffect
+            displayIndex = displayQueue.indexOfFirst { it.track.videoId == targetId }
+            if (displayIndex < 0) return@LaunchedEffect
+        }
+        // +1 for the "Up Next" header item sitting at lazy index 0.
+        val lazyIndex = displayIndex + 1
+        val visibleIndexes = lazyListState.layoutInfo.visibleItemsInfo.map { it.index }
+        if (lazyIndex in visibleIndexes) return@LaunchedEffect
+        try {
+            lazyListState.animateScrollToItem(lazyIndex)
+        } catch (_: Exception) {
+            // Layout not ready yet — the next track change or queue update retries.
         }
     }
 
@@ -1498,7 +1718,8 @@ private fun ReferenceQueuePage(
             modifier =
                 Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .hazeSource(queueHazeState),
             contentPadding = PaddingValues(start = 26.dp, end = 26.dp, bottom = 12.dp),
         ) {
             item(key = "reference_queue_header") {
@@ -1536,6 +1757,7 @@ private fun ReferenceQueuePage(
                     label = "itemScale",
                 )
 
+                val itemShape = RoundedCornerShape(12.dp)
                 val itemModifier =
                     when {
                         isDragged -> {
@@ -1545,7 +1767,11 @@ private fun ReferenceQueuePage(
                                     translationY = dragOffset
                                     scaleX = animatedScale
                                     scaleY = animatedScale
+                                    // Rounded shadow to match the card: the default is a sharp
+                                    // rectangle that reads as a hard edge behind the card.
                                     shadowElevation = animatedElevation.toPx()
+                                    shape = itemShape
+                                    clip = false
                                 }
                         }
                         isSettling -> {
@@ -1573,6 +1799,8 @@ private fun ReferenceQueuePage(
                         track = item.track,
                         isPlaying = item.track.videoId == currentVideoId,
                         isDragging = isDragged,
+                        hazeState = queueHazeState,
+                        blurEnabled = !isPerformanceMode,
                         onClick = {
                             val realIndex =
                                 mediaPlayerHandler.queueData.value?.data?.listTracks?.indexOfFirst {
@@ -2542,6 +2770,8 @@ private fun ReferenceQueueItem(
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState? = null,
+    blurEnabled: Boolean = false,
 ) {
     val thumbnail = track.thumbnails?.maxByOrNull { it.width * it.height }?.url
     val dragHandleScale by animateFloatAsState(
@@ -2549,15 +2779,24 @@ private fun ReferenceQueueItem(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "dragHandleScale",
     )
+    val useBlur = isDragging && blurEnabled && hazeState != null
+    val draggedFill = LocalReferencePrimary.current.copy(alpha = 0.45f)
 
     Row(
         modifier =
             modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
+                .then(
+                    if (useBlur) {
+                        Modifier.hazeEffect(hazeState!!, style = HazeMaterials.ultraThin())
+                    } else {
+                        Modifier
+                    },
+                )
                 .background(
                     if (isDragging) {
-                        LocalReferencePrimary.current.copy(alpha = 0.45f)
+                        draggedFill
                     } else {
                         Color.Transparent
                     },
