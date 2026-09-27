@@ -4,10 +4,11 @@ import androidx.compose.animation.Animatable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -64,6 +65,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,11 +74,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
@@ -131,6 +136,7 @@ import simpmusic.composeapp.generated.resources.unavailable
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private const val TAG = "LyricsView"
@@ -214,15 +220,135 @@ private fun appleBlurRadiusDp(distance: Int): Float =
         }
     }
 
-/** Staged dot opacity through an interlude gap (lyra `.lyra-dot` tiers). */
-private fun interludeDotAlpha(progress: Float, dot: Int): Float {
-    val p = progress.coerceIn(0f, 1f)
-    return when (dot) {
-        0 -> (p * 3f + 0.22f).coerceIn(0.22f, 1f)
-        1 -> (p * 3f - 0.78f).coerceIn(0.22f, 1f)
-        else -> (p * 3f - 1.78f).coerceIn(0.22f, 1f)
+// ── Cascade ripple ──────────────────────────────────────────────────────────
+// Lines below the active one follow with a per-line lag (lyra cascadeStep/
+// cascadeMax) and a small pull-and-settle nudge, so a line change reads as a
+// wave travelling down the list instead of every line flipping at once.
+private const val CASCADE_STEP_MS = 45
+private const val CASCADE_MAX_MS = 340
+private const val CASCADE_PULL_DP = 10f
+
+// Weighty, critically-damped line reveal (accompanist LyricsRevealSpring):
+// smooth acceleration and deceleration, no snap, no overshoot on the line itself.
+private val AppleRevealSpring = spring<Float>(dampingRatio = 1f, stiffness = 180f)
+
+// ── Breathing interlude dots ────────────────────────────────────────────────
+// Lifecycle ported from accompanist's PreparedBreathingDots (which itself ports
+// the feature-text-engine draw.rs phases): smooth enter ramp, cosine breathing
+// whose period adapts to the gap length, a pre-exit dip-and-rise, a still beat,
+// then a shrink-to-zero exit. Pure functions of gap-relative time — no clocks,
+// no per-frame allocation.
+private const val DOTS_ENTER_MS = 450f
+private const val DOTS_DIP_RISE_MS = 650f
+private const val DOTS_STILL_MS = 250f
+private const val DOTS_EXIT_MS = 400f
+private const val DOTS_BREATH_HALF_CYCLE_MS = 1500f
+private const val DOTS_VISIBILITY_RAMP_MS = 220f
+
+private fun dotsPhaseFactor(durationMs: Float): Float =
+    (durationMs / (DOTS_ENTER_MS + DOTS_DIP_RISE_MS + DOTS_STILL_MS + DOTS_EXIT_MS))
+        .coerceAtMost(1f)
+
+private fun dotsEnterEnd(durationMs: Float): Float = DOTS_ENTER_MS * dotsPhaseFactor(durationMs)
+
+private fun dotsExitStart(durationMs: Float): Float =
+    durationMs - DOTS_EXIT_MS * dotsPhaseFactor(durationMs)
+
+private fun dotsScale(elapsedMs: Float, durationMs: Float): Float {
+    if (durationMs <= 0f) return 0f
+    val factor = dotsPhaseFactor(durationMs)
+    val enterEnd = DOTS_ENTER_MS * factor
+    val exitStart = durationMs - DOTS_EXIT_MS * factor
+    val stillStart = exitStart - DOTS_STILL_MS * factor
+    val dipStart = stillStart - DOTS_DIP_RISE_MS * factor
+    val breathingDuration = (dipStart - enterEnd).coerceAtLeast(0f)
+    val hasBreathing = breathingDuration > 16f
+    // Odd half-cycle count so the breathe ends where it started.
+    val halfCycles =
+        (breathingDuration / DOTS_BREATH_HALF_CYCLE_MS).roundToInt().coerceAtLeast(1).let {
+            if (it % 2 == 0) it + 1 else it
+        }
+    val period = 2f * breathingDuration / halfCycles
+    return when {
+        elapsedMs < enterEnd -> smooth01(elapsedMs / enterEnd) * if (hasBreathing) 0.8f else 1f
+        hasBreathing && elapsedMs < dipStart ->
+            0.9f - 0.1f * cos((elapsedMs - enterEnd) / period * 2f * PI.toFloat())
+        elapsedMs < dipStart -> 1f
+        elapsedMs < stillStart ->
+            0.8f +
+                0.2f *
+                    cos(
+                        (
+                            (elapsedMs - dipStart) /
+                                (stillStart - dipStart).coerceAtLeast(0.000001f)
+                        ).coerceIn(0f, 1f) * 2f * PI.toFloat(),
+                    )
+        elapsedMs < exitStart -> 1f
+        // Exit: shrink away (reads as growing-then-suddenly-smaller on the way out).
+        else -> smooth01((durationMs - elapsedMs) / (durationMs - exitStart).coerceAtLeast(0.000001f))
     }
 }
+
+private fun dotsAlpha(elapsedMs: Float, durationMs: Float): Float {
+    if (durationMs <= 0f) return 0f
+    val enterEnd = dotsEnterEnd(durationMs)
+    val exitStart = dotsExitStart(durationMs)
+    return when {
+        elapsedMs < enterEnd -> smooth01(elapsedMs / enterEnd)
+        elapsedMs < exitStart -> 1f
+        else -> smooth01((durationMs - elapsedMs) / (durationMs - exitStart).coerceAtLeast(0.000001f))
+    }
+}
+
+private fun dotsDotAlpha(index: Int, elapsedMs: Float, durationMs: Float): Float {
+    val dotSpan = (dotsExitStart(durationMs) - dotsEnterEnd(durationMs)).coerceAtLeast(1f) / 3f
+    return 0.4f + 0.6f * ((elapsedMs - dotsEnterEnd(durationMs) - dotSpan * index) / dotSpan).coerceIn(0f, 1f)
+}
+
+private fun dotsVisibility(elapsedMs: Float, durationMs: Float): Float {
+    if (durationMs <= 0f || elapsedMs < 0f || elapsedMs >= durationMs) return 0f
+    return minOf(
+        smooth01(elapsedMs / DOTS_VISIBILITY_RAMP_MS),
+        smooth01((durationMs - elapsedMs) / DOTS_VISIBILITY_RAMP_MS),
+    )
+}
+
+/**
+ * Seamless viewport edge fade (accompanist LyricsEdgeFade): a DstIn gradient
+ * mask inside an offscreen layer, so the *text itself* dissolves into whatever
+ * is behind the list (the artwork backdrop) instead of painting darkness over it.
+ * Brushes are built once in the cache block — nothing per frame.
+ */
+private fun Modifier.lyricsListEdgeFade(topLength: Dp, bottomLength: Dp): Modifier =
+    drawWithCache {
+        val topPx = topLength.toPx().coerceIn(0f, size.height)
+        val bottomPx = bottomLength.toPx().coerceIn(0f, size.height)
+        val topBrush =
+            if (topPx > 0f) {
+                Brush.verticalGradient(
+                    listOf(Color.Transparent, Color.Black),
+                    startY = 0f,
+                    endY = topPx,
+                )
+            } else {
+                null
+            }
+        val bottomBrush =
+            if (bottomPx > 0f) {
+                Brush.verticalGradient(
+                    listOf(Color.Black, Color.Transparent),
+                    startY = size.height - bottomPx,
+                    endY = size.height,
+                )
+            } else {
+                null
+            }
+        onDrawWithContent {
+            drawContent()
+            topBrush?.let { drawRect(brush = it, blendMode = BlendMode.DstIn) }
+            bottomBrush?.let { drawRect(brush = it, blendMode = BlendMode.DstIn) }
+        }
+    }
 
 private data class TimedLineIndex(
     val index: Int,
@@ -393,6 +519,16 @@ fun LyricsView(
         }
     }
 
+    // Scroll direction for the cascade pull: +1 advancing, -1 going back, 0 on load.
+    val scrollDirection = remember { mutableIntStateOf(0) }
+    val prevActiveIndex = remember { mutableIntStateOf(Int.MIN_VALUE) }
+    LaunchedEffect(currentLineIndex) {
+        val prev = prevActiveIndex.intValue
+        scrollDirection.intValue =
+            if (prev == Int.MIN_VALUE) 0 else (currentLineIndex - prev).coerceIn(-1, 1)
+        prevActiveIndex.intValue = currentLineIndex
+    }
+
     BoxWithConstraints(modifier = modifier) {
         // Asymmetric padding puts the resting active line at the 40% mark: the
         // first and last lines can still reach it instead of pinning to the edges.
@@ -400,46 +536,106 @@ fun LyricsView(
         val bottomPadding = (maxHeight * 0.60f - 28.dp).coerceAtLeast(24.dp)
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .then(
+                        // Seamless DstIn edge fade (eye-candy only; perf stays light).
+                        if (eyeCandy && showScrollShadows) {
+                            Modifier
+                                .graphicsLayer {
+                                    compositingStrategy = CompositingStrategy.Offscreen
+                                }.lyricsListEdgeFade(72.dp, 110.dp)
+                        } else {
+                            Modifier
+                        },
+                    ),
             contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding),
         ) {
             items(lines.size) { index ->
                 val line = lines.getOrNull(index)
                 val isCurrent = index == currentLineIndex
-                // Signed distance from the active line; Int.MAX_VALUE pre-song.
-                val distance =
-                    if (currentLineIndex < 0) Int.MAX_VALUE else index - currentLineIndex
+                // ── Cascade: lines below the active one retarget with a per-line
+                // lag so a change ripples down the list instead of flipping at
+                // once. Word timing below stays instant (locked to the audio) —
+                // only the container visuals ripple.
+                var cascadeActive by remember { mutableStateOf(isCurrent) }
+                var cascadeDistance by remember {
+                    mutableIntStateOf(if (currentLineIndex < 0) Int.MAX_VALUE else index - currentLineIndex)
+                }
+                LaunchedEffect(isCurrent, currentLineIndex, lines) {
+                    val d = index - currentLineIndex
+                    val stagger =
+                        if (eyeCandy && isSynced && currentLineIndex >= 0 && d > 0) {
+                            minOf(d * CASCADE_STEP_MS, CASCADE_MAX_MS).toLong()
+                        } else {
+                            0L
+                        }
+                    if (stagger > 0L) delay(stagger)
+                    cascadeActive = isCurrent
+                    cascadeDistance = if (currentLineIndex < 0) Int.MAX_VALUE else d
+                }
+                // ── Pull-and-settle: lagging lines take a small nudge along the
+                // scroll direction, then spring home — the "top pulls the rest" feel.
+                val settle = remember { Animatable(0f) }
+                val pullPx = with(density) { CASCADE_PULL_DP.dp.toPx() }
+                LaunchedEffect(currentLineIndex, lines) {
+                    if (!eyeCandy || !isSynced) {
+                        settle.snapTo(0f)
+                    } else {
+                        val d = index - currentLineIndex
+                        if (currentLineIndex < 0 || d <= 0 || d > 8) {
+                            settle.snapTo(0f)
+                        } else {
+                            delay(minOf(d * CASCADE_STEP_MS, CASCADE_MAX_MS).toLong())
+                            val dir = scrollDirection.intValue
+                            if (dir == 0) {
+                                settle.snapTo(0f)
+                            } else {
+                                settle.snapTo(dir * pullPx)
+                                settle.animateTo(
+                                    0f,
+                                    spring(dampingRatio = 0.7f, stiffness = 300f),
+                                )
+                            }
+                        }
+                    }
+                }
                 val targetLineAlpha =
                     when {
                         !eyeCandy -> 1f
                         !isSynced -> APPLE_STATIC_ALPHA
                         currentLineIndex < 0 -> APPLE_INACTIVE_ALPHA
-                        else -> appleLineAlpha(distance)
+                        cascadeActive -> 1f
+                        else -> appleLineAlpha(cascadeDistance)
                     }
                 // Brighten fast, dim slow (lyra line transitions).
-                val animatedLineAlpha by animateFloatAsState(
-                    targetValue = targetLineAlpha,
-                    animationSpec = tween(if (isCurrent) 280 else 600, easing = FastOutSlowInEasing),
-                    label = "appleLineAlpha",
-                )
-                val targetLineScale =
-                    if (!eyeCandy || !isSynced) {
-                        1f
-                    } else if (isCurrent) {
-                        APPLE_ACTIVE_LINE_SCALE
-                    } else {
-                        APPLE_IDLE_LINE_SCALE
-                    }
-                val animatedLineScale by animateFloatAsState(
-                    targetValue = targetLineScale,
-                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                    label = "appleLineScale",
-                )
+                // States are read inside graphicsLayer (draw phase), so the
+                // running animations re-draw without recomposing the item.
+                val lineAlphaState =
+                    animateFloatAsState(
+                        targetValue = targetLineAlpha,
+                        animationSpec = tween(if (cascadeActive) 280 else 600, easing = FastOutSlowInEasing),
+                        label = "appleLineAlpha",
+                    )
+                val lineScaleState =
+                    animateFloatAsState(
+                        targetValue =
+                            if (!eyeCandy || !isSynced) {
+                                1f
+                            } else if (cascadeActive) {
+                                APPLE_ACTIVE_LINE_SCALE
+                            } else {
+                                APPLE_IDLE_LINE_SCALE
+                            },
+                        animationSpec = AppleRevealSpring,
+                        label = "appleLineScale",
+                    )
                 val blurRadiusDp =
-                    if (!eyeCandy || !isSynced || currentLineIndex < 0) {
+                    if (!eyeCandy || !isSynced || currentLineIndex < 0 || cascadeActive) {
                         0f
                     } else {
-                        appleBlurRadiusDp(distance)
+                        appleBlurRadiusDp(cascadeDistance)
                     }
                 val blurPx = with(density) { blurRadiusDp.dp.toPx() }
                 val blurEffect = remember(blurPx) {
@@ -447,65 +643,69 @@ fun LyricsView(
                 }
                 // In eye-candy mode the line container carries the dimming so the
                 // glyphs stay solid; the inner texts switch to solid whites below.
-                val solidForTier = eyeCandy && !isCurrent
+                val solidForTier = eyeCandy && !cascadeActive
                 val lineDeco =
                     if (!eyeCandy) {
                         Modifier
                     } else {
                         Modifier.graphicsLayer {
-                            alpha = animatedLineAlpha
-                            scaleX = animatedLineScale
-                            scaleY = animatedLineScale
+                            alpha = lineAlphaState.value
+                            scaleX = lineScaleState.value
+                            scaleY = lineScaleState.value
+                            translationY = settle.value
                             renderEffect = blurEffect
                             transformOrigin = TransformOrigin(0f, 0.5f)
                         }
                     }
 
-                // Breathing interlude dots for long instrumental gaps (lyra):
-                // a lead-in above the first line and the gap below this line.
+                // Interlude dots, shown only for genuine silence: the provider
+                // must have supplied a real end time (end > start). Missing or
+                // zeroed ends mean "unknown timing", not a gap.
                 val nowMs = current.current
-                val leadDotsProgress =
-                    if (index == 0 && isSynced) {
-                        val firstStart = startMsList.firstOrNull()
-                        if (firstStart != null && firstStart >= INTERLUDE_LEAD_MS && nowMs < firstStart) {
-                            (nowMs.toFloat() / firstStart.toFloat()).coerceIn(0f, 1f)
-                        } else {
-                            null
-                        }
+                val thisStart = startMsList.getOrNull(index)
+                val thisEnd = endMsList.getOrNull(index)
+                // Lead-in above the first line.
+                val leadGap =
+                    if (index == 0 && isSynced && thisStart != null &&
+                        thisStart >= INTERLUDE_LEAD_MS && nowMs in 0..thisStart
+                    ) {
+                        0L to thisStart
                     } else {
                         null
                     }
-                val gapDotsProgress =
-                    if (!isSynced) {
-                        null
+                val nextStart = startMsList.getOrNull(index + 1)
+                // Silence below this line: real end, real next start, long
+                // enough, and nothing is sung right now.
+                val midGap =
+                    if (isSynced && thisStart != null && thisEnd != null &&
+                        thisEnd > thisStart && nextStart != null &&
+                        nextStart - thisEnd >= INTERLUDE_MIN_MS &&
+                        nowMs in thisEnd..nextStart
+                    ) {
+                        thisEnd to nextStart
                     } else {
-                        val thisEnd = endMsList.getOrNull(index)
-                        val nextStart = startMsList.getOrNull(index + 1)
-                        if (thisEnd != null && nextStart != null &&
-                            nextStart - thisEnd >= INTERLUDE_MIN_MS &&
-                            nowMs in thisEnd..nextStart
-                        ) {
-                            ((nowMs - thisEnd).toFloat() / (nextStart - thisEnd).toFloat())
-                                .coerceIn(0f, 1f)
-                        } else if (index == lines.lastIndex && thisEnd != null) {
-                            // Outro: dots through a long instrumental tail.
-                            val total = current.total
-                            if (total > 0L && total - thisEnd >= INTERLUDE_MIN_MS + 1500L &&
-                                nowMs in thisEnd..total
-                            ) {
-                                ((nowMs - thisEnd).toFloat() / (total - thisEnd).toFloat())
-                                    .coerceIn(0f, 1f)
-                            } else {
-                                null
-                            }
-                        } else {
-                            null
-                        }
+                        null
                     }
+                // Outro: dots through a long instrumental tail.
+                val total = current.total
+                val outroGap =
+                    if (isSynced && index == lines.lastIndex && thisStart != null &&
+                        thisEnd != null && thisEnd > thisStart &&
+                        total > 0L && total - thisEnd >= INTERLUDE_MIN_MS + 1500L &&
+                        nowMs in thisEnd..total
+                    ) {
+                        thisEnd to total
+                    } else {
+                        null
+                    }
+                val gap = midGap ?: outroGap
 
                 Column(modifier = lineDeco) {
-                    leadDotsProgress?.let { progress ->
-                        InterludeDots(progress = progress, eyeCandy = eyeCandy)
+                    leadGap?.let { (gapStart, gapEnd) ->
+                        InterludeDots(
+                            elapsedMs = (nowMs - gapStart).toFloat(),
+                            durationMs = (gapEnd - gapStart).toFloat(),
+                        )
                     }
                     // Translated lyrics: synced -> precomputed map by line index, unsynced -> by index.
                     val translatedWords =
@@ -579,41 +779,14 @@ fun LyricsView(
                             }
                         }
                     }
-                    gapDotsProgress?.let { progress ->
-                        InterludeDots(progress = progress, eyeCandy = eyeCandy)
+                    gap?.let { (gapStart, gapEnd) ->
+                        InterludeDots(
+                            elapsedMs = (nowMs - gapStart).toFloat(),
+                            durationMs = (gapEnd - gapStart).toFloat(),
+                        )
                     }
                 }
             }
-        }
-        // Apple fades the list into the backdrop at the viewport edges. Plain
-        // decorative boxes stay transparent to touch so line taps pass through.
-        if (showScrollShadows) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(72.dp)
-                        .align(Alignment.TopCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Black.copy(alpha = 0.35f),
-                                1f to Color.Transparent,
-                            ),
-                        ),
-            )
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(110.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to Color.Black.copy(alpha = 0.45f),
-                            ),
-                        ),
-            )
         }
     }
 }
@@ -689,6 +862,53 @@ fun RichSyncLyricsLineItem(
             if (!isCurrent) return@derivedStateOf -1
             parsedLine.words.indexOfLast { it.startTimeMs <= currentTimeMs }
         }
+    }
+    val fontSize = customFontSize ?: 27.sp
+    val wordStyle =
+        TextStyle(
+            fontFamily = lyricsFontFamily(),
+            fontSize = fontSize,
+            lineHeight = (fontSize.value * 1.16f).sp,
+            letterSpacing = (-0.25).sp,
+            fontWeight = FontWeight.Bold,
+        )
+
+    // Performance mode: snap-static words, zero animation objects — the light path.
+    if (!eyeCandy) {
+        Column(modifier = modifier) {
+            Spacer(modifier = Modifier.height(customPadding))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                parsedLine.words.forEachIndexed { index, wordTiming ->
+                    Text(
+                        text = wordTiming.text,
+                        style = wordStyle,
+                        color =
+                            if (isCurrent && index <= currentWordIndex) {
+                                Color.White
+                            } else {
+                                DimOriginalColor
+                            },
+                    )
+                }
+            }
+            if (translatedWords != null) {
+                Text(
+                    text = translatedWords,
+                    style = typo().bodyMedium.copy(fontSize = 14.sp),
+                    color =
+                        if (isCurrent) {
+                            Color.White.copy(alpha = 0.5f)
+                        } else {
+                            DimTranslatedColor
+                        },
+                )
+            }
+            Spacer(modifier = Modifier.height(customPadding))
+        }
+        return
     }
 
     Column(
@@ -822,33 +1042,66 @@ private fun AnimatedWord(
         }
     }
 
-    val progress = anim.value
-
-    if (!eyeCandy) {
-        // Legacy hard wipe.
-        Box {
-            // Bottom layer: dimmed pending color, drawn for the whole word.
-            Text(text = word, style = style, color = DimRichPendingColor)
-            // Top layer: white, clipped horizontally so only the wiped portion shows.
-            Text(
-                text = word,
+    // The Animatable is owned here, but its value is read ONLY inside the tiny
+    // overlay below — so the ticking word never recomposes its static neighbours
+    // (accompanist isolates ticking rows in separate draw scopes for the same reason).
+    Box {
+        // Bottom layer: dimmed pending color, drawn once, never animated.
+        Text(text = word, style = style, color = DimRichPendingColor)
+        if (eyeCandy) {
+            WordSweepOverlay(
+                word = word,
                 style = style,
-                color = Color.White,
-                modifier =
-                    Modifier.drawWithContent {
-                        clipRect(right = size.width * progress) {
-                            this@drawWithContent.drawContent()
-                        }
-                    },
+                anim = anim,
+                wordDurationMs = wordDurationMs,
+            )
+        } else {
+            LegacyWipeOverlay(
+                word = word,
+                style = style,
+                anim = anim,
             )
         }
-        return
+    }
+}
+
+/**
+ * Apple word sweep, engineered for zero per-frame allocation (the stutter fix):
+ *
+ * - The sweep band uses ONE remembered fixed gradient brush; only the clip
+ *   window moves. (Accompanist: "a canvas translation reuses the fixed-width
+ *   shader on both Android and Skia".)
+ * - The glow is a static-shadow text whose *layer alpha* follows the lift
+ *   envelope — the glyphs rasterize once and are cached; only opacity moves.
+ * - Word motion (grow + lift) lives in graphicsLayer: transform-only, free.
+ *
+ * Per frame the engine redraws at most two small clipped text runs and moves
+ * one rect/alpha — no object creation, no shader recompiles, no blur passes.
+ */
+@Composable
+private fun WordSweepOverlay(
+    word: String,
+    style: TextStyle,
+    anim: Animatable<Float, AnimationVector1D>,
+    wordDurationMs: Long,
+) {
+    val p = anim.value.coerceIn(0f, 1f)
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val bandBrush = remember { Brush.horizontalGradient(0f to Color.White, 1f to Color.Transparent) }
+    val isHeld = wordDurationMs >= HOLD_NOTE_MS
+    val bandStyle = remember(style, bandBrush) { style.copy(brush = bandBrush) }
+    // Glow paints are built once (accompanist RowPaints: "playback selects a
+    // shadow without allocating one"); the envelope below only picks opacity.
+    val glowStyle = remember(style, wordDurationMs) {
+        style.copy(
+            shadow =
+                Shadow(
+                    color = Color.White.copy(alpha = if (isHeld) 0.65f else 0.5f),
+                    blurRadius = if (isHeld) 14f else 10f,
+                ),
+        )
     }
 
-    // ── Apple sweep: soft-edged gradient + glow + lift envelope ──────────────
-    val density = LocalDensity.current
-    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val p = progress.coerceIn(0f, 1f)
     val grow = smooth01(p)
     // Lift amplitude from word duration (lyra pop): short words barely move.
     val pop = ((wordDurationMs - 120).toFloat() / 480f).coerceIn(0.25f, 1f)
@@ -866,9 +1119,17 @@ private fun AnimatedWord(
         )
     val wordScale =
         APPLE_IDLE_WORD_SCALE + (1f - APPLE_IDLE_WORD_SCALE) * grow + 0.032f * pop * arc
-    val liftEm = 0.008f * (1f - grow) - 0.022f * arc
-    val liftPx = with(density) { (liftEm * fontSize.value).dp.toPx() }
-    val isHeld = wordDurationMs >= HOLD_NOTE_MS
+    // Lift starts ~4px low and settles quadratically as the word is sung
+    // (accompanist drawPreparedRow lift curve).
+    val liftPx = 4f * (1f - grow) * (1f - grow)
+    val glowAlpha = (0.9f * arc).coerceIn(0f, 1f)
+
+    // The sweep overdrives past 100% so the soft edge fully clears the glyph
+    // right as the word flips to sung (lyra --fill 118%).
+    val fill = (p * (1f + SWEEP_SOFT_EDGE)).coerceIn(0f, 1f + SWEEP_SOFT_EDGE)
+    val solidUpTo = (fill - SWEEP_SOFT_EDGE).coerceIn(0f, 1f)
+    val bandLeft = if (!rtl) solidUpTo else (1f - fill).coerceIn(0f, 1f)
+    val bandRight = if (!rtl) fill.coerceAtMost(1f) else (1f - solidUpTo).coerceIn(0f, 1f)
 
     Box(
         modifier =
@@ -878,99 +1139,98 @@ private fun AnimatedWord(
                 translationY = liftPx
             },
     ) {
-        // Bottom layer: dimmed pending color, drawn for the whole word.
-        Text(text = word, style = style, color = DimRichPendingColor)
-        // The sweep overdrives past 100% so the soft edge fully clears the
-        // glyph right as the word flips to sung (lyra --fill 118%).
-        val fill = (p * (1f + SWEEP_SOFT_EDGE)).coerceIn(0f, 1f + SWEEP_SOFT_EDGE)
-        if (fill > 0.001f) {
-            if (fill >= 1f + SWEEP_SOFT_EDGE - 0.001f) {
-                Text(
-                    text = word,
-                    style =
-                        style.copy(
-                            shadow =
-                                Shadow(
-                                    color =
-                                        Color.White.copy(
-                                            alpha = if (isHeld) 0.65f else 0.45f,
-                                        ),
-                                    blurRadius = if (isHeld) 28f else 12f,
-                                ),
-                        ),
-                    color = Color.White,
-                )
-            } else {
-                val edge = (fill - SWEEP_SOFT_EDGE).coerceIn(0f, 1f)
-                val sweepBrush =
-                    if (!rtl) {
-                        Brush.horizontalGradient(
-                            0f to Color.White,
-                            edge to Color.White,
-                            fill.coerceAtMost(1f) to Color.Transparent,
-                        )
-                    } else {
-                        Brush.horizontalGradient(
-                            0f to Color.Transparent,
-                            (1f - fill).coerceIn(0f, 1f) to Color.Transparent,
-                            (1f - edge).coerceIn(0f, 1f) to Color.White,
-                            1f to Color.White,
-                        )
-                    }
-                Text(
-                    text = word,
-                    style =
-                        style.copy(
-                            brush = sweepBrush,
-                            shadow =
-                                Shadow(
-                                    color =
-                                        Color.White.copy(
-                                            alpha = if (isHeld) 0.65f else 0.45f,
-                                        ),
-                                    blurRadius = if (isHeld) 28f else 12f,
-                                ),
-                        ),
-                    color = Color.Transparent,
-                )
-            }
+        if (solidUpTo > 0.001f) {
+            Text(
+                text = word,
+                style = style,
+                color = Color.White,
+                modifier =
+                    Modifier.drawWithContent {
+                        clipRect(right = size.width * solidUpTo) {
+                            this@drawWithContent.drawContent()
+                        }
+                    },
+            )
+        }
+        if (fill > 0.001f && fill < 1f + SWEEP_SOFT_EDGE - 0.001f && bandRight > bandLeft + 0.001f) {
+            Text(
+                text = word,
+                style = bandStyle,
+                color = Color.Transparent,
+                modifier =
+                    Modifier.drawWithContent {
+                        clipRect(
+                            left = size.width * bandLeft,
+                            right = size.width * bandRight,
+                        ) {
+                            this@drawWithContent.drawContent()
+                        }
+                    },
+            )
+        }
+        if (glowAlpha > 0.01f) {
+            Text(
+                text = word,
+                style = glowStyle,
+                color = Color.White,
+                modifier = Modifier.graphicsLayer { alpha = glowAlpha },
+            )
         }
     }
 }
 
 /**
- * Breathing interlude dots for long instrumental gaps (lyra `.lyra-int`): three
- * dots that stage in through the gap, gently breathing while the gap is active.
- * The breathe runs only with eye-candy on; otherwise the dots are static.
+ * Legacy hard wipe (performance mode): a single clipped white run, allocation-
+ * free and animation-cheap.
+ */
+@Composable
+private fun LegacyWipeOverlay(
+    word: String,
+    style: TextStyle,
+    anim: Animatable<Float, AnimationVector1D>,
+) {
+    val progress = anim.value
+    Text(
+        text = word,
+        style = style,
+        color = Color.White,
+        modifier =
+            Modifier.drawWithContent {
+                clipRect(right = size.width * progress) {
+                    this@drawWithContent.drawContent()
+                }
+            },
+    )
+}
+
+/**
+ * Interlude dots for long instrumental gaps, with the full lifecycle ported
+ * from accompanist's PreparedBreathingDots: smooth enter ramp, cosine
+ * breathing whose period adapts to the gap length, a pre-exit dip-and-rise, a
+ * still beat, then a shrink-to-zero exit. Pure function of gap-relative time —
+ * no clocks, no hooks, so it is equally at home in performance mode (where it
+ * simply renders without the container blur around it).
  */
 @Composable
 private fun InterludeDots(
-    progress: Float,
-    eyeCandy: Boolean,
+    elapsedMs: Float,
+    durationMs: Float,
     modifier: Modifier = Modifier,
 ) {
-    var breatheScale = 1f
-    if (eyeCandy) {
-        val breatheTransition = rememberInfiniteTransition(label = "interludeBreathe")
-        val animatedBreathe by breatheTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.09f,
-            animationSpec =
-                infiniteRepeatable(
-                    animation = tween(durationMillis = 2200, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-            label = "interludeBreatheScale",
-        )
-        breatheScale = animatedBreathe
-    }
+    val scale = dotsScale(elapsedMs, durationMs)
+    // The container already dims non-current lines; keep the dots' own alpha
+    // relative so they never outshine the lyrics around them.
+    val alpha = (dotsAlpha(elapsedMs, durationMs) * dotsVisibility(elapsedMs, durationMs))
+        .coerceIn(0f, 1f)
+    if (scale <= 0.01f || alpha <= 0.01f) return
     Row(
         modifier =
             modifier
                 .padding(vertical = 10.dp)
                 .graphicsLayer {
-                    scaleX = breatheScale
-                    scaleY = breatheScale
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha
                     transformOrigin = TransformOrigin(0f, 0.5f)
                 },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -982,7 +1242,7 @@ private fun InterludeDots(
                     Modifier
                         .size(9.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = interludeDotAlpha(progress, dot))),
+                        .background(Color.White.copy(alpha = dotsDotAlpha(dot, elapsedMs, durationMs))),
             )
         }
     }

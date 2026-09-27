@@ -1,10 +1,12 @@
 package com.maxrave.simpmusic.extension
 
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -370,9 +372,11 @@ suspend fun LazyListState.animateScrollAndCentralizeItem(index: Int, bias: Float
     // 0.40 = Apple Music lyrics resting position with read-ahead below).
     val viewportTarget = viewportStart + (viewportEnd - viewportStart) * bias.coerceIn(0f, 1f)
     val itemCenter = itemInfo.offset + itemInfo.size / 2
+    // Spring, not tween: the view glides in with a soft settle instead of
+    // stopping dead (Apple/lyra follow-spring feel).
     this.animateScrollBy(
         value = (itemCenter - viewportTarget).toFloat(),
-        animationSpec = tween(durationMillis = 450, easing = LinearOutSlowInEasing),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
     )
 }
 
