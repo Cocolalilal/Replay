@@ -13,15 +13,18 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -601,6 +604,7 @@ fun ReferenceNowPlayingLayout(
                                             swapState = swapState,
                                             videoId = currentVideoId,
                                             tintColor = animatedTint,
+                                            deepColor = mainSongColor,
                                             cornerRadius = contentCornerRadius,
                                             onSongSelected = { sharedViewModel.toggleSongVideo(preferSong = true) },
                                             onVideoSelected = { sharedViewModel.toggleSongVideo(preferSong = false) },
@@ -912,10 +916,57 @@ private fun SongVideoToggle(
 @Composable
 private fun SwapAtmospherePlaceholder(
     artworkBitmap: androidx.compose.ui.graphics.ImageBitmap?,
+    artworkUrl: String?,
     tint: Color,
+    deepColor: Color,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 16.dp,
 ) {
+    // Slow breathing drift so the wait reads as a transition, not a stall.
+    val drift = rememberInfiniteTransition(label = "atmosphereDrift")
+    val breath by drift.animateFloat(
+        initialValue = 1.35f,
+        targetValue = 1.5f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(6000, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "atmosphereBreath",
+    )
+    val driftX by drift.animateFloat(
+        initialValue = -10f,
+        targetValue = 10f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(9000, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "atmosphereDriftX",
+    )
+    val driftY by drift.animateFloat(
+        initialValue = -8f,
+        targetValue = 8f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(7500, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "atmosphereDriftY",
+    )
+    // The blurred artwork wash. The decoded bitmap is instant; the artwork URL
+    // (coil memory cache — this art was on screen a moment ago) covers every
+    // case where no bitmap was ever reported, so this is never a bare gradient.
+    val washModifier =
+        Modifier.fillMaxSize()
+            .graphicsLayer {
+                scaleX = breath
+                scaleY = breath
+                translationX = driftX
+                translationY = driftY
+            }
+            .blur(28.dp)
+            .alpha(0.9f)
     Box(
         modifier = modifier.clip(RoundedCornerShape(cornerRadius)),
         contentAlignment = Alignment.Center,
@@ -925,9 +976,9 @@ private fun SwapAtmospherePlaceholder(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
                         listOf(
-                            tint.copy(alpha = 0.65f),
-                            Color.Black.copy(alpha = 0.78f),
-                            Color.Black.copy(alpha = 0.94f),
+                            tint.copy(alpha = 0.7f),
+                            deepColor.copy(alpha = 0.85f),
+                            Color.Black.copy(alpha = 0.95f),
                         ),
                     ),
                 ),
@@ -937,17 +988,24 @@ private fun SwapAtmospherePlaceholder(
                 bitmap = artworkBitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier =
-                    Modifier.fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = 1.35f
-                            scaleY = 1.35f
-                        }
-                        .blur(28.dp)
-                        .alpha(0.9f),
+                modifier = washModifier,
             )
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
+        } else if (!artworkUrl.isNullOrEmpty()) {
+            AsyncImage(
+                model =
+                    ImageRequest
+                        .Builder(LocalPlatformContext.current)
+                        .data(artworkUrl)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .diskCacheKey(artworkUrl)
+                        .crossfade(false)
+                        .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = washModifier,
+            )
         }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f)))
         CircularProgressIndicator(
             color = Color.White,
             strokeWidth = 3.dp,
@@ -969,6 +1027,7 @@ private fun ReferencePlayerPage(
     swapState: com.maxrave.simpmusic.viewModel.SharedViewModel.SongVideoSwapState? = null,
     videoId: String? = null,
     tintColor: Color = Color(0xFF1E1E1E),
+    deepColor: Color = Color(0xFF1E1E1E),
     cornerRadius: Dp = 16.dp,
     onSongSelected: () -> Unit = {},
     onVideoSelected: () -> Unit = {},
@@ -1047,14 +1106,14 @@ private fun ReferencePlayerPage(
                     Modifier
                         .size(artworkSize)
                         .offset(y = (-10).dp)
-                        .align(Alignment.CenterHorizontally),
+                        .align(Alignment.CenterHorizontally)
+                        .background(Color.Black, RoundedCornerShape(cornerRadius)),
                 contentAlignment = Alignment.Center,
             ) {
-                // Morph between the cover art, the swap "atmosphere" and the inline
-                // video (and between two videos) with a fade + gentle scale, so a
-                // hot-swap never hard-cuts. The container wraps its content so the
-                // square art genuinely morphs into the video rectangle; the fixed
-                // outer box keeps the layout below from jumping.
+                // One motion per layer, nothing fights: this switch is a pure
+                // fade on a fixed square stage. The rectangle morph lives
+                // solely inside the video branch, which spring-animates its own
+                // aspect when the true ratio arrives.
                 val showVideo = screenDataState.isVideo && shouldShowVideo
                 val swappingToVideo = swapState?.isSwapping == true && swapState.swappingToVideo
                 AnimatedContent(
@@ -1065,32 +1124,24 @@ private fun ReferencePlayerPage(
                             else -> "art"
                         },
                     transitionSpec = {
-                        (
-                            fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
-                                scaleIn(
-                                    initialScale = 0.93f,
-                                    animationSpec = tween(350, easing = FastOutSlowInEasing),
-                                )
-                        ).togetherWith(
-                            fadeOut(animationSpec = tween(250, easing = FastOutSlowInEasing)) +
-                                scaleOut(
-                                    targetScale = 0.96f,
-                                    animationSpec = tween(250, easing = FastOutSlowInEasing),
-                                )
-                        ).using(SizeTransform(clip = false))
+                        fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)) togetherWith
+                            fadeOut(animationSpec = tween(250, easing = FastOutSlowInEasing))
                     },
                     label = "artworkVideoMorph",
+                    modifier = Modifier.fillMaxSize(),
                 ) { key ->
                     when {
                         key.startsWith("loading:") -> {
                             // Atmosphere while the video buffers: the square cover art
-                            // melts into a blurred color mix of itself, then this
-                            // morphs into the video rectangle on reveal.
+                            // melts into a blurred color mix of itself, then fades
+                            // to reveal the video rectangle.
                             SwapAtmospherePlaceholder(
                                 artworkBitmap = screenDataState.bitmap,
+                                artworkUrl = screenDataState.thumbnailURL,
                                 tint = tintColor,
+                                deepColor = deepColor,
                                 cornerRadius = cornerRadius,
-                                modifier = Modifier.size(artworkSize),
+                                modifier = Modifier.fillMaxSize(),
                             )
                         }
 
@@ -1099,25 +1150,30 @@ private fun ReferencePlayerPage(
                             // within the same square footprint the cover art would occupy, centred both
                             // ways — so a square (1:1) video looks like the cover art playing video, and
                             // landscape/portrait videos fit without stretching.
-                            ReferenceInlineVideo(
-                                screenDataState = screenDataState,
-                                isInPipMode = isInPipMode,
-                                timeLine = timeLine,
-                                isPlaying = controllerState.isPlaying,
-                                videoAspectRatio = videoAspectRatio,
-                                onVideoAspectRatioChanged = onVideoAspectRatioChanged,
-                                cornerRadius = cornerRadius,
-                                onFullscreen = onFullscreen,
-                                onBackward = onBackward,
-                                onForward = onForward,
-                            )
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                ReferenceInlineVideo(
+                                    screenDataState = screenDataState,
+                                    isInPipMode = isInPipMode,
+                                    timeLine = timeLine,
+                                    isPlaying = controllerState.isPlaying,
+                                    videoAspectRatio = videoAspectRatio,
+                                    onVideoAspectRatioChanged = onVideoAspectRatioChanged,
+                                    cornerRadius = cornerRadius,
+                                    onFullscreen = onFullscreen,
+                                    onBackward = onBackward,
+                                    onForward = onForward,
+                                )
+                            }
                         }
 
                         else -> {
                             ReferenceStaticArtwork(
                                 url = screenDataState.thumbnailURL,
                                 onSuccess = onArtworkLoaded,
-                                modifier = Modifier.size(artworkSize),
+                                modifier = Modifier.fillMaxSize(),
                                 cornerRadius = cornerRadius,
                                 scale = pauseScale,
                             )

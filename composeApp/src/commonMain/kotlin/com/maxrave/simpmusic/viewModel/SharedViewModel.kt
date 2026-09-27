@@ -629,6 +629,9 @@ class SharedViewModel(
                                         ?.joinToString(", ") ?: "",
                                 isVideo = false,
                                 thumbnailURL = null,
+                                // Keep the last artwork: nothing re-reports it while
+                                // a video plays, and the swap atmosphere needs it.
+                                bitmap = _nowPlayingScreenData.value.bitmap,
                                 animatedArtworkData = null,
                                 lyricsData = null,
                                 songInfoData = null,
