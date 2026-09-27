@@ -7,9 +7,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -71,21 +74,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.maxrave.simpmusic.ui.theme.LocalPerformanceMode
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
@@ -136,6 +146,83 @@ private const val MIN_WIPE_MS = 150
 private val DimOriginalColor = Color.White.copy(alpha = 0.42f)
 private val DimTranslatedColor = Color.White.copy(alpha = 0.30f)
 private val DimRichPendingColor = Color.White.copy(alpha = 0.55f)
+
+// ── Apple Music lyric presentation ──────────────────────────────────────────
+// Behaviour/values mirror the two reference renderers credited in the commit
+// message (MochaRealm accompanist-lyrics-ui, matthewprince/lyra): lyra's engine
+// documents the real player — dim base + brighten-fast/dim-slow line states,
+// per-syllable gradient sweep with a soft edge, glow + lift envelope on the
+// sung word, stepped depth blur by distance, breathing interlude dots, and the
+// active line resting ~40% down the viewport with the scroll arriving ahead of
+// the highlight. Everything in this section is gated behind `eyeCandy`
+// (performance mode OFF); performance mode keeps the legacy flat rendering.
+private const val TIMING_LEAD_MS = 110L // highlights land slightly before nominal time
+private const val INTERLUDE_MIN_MS = 2600L // silent gap that earns breathing dots
+private const val INTERLUDE_LEAD_MS = 4000L // intro longer than this earns dots
+private const val HOLD_NOTE_MS = 800L // a word this long gets the sustained-glow treatment
+private const val SWEEP_SOFT_EDGE = 0.18f // gradient edge width of the word sweep
+private const val APPLE_INACTIVE_ALPHA = 0.34f // base dim for pending lines
+private const val APPLE_STATIC_ALPHA = 0.85f // unsynced sheet
+private const val APPLE_IDLE_WORD_SCALE = 0.96f
+private const val APPLE_ACTIVE_LINE_SCALE = 1.03f
+private const val APPLE_IDLE_LINE_SCALE = 0.93f
+
+private fun smooth01(x: Float): Float {
+    val t = x.coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
+}
+
+/** Total line opacity by signed distance from the active line (lyra depth tiers). */
+private fun appleLineAlpha(distance: Int): Float =
+    when {
+        distance == 0 -> 1f
+        distance < 0 -> when (-distance) {
+            // Sung history recedes hard.
+            1 -> 0.50f
+            2 -> 0.42f
+            3 -> 0.36f
+            else -> 0.30f
+        }
+        else -> when (distance) {
+            // Read-ahead stays legible.
+            1 -> 0.62f
+            2 -> 0.54f
+            3 -> 0.46f
+            else -> 0.40f
+        }
+    }
+
+/**
+ * Stepped blur radius (dp) by signed distance from the active line. Blur steps
+ * between tiers — it is never transitioned, because blur transitions run on
+ * the main thread (lyra perf notes).
+ */
+private fun appleBlurRadiusDp(distance: Int): Float =
+    when {
+        distance == 0 -> 0f
+        distance < 0 -> when (-distance) {
+            1 -> 1f
+            2 -> 1.8f
+            3 -> 2.6f
+            else -> 3.5f
+        }
+        else -> when (distance) {
+            1 -> 0f
+            2 -> 1f
+            3 -> 1.6f
+            else -> 2.2f
+        }
+    }
+
+/** Staged dot opacity through an interlude gap (lyra `.lyra-dot` tiers). */
+private fun interludeDotAlpha(progress: Float, dot: Int): Float {
+    val p = progress.coerceIn(0f, 1f)
+    return when (dot) {
+        0 -> (p * 3f + 0.22f).coerceIn(0.22f, 1f)
+        1 -> (p * 3f - 0.78f).coerceIn(0.22f, 1f)
+        else -> (p * 3f - 1.78f).coerceIn(0.22f, 1f)
+    }
+}
 
 private data class TimedLineIndex(
     val index: Int,
@@ -253,11 +340,25 @@ fun LyricsView(
 ) {
     val listState = rememberLazyListState()
     val current by timeLine.collectAsStateWithLifecycle()
+    val density = LocalDensity.current
+    // Performance mode OFF = full Apple Music eye-candy (depth tiers, glow, word
+    // lift, stepped blur, breathing dots). Performance mode keeps the legacy flat look.
+    val eyeCandy = !LocalPerformanceMode.current
+
+    val lines = lyricsData.lyrics.lines.orEmpty()
+    val isSynced =
+        lyricsData.lyrics.syncType == "LINE_SYNCED" ||
+            lyricsData.lyrics.syncType == "RICH_SYNCED"
+    val startMsList = remember(lines) { lines.map { it.startTimeMs.toLongOrNull() } }
+    val endMsList = remember(lines) {
+        lines.mapIndexed { index, line ->
+            line.endTimeMs.toLongOrNull() ?: startMsList[index]
+        }
+    }
 
     val timedLineIndexes =
-        remember(lyricsData.lyrics.lines) {
-            lyricsData.lyrics.lines
-                .orEmpty()
+        remember(lines) {
+            lines
                 .mapIndexedNotNull { index, line ->
                     line.startTimeMs.toLongOrNull()?.let { TimedLineIndex(index, it) }
                 }.sortedBy { it.startTimeMs }
@@ -266,7 +367,8 @@ fun LyricsView(
     val currentLineIndex by remember(timedLineIndexes) {
         derivedStateOf {
             val now = current.current
-            if (now <= 0L) -1 else timedLineIndexes.activeIndexAt(now)
+            // Perceptual lead: the highlight arrives just before the nominal time.
+            if (now <= 0L) -1 else timedLineIndexes.activeIndexAt(now + TIMING_LEAD_MS)
         }
     }
 
@@ -285,89 +387,233 @@ fun LyricsView(
         if (currentLineIndex > -1 &&
             (lyricsData.lyrics.syncType == "LINE_SYNCED" || lyricsData.lyrics.syncType == "RICH_SYNCED")
         ) {
-            listState.animateScrollAndCentralizeItem(currentLineIndex)
+            // Apple rests the active line ~40% down the viewport (not dead centre)
+            // so there is always read-ahead below it.
+            listState.animateScrollAndCentralizeItem(currentLineIndex, bias = 0.40f)
         }
     }
 
     BoxWithConstraints(modifier = modifier) {
-        // The active line is kept centred by the auto-scroll below; top/bottom padding lets the
-        // first and last lines reach the centre too (Apple Music style) instead of pinning to
-        // the edges.
-        val centerPadding = (maxHeight / 2f - 40.dp).coerceAtLeast(24.dp)
+        // Asymmetric padding puts the resting active line at the 40% mark: the
+        // first and last lines can still reach it instead of pinning to the edges.
+        val topPadding = (maxHeight * 0.40f - 28.dp).coerceAtLeast(24.dp)
+        val bottomPadding = (maxHeight * 0.60f - 28.dp).coerceAtLeast(24.dp)
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = centerPadding, bottom = centerPadding),
+            contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding),
         ) {
-            items(lyricsData.lyrics.lines?.size ?: 0) { index ->
-                val line = lyricsData.lyrics.lines?.getOrNull(index)
-                // Translated lyrics: synced -> precomputed map by line index, unsynced -> by index.
-                val translatedWords =
-                    if (lyricsData.lyrics.syncType == "LINE_SYNCED" || lyricsData.lyrics.syncType == "RICH_SYNCED") {
-                        syncedTranslatedWordsByLineIndex[index]
+            items(lines.size) { index ->
+                val line = lines.getOrNull(index)
+                val isCurrent = index == currentLineIndex
+                // Signed distance from the active line; Int.MAX_VALUE pre-song.
+                val distance =
+                    if (currentLineIndex < 0) Int.MAX_VALUE else index - currentLineIndex
+                val targetLineAlpha =
+                    when {
+                        !eyeCandy -> 1f
+                        !isSynced -> APPLE_STATIC_ALPHA
+                        currentLineIndex < 0 -> APPLE_INACTIVE_ALPHA
+                        else -> appleLineAlpha(distance)
+                    }
+                // Brighten fast, dim slow (lyra line transitions).
+                val animatedLineAlpha by animateFloatAsState(
+                    targetValue = targetLineAlpha,
+                    animationSpec = tween(if (isCurrent) 280 else 600, easing = FastOutSlowInEasing),
+                    label = "appleLineAlpha",
+                )
+                val targetLineScale =
+                    if (!eyeCandy || !isSynced) {
+                        1f
+                    } else if (isCurrent) {
+                        APPLE_ACTIVE_LINE_SCALE
                     } else {
-                        lyricsData.translatedLyrics
-                            ?.first
-                            ?.lines
-                            ?.getOrNull(index)
-                            ?.words
+                        APPLE_IDLE_LINE_SCALE
+                    }
+                val animatedLineScale by animateFloatAsState(
+                    targetValue = targetLineScale,
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "appleLineScale",
+                )
+                val blurRadiusDp =
+                    if (!eyeCandy || !isSynced || currentLineIndex < 0) {
+                        0f
+                    } else {
+                        appleBlurRadiusDp(distance)
+                    }
+                val blurPx = with(density) { blurRadiusDp.dp.toPx() }
+                val blurEffect = remember(blurPx) {
+                    if (blurPx > 0.5f) BlurEffect(blurPx, blurPx) else null
+                }
+                // In eye-candy mode the line container carries the dimming so the
+                // glyphs stay solid; the inner texts switch to solid whites below.
+                val solidForTier = eyeCandy && !isCurrent
+                val lineDeco =
+                    if (!eyeCandy) {
+                        Modifier
+                    } else {
+                        Modifier.graphicsLayer {
+                            alpha = animatedLineAlpha
+                            scaleX = animatedLineScale
+                            scaleY = animatedLineScale
+                            renderEffect = blurEffect
+                            transformOrigin = TransformOrigin(0f, 0.5f)
+                        }
                     }
 
-                line?.words?.let { words ->
-                    when {
-                        // Rich sync: parse and use RichSyncLyricsLineItem
-                        lyricsData.lyrics.syncType == "RICH_SYNCED" -> {
-                            val parsedLine =
-                                remember(words, line.startTimeMs, line.endTimeMs) {
-                                    val result = parseRichSyncWords(words, line.startTimeMs, line.endTimeMs)
-                                    result
-                                }
-
-                            if (parsedLine != null) {
-                                RichSyncLyricsLineItem(
-                                    parsedLine = parsedLine,
-                                    translatedWords = translatedWords,
-                                    currentTimeMs = current.current,
-                                    isCurrent = index == currentLineIndex,
-                                    modifier =
-                                        Modifier
-                                            .clickable {
-                                                onLineClick(line.startTimeMs.toFloat() * 100 / timeLine.value.total)
-                                            },
-                                )
+                // Breathing interlude dots for long instrumental gaps (lyra):
+                // a lead-in above the first line and the gap below this line.
+                val nowMs = current.current
+                val leadDotsProgress =
+                    if (index == 0 && isSynced) {
+                        val firstStart = startMsList.firstOrNull()
+                        if (firstStart != null && firstStart >= INTERLUDE_LEAD_MS && nowMs < firstStart) {
+                            (nowMs.toFloat() / firstStart.toFloat()).coerceIn(0f, 1f)
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                val gapDotsProgress =
+                    if (!isSynced) {
+                        null
+                    } else {
+                        val thisEnd = endMsList.getOrNull(index)
+                        val nextStart = startMsList.getOrNull(index + 1)
+                        if (thisEnd != null && nextStart != null &&
+                            nextStart - thisEnd >= INTERLUDE_MIN_MS &&
+                            nowMs in thisEnd..nextStart
+                        ) {
+                            ((nowMs - thisEnd).toFloat() / (nextStart - thisEnd).toFloat())
+                                .coerceIn(0f, 1f)
+                        } else if (index == lines.lastIndex && thisEnd != null) {
+                            // Outro: dots through a long instrumental tail.
+                            val total = current.total
+                            if (total > 0L && total - thisEnd >= INTERLUDE_MIN_MS + 1500L &&
+                                nowMs in thisEnd..total
+                            ) {
+                                ((nowMs - thisEnd).toFloat() / (total - thisEnd).toFloat())
+                                    .coerceIn(0f, 1f)
                             } else {
-                                // Fallback to regular line item if parsing fails
+                                null
+                            }
+                        } else {
+                            null
+                        }
+                    }
+
+                Column(modifier = lineDeco) {
+                    leadDotsProgress?.let { progress ->
+                        InterludeDots(progress = progress, eyeCandy = eyeCandy)
+                    }
+                    // Translated lyrics: synced -> precomputed map by line index, unsynced -> by index.
+                    val translatedWords =
+                        if (lyricsData.lyrics.syncType == "LINE_SYNCED" || lyricsData.lyrics.syncType == "RICH_SYNCED") {
+                            syncedTranslatedWordsByLineIndex[index]
+                        } else {
+                            lyricsData.translatedLyrics
+                                ?.first
+                                ?.lines
+                                ?.getOrNull(index)
+                                ?.words
+                        }
+
+                    line?.words?.let { words ->
+                        when {
+                            // Rich sync: parse and use RichSyncLyricsLineItem
+                            lyricsData.lyrics.syncType == "RICH_SYNCED" -> {
+                                val parsedLine =
+                                    remember(words, line.startTimeMs, line.endTimeMs) {
+                                        val result = parseRichSyncWords(words, line.startTimeMs, line.endTimeMs)
+                                        result
+                                    }
+
+                                if (parsedLine != null) {
+                                    RichSyncLyricsLineItem(
+                                        parsedLine = parsedLine,
+                                        translatedWords = translatedWords,
+                                        currentTimeMs = current.current,
+                                        isCurrent = isCurrent,
+                                        solidForTier = solidForTier,
+                                        eyeCandy = eyeCandy,
+                                        modifier =
+                                            Modifier
+                                                .clickable {
+                                                    onLineClick(line.startTimeMs.toFloat() * 100 / timeLine.value.total)
+                                                },
+                                    )
+                                } else {
+                                    // Fallback to regular line item if parsing fails
+                                    LyricsLineItem(
+                                        originalWords = words,
+                                        translatedWords = translatedWords,
+                                        isBold = isCurrent,
+                                        isCurrent = isCurrent,
+                                        solidForTier = solidForTier,
+                                        eyeCandy = eyeCandy,
+                                        modifier =
+                                            Modifier
+                                                .clickable {
+                                                    onLineClick(line.startTimeMs.toFloat() * 100 / timeLine.value.total)
+                                                },
+                                    )
+                                }
+                            }
+
+                            // Line sync or unsynced: use existing LyricsLineItem
+                            else -> {
                                 LyricsLineItem(
                                     originalWords = words,
                                     translatedWords = translatedWords,
-                                    isBold = index == currentLineIndex,
-                                    isCurrent = index == currentLineIndex,
+                                    isBold = isCurrent || lyricsData.lyrics.syncType != "LINE_SYNCED",
+                                    isCurrent = isCurrent || lyricsData.lyrics.syncType != "LINE_SYNCED",
+                                    solidForTier = solidForTier,
+                                    eyeCandy = eyeCandy,
                                     modifier =
                                         Modifier
-                                            .clickable {
+                                            .clickable(enabled = lyricsData.lyrics.syncType == "LINE_SYNCED") {
                                                 onLineClick(line.startTimeMs.toFloat() * 100 / timeLine.value.total)
                                             },
                                 )
                             }
                         }
-
-                        // Line sync or unsynced: use existing LyricsLineItem
-                        else -> {
-                            LyricsLineItem(
-                                originalWords = words,
-                                translatedWords = translatedWords,
-                                isBold = index == currentLineIndex || lyricsData.lyrics.syncType != "LINE_SYNCED",
-                                isCurrent = index == currentLineIndex || lyricsData.lyrics.syncType != "LINE_SYNCED",
-                                modifier =
-                                    Modifier
-                                        .clickable(enabled = lyricsData.lyrics.syncType == "LINE_SYNCED") {
-                                            onLineClick(line.startTimeMs.toFloat() * 100 / timeLine.value.total)
-                                        },
-                            )
-                        }
+                    }
+                    gapDotsProgress?.let { progress ->
+                        InterludeDots(progress = progress, eyeCandy = eyeCandy)
                     }
                 }
             }
+        }
+        // Apple fades the list into the backdrop at the viewport edges. Plain
+        // decorative boxes stay transparent to touch so line taps pass through.
+        if (showScrollShadows) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(72.dp)
+                        .align(Alignment.TopCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Black.copy(alpha = 0.35f),
+                                1f to Color.Transparent,
+                            ),
+                        ),
+            )
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(110.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                1f to Color.Black.copy(alpha = 0.45f),
+                            ),
+                        ),
+            )
         }
     }
 }
@@ -378,8 +624,28 @@ fun LyricsLineItem(
     translatedWords: String?,
     isBold: Boolean,
     isCurrent: Boolean = false,
+    solidForTier: Boolean = false,
+    eyeCandy: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    // Apple type: tight tracking, generous leading. When the container carries
+    // the dimming (solidForTier) the glyphs stay near-solid white.
+    val originalColor =
+        if (solidForTier) {
+            Color.White.copy(alpha = 0.92f)
+        } else if (isCurrent) {
+            Color.White
+        } else {
+            DimOriginalColor
+        }
+    val translatedColor =
+        if (solidForTier) {
+            Color.White.copy(alpha = 0.65f)
+        } else if (isCurrent) {
+            Color.White.copy(alpha = 0.55f)
+        } else {
+            DimTranslatedColor
+        }
     Column(
         modifier = modifier,
     ) {
@@ -388,14 +654,17 @@ fun LyricsLineItem(
             text = originalWords,
             fontFamily = lyricsFontFamily(),
             fontSize = 27.sp,
-            color = if (isCurrent) Color.White else DimOriginalColor,
+            lineHeight = 31.sp,
+            letterSpacing = (-0.25).sp,
+            fontWeight = if (isBold || eyeCandy) FontWeight.Bold else FontWeight.Normal,
+            color = originalColor,
         )
         if (translatedWords != null) {
             Text(
                 text = translatedWords,
                 fontFamily = lyricsFontFamily(),
                 fontSize = 14.sp,
-                color = if (isCurrent) Color.White.copy(alpha = 0.55f) else DimTranslatedColor,
+                color = translatedColor,
             )
         }
         Spacer(modifier = Modifier.height(10.dp))
@@ -411,6 +680,8 @@ fun RichSyncLyricsLineItem(
     isCurrent: Boolean,
     customFontSize: TextUnit? = null,
     customPadding: Dp = 12.dp,
+    solidForTier: Boolean = false,
+    eyeCandy: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val currentWordIndex by remember(currentTimeMs, parsedLine.words) {
@@ -456,6 +727,8 @@ fun RichSyncLyricsLineItem(
                     isPast = isCurrent && index < currentWordIndex,
                     isCurrent = isCurrent,
                     customFontSize = customFontSize,
+                    solidForTier = solidForTier,
+                    eyeCandy = eyeCandy,
                 )
             }
         }
@@ -465,7 +738,14 @@ fun RichSyncLyricsLineItem(
             Text(
                 text = translatedWords,
                 style = typo().bodyMedium.copy(fontSize = 14.sp),
-                color = if (isCurrent) Color.White.copy(alpha = 0.5f) else DimTranslatedColor,
+                color =
+                    if (solidForTier) {
+                        Color.White.copy(alpha = 0.65f)
+                    } else if (isCurrent) {
+                        Color.White.copy(alpha = 0.5f)
+                    } else {
+                        DimTranslatedColor
+                    },
             )
         }
 
@@ -484,16 +764,25 @@ private fun AnimatedWord(
     isPast: Boolean,
     isCurrent: Boolean,
     customFontSize: TextUnit? = null,
+    solidForTier: Boolean = false,
+    eyeCandy: Boolean = false,
 ) {
+    val fontSize = customFontSize ?: 27.sp
     val style =
         TextStyle(
             fontFamily = lyricsFontFamily(),
-            fontSize = customFontSize ?: 27.sp,
+            fontSize = fontSize,
+            lineHeight = (fontSize.value * 1.16f).sp,
+            letterSpacing = (-0.25).sp,
             fontWeight = FontWeight.Bold,
         )
 
     if (!isCurrent) {
-        Text(text = word, style = style, color = DimOriginalColor)
+        Text(
+            text = word,
+            style = style,
+            color = if (solidForTier) Color.White.copy(alpha = 0.92f) else DimOriginalColor,
+        )
         return
     }
 
@@ -535,21 +824,167 @@ private fun AnimatedWord(
 
     val progress = anim.value
 
-    Box {
+    if (!eyeCandy) {
+        // Legacy hard wipe.
+        Box {
+            // Bottom layer: dimmed pending color, drawn for the whole word.
+            Text(text = word, style = style, color = DimRichPendingColor)
+            // Top layer: white, clipped horizontally so only the wiped portion shows.
+            Text(
+                text = word,
+                style = style,
+                color = Color.White,
+                modifier =
+                    Modifier.drawWithContent {
+                        clipRect(right = size.width * progress) {
+                            this@drawWithContent.drawContent()
+                        }
+                    },
+            )
+        }
+        return
+    }
+
+    // ── Apple sweep: soft-edged gradient + glow + lift envelope ──────────────
+    val density = LocalDensity.current
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val p = progress.coerceIn(0f, 1f)
+    val grow = smooth01(p)
+    // Lift amplitude from word duration (lyra pop): short words barely move.
+    val pop = ((wordDurationMs - 120).toFloat() / 480f).coerceIn(0.25f, 1f)
+    val elapsedMs = p * wordDurationMs
+    val attackWindowMs = minOf(120f, wordDurationMs * 0.35f).coerceAtLeast(1f)
+    val atk = smooth01(elapsedMs / attackWindowMs)
+    // The arc: rise to a peak ~65% through the word, settle toward its end.
+    val arc =
+        atk * (
+            if (p < 0.65f) {
+                smooth01(p / 0.65f)
+            } else {
+                1f - 0.45f * smooth01((p - 0.65f) / 0.35f)
+            }
+        )
+    val wordScale =
+        APPLE_IDLE_WORD_SCALE + (1f - APPLE_IDLE_WORD_SCALE) * grow + 0.032f * pop * arc
+    val liftEm = 0.008f * (1f - grow) - 0.022f * arc
+    val liftPx = with(density) { (liftEm * fontSize.value).dp.toPx() }
+    val isHeld = wordDurationMs >= HOLD_NOTE_MS
+
+    Box(
+        modifier =
+            Modifier.graphicsLayer {
+                scaleX = wordScale
+                scaleY = wordScale
+                translationY = liftPx
+            },
+    ) {
         // Bottom layer: dimmed pending color, drawn for the whole word.
         Text(text = word, style = style, color = DimRichPendingColor)
-        // Top layer: white, clipped horizontally so only the wiped portion shows.
-        Text(
-            text = word,
-            style = style,
-            color = Color.White,
-            modifier =
-                Modifier.drawWithContent {
-                    clipRect(right = size.width * progress) {
-                        this@drawWithContent.drawContent()
+        // The sweep overdrives past 100% so the soft edge fully clears the
+        // glyph right as the word flips to sung (lyra --fill 118%).
+        val fill = (p * (1f + SWEEP_SOFT_EDGE)).coerceIn(0f, 1f + SWEEP_SOFT_EDGE)
+        if (fill > 0.001f) {
+            if (fill >= 1f + SWEEP_SOFT_EDGE - 0.001f) {
+                Text(
+                    text = word,
+                    style =
+                        style.copy(
+                            shadow =
+                                Shadow(
+                                    color =
+                                        Color.White.copy(
+                                            alpha = if (isHeld) 0.65f else 0.45f,
+                                        ),
+                                    blurRadius = if (isHeld) 28f else 12f,
+                                ),
+                        ),
+                    color = Color.White,
+                )
+            } else {
+                val edge = (fill - SWEEP_SOFT_EDGE).coerceIn(0f, 1f)
+                val sweepBrush =
+                    if (!rtl) {
+                        Brush.horizontalGradient(
+                            0f to Color.White,
+                            edge to Color.White,
+                            fill.coerceAtMost(1f) to Color.Transparent,
+                        )
+                    } else {
+                        Brush.horizontalGradient(
+                            0f to Color.Transparent,
+                            (1f - fill).coerceIn(0f, 1f) to Color.Transparent,
+                            (1f - edge).coerceIn(0f, 1f) to Color.White,
+                            1f to Color.White,
+                        )
                     }
-                },
+                Text(
+                    text = word,
+                    style =
+                        style.copy(
+                            brush = sweepBrush,
+                            shadow =
+                                Shadow(
+                                    color =
+                                        Color.White.copy(
+                                            alpha = if (isHeld) 0.65f else 0.45f,
+                                        ),
+                                    blurRadius = if (isHeld) 28f else 12f,
+                                ),
+                        ),
+                    color = Color.Transparent,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Breathing interlude dots for long instrumental gaps (lyra `.lyra-int`): three
+ * dots that stage in through the gap, gently breathing while the gap is active.
+ * The breathe runs only with eye-candy on; otherwise the dots are static.
+ */
+@Composable
+private fun InterludeDots(
+    progress: Float,
+    eyeCandy: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    var breatheScale = 1f
+    if (eyeCandy) {
+        val breatheTransition = rememberInfiniteTransition(label = "interludeBreathe")
+        val animatedBreathe by breatheTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.09f,
+            animationSpec =
+                infiniteRepeatable(
+                    animation = tween(durationMillis = 2200, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+            label = "interludeBreatheScale",
         )
+        breatheScale = animatedBreathe
+    }
+    Row(
+        modifier =
+            modifier
+                .padding(vertical = 10.dp)
+                .graphicsLayer {
+                    scaleX = breatheScale
+                    scaleY = breatheScale
+                    transformOrigin = TransformOrigin(0f, 0.5f)
+                },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(3) { dot ->
+            Box(
+                modifier =
+                    Modifier
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = interludeDotAlpha(progress, dot))),
+            )
+        }
     }
 }
 

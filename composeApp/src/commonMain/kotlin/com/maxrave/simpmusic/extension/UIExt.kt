@@ -353,7 +353,7 @@ fun NonLazyGrid(
     }
 }
 
-suspend fun LazyListState.animateScrollAndCentralizeItem(index: Int) {
+suspend fun LazyListState.animateScrollAndCentralizeItem(index: Int, bias: Float = 0.5f) {
     if (index < 0) return
     // If target item is not currently visible, jump close to it first so layoutInfo updates next frame.
     val initiallyVisible = this.layoutInfo.visibleItemsInfo.any { it.index == index }
@@ -366,11 +366,13 @@ suspend fun LazyListState.animateScrollAndCentralizeItem(index: Int) {
         this.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return
     val viewportStart = this.layoutInfo.viewportStartOffset
     val viewportEnd = this.layoutInfo.viewportEndOffset
-    val viewportCenter = (viewportStart + viewportEnd) / 2
+    // bias: fraction down the viewport the item settles at (0.5 = centred,
+    // 0.40 = Apple Music lyrics resting position with read-ahead below).
+    val viewportTarget = viewportStart + (viewportEnd - viewportStart) * bias.coerceIn(0f, 1f)
     val itemCenter = itemInfo.offset + itemInfo.size / 2
     this.animateScrollBy(
-        value = (itemCenter - viewportCenter).toFloat(),
-        animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing),
+        value = (itemCenter - viewportTarget).toFloat(),
+        animationSpec = tween(durationMillis = 450, easing = LinearOutSlowInEasing),
     )
 }
 

@@ -1191,6 +1191,7 @@ private fun ReferenceLyricsPage(
                     timeLine = timeLine,
                     onLineClick = onLineClick,
                     modifier = Modifier.fillMaxSize(),
+                    showScrollShadows = true,
                     backgroundColor = Color.Transparent,
                 )
             }
