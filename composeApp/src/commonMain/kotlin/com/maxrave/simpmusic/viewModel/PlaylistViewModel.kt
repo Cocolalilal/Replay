@@ -963,17 +963,24 @@ enum class PlaylistTag {
  * Classifies a playlist track as a music video. Only YTM's authoritative markers
  * count: `MUSIC_VIDEO_TYPE_OMV`/`MUSIC_VIDEO_TYPE_UGC` (video) and
  * `MUSIC_VIDEO_TYPE_ATV` (audio). The search parsers' coarse `Video`/`Song`
- * category labels are honored as a fallback. Anything unknown — including the
- * `"video"`/`"Video"` junk older parsers hardcoded on every row — is a song:
- * the filter must never hide playable tracks.
+ * category labels are honored as a fallback. When YTM sends no marker at all,
+ * the artwork shape decides — square artwork is music, wide/portrait stills are
+ * video — and anything still unknown is a song: the filter must never hide
+ * playable tracks.
  */
 fun Track.isVideoTrack(): Boolean {
     when (videoType) {
         "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC" -> return true
         "MUSIC_VIDEO_TYPE_ATV" -> return false
     }
-    return category == "Videos" ||
-        category == "Video" ||
-        resultType == "Videos" ||
-        resultType == "Video"
+    if (category == "Videos" || category == "Video" || resultType == "Videos" || resultType == "Video") return true
+    if (category == "Song" || category == "Songs" || resultType == "Song" || resultType == "Songs") return false
+    thumbnails?.lastOrNull()?.let { thumb ->
+        val url = thumb.url
+        if (url.contains("hq720") || url.contains("maxresdefault")) return true
+        if (thumb.height > 0 && thumb.width > 0) {
+            return kotlin.math.abs(thumb.width.toFloat() / thumb.height.toFloat() - 1f) > 0.06f
+        }
+    }
+    return false
 }

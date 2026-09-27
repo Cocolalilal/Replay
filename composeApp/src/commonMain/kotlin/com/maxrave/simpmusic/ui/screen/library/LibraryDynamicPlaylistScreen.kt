@@ -111,10 +111,23 @@ fun SongEntity.isVideoTrack(): Boolean {
         "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC" -> return true
         "MUSIC_VIDEO_TYPE_ATV" -> return false
     }
-    return category == "Videos" ||
-        category == "Video" ||
-        resultType == "Videos" ||
-        resultType == "Video"
+    if (category == "Videos" || category == "Video" || resultType == "Videos" || resultType == "Video") return true
+    if (category == "Song" || category == "Songs" || resultType == "Song" || resultType == "Songs") return false
+    // Stored rows only keep the artwork URL: YouTube stills vs square music art.
+    val thumb = thumbnails
+    if (!thumb.isNullOrEmpty()) {
+        if (thumb.contains("/vi/") || thumb.contains("hq720") || thumb.contains("maxresdefault") ||
+            thumb.contains("hqdefault") || thumb.contains("mqdefault") || thumb.contains("sddefault")
+        ) {
+            return true
+        }
+        if ((thumb.contains("w544") && thumb.contains("h544")) ||
+            (thumb.contains("w120") && thumb.contains("h120"))
+        ) {
+            return false
+        }
+    }
+    return false
 }
 
 @OptIn(ExperimentalHazeMaterialsApi::class)

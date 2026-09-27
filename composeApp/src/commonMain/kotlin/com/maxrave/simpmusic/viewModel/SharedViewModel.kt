@@ -285,13 +285,18 @@ class SharedViewModel(
                     if (current.videoId != videoId && _nowPlayingState.value?.songEntity?.videoId != videoId) {
                         return@launch
                     }
-                    val wantSong = current.isVideoContent()
+                    // Direction comes from what is actually loaded and rendered,
+                    // NOT from the track's metadata: type info can be stale or
+                    // thumbnail-derived, and a wrong direction here strands the
+                    // toggle (song→video works, video→song finds "nothing").
+                    val wantSong = _nowPlayingState.value?.mediaItem?.isVideo() ?: current.isVideoContent()
                     // A version the user already swapped to/from is known good —
-                    // prefer it over a fresh search.
+                    // trust it unconditionally. Pairs are only ever recorded from
+                    // opposite-side resolutions, so re-validating them with the
+                    // same classifier that may have misread the track can only
+                    // wrongly reject a version the user was just listening to.
                     val known = swapPairs[current.videoId]
-                    if (known != null && known.videoId != current.videoId &&
-                        known.isVideoContent() != wantSong
-                    ) {
+                    if (known != null && known.videoId != current.videoId) {
                         if (wantSong) {
                             _videoCounterpart.value = null
                             _songCounterpart.value = known
@@ -370,7 +375,7 @@ class SharedViewModel(
                     runCatching {
                         dataStoreManager.watchVideoInsteadOfPlayingAudio.first() == TRUE
                     }.getOrDefault(false)
-            withTimeoutOrNull(8000L) {
+            withTimeoutOrNull(6000L) {
                 runCatching {
                     streamRepository.getStream(dataStoreManager, target.videoId, false, warmVideo).firstOrNull()
                     if (warmVideo) {
@@ -391,28 +396,33 @@ class SharedViewModel(
                     null,
                 )
             }
-            // Restore the position once the new source is playing (best-effort retries),
-            // then fade back in at exactly the restored position.
+            // Restore the position as soon as the new source reports a duration,
+            // then fade back in at exactly the restored position. Polls fast so
+            // a ready stream cuts over in a few hundred ms instead of idling
+            // through a fixed delay with the volume ducked.
             launch {
                 var volumeRestored = startVolume <= 0.01f
                 try {
-                        repeat(10) { attempt ->
-                            delay(if (attempt == 0) 1200L else 800L)
-                            // Superseded (newer swap owns volume/state now).
-                            if (generation != swapGeneration) return@launch
-                            // Abandoned (user moved on to an unrelated track):
-                            // hand the volume back so the new track is audible.
-                            if (currentTrackForSwap()?.videoId != target.videoId) {
-                                if (generation == swapGeneration) {
-                                    player.volume = startVolume
-                                    _isSwapping.value = false
-                                }
-                                return@launch
+                    repeat(16) { attempt ->
+                        delay(if (attempt == 0) 350L else 250L)
+                        // Superseded (newer swap owns volume/state now).
+                        if (generation != swapGeneration) return@launch
+                        // Abandoned (user moved on to an unrelated track):
+                        // hand the volume back so the new track is audible.
+                        if (currentTrackForSwap()?.videoId != target.videoId) {
+                            if (generation == swapGeneration) {
+                                player.volume = startVolume
+                                _isSwapping.value = false
                             }
+                            return@launch
+                        }
                         val duration = mediaPlayerHandler.getPlayerDuration()
-                        if (duration > 0L && resumeAt in 1L until duration) {
-                            player.seekTo(resumeAt)
-                            delay(250L)
+                        if (duration > 0L) {
+                            // Clamp: the other version can be shorter than the
+                            // position we came from; position 0 needs no seek.
+                            val pos = resumeAt.coerceIn(0L, (duration - 1000L).coerceAtLeast(0L))
+                            if (pos > 0L) player.seekTo(pos)
+                            delay(200L)
                             if (generation != swapGeneration) return@launch
                             if (startVolume > 0.01f) {
                                 rampPlayerVolume(player, startVolume, steps = 5, stepMs = 40L)
