@@ -60,5 +60,6 @@ actual fun MediaPlayerViewWithSubtitle(
         isInPipMode = isInPipMode,
         mainTextStyle = typo().bodyLarge,
         translatedTextStyle = typo().bodyMedium,
+        onVideoAspectRatioChanged = onVideoAspectRatioChanged,
     )
 }

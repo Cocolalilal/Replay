@@ -158,6 +158,7 @@ fun HomeScreen(
     val isRetrying by viewModel.isRetrying.collectAsStateWithLifecycle()
     val nowPlayingData by sharedViewModel.nowPlayingState.collectAsStateWithLifecycle()
     val controllerState by sharedViewModel.controllerState.collectAsStateWithLifecycle()
+    val likedVideoIds by viewModel.likedVideoIds.collectAsStateWithLifecycle()
 
     val dataStoreManager: DataStoreManager = koinInject()
     val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
@@ -444,6 +445,7 @@ fun HomeScreen(
                                     currentPlayingVideoId = currentNowPlayingVideoId,
                                     isPlaying = isPlaying,
                                     customCoversMap = customCoversMap,
+                                    likedVideoIds = likedVideoIds,
                                     onPlayAllClick = {
                                         if (isPlaying) {
                                             sharedViewModel.onUIEvent(UIEvent.PlayPause)
@@ -1083,6 +1085,7 @@ fun QuickPicksSection(
     currentPlayingVideoId: String?,
     isPlaying: Boolean,
     customCoversMap: Map<String, String> = emptyMap(),
+    likedVideoIds: Set<String> = emptySet(),
     onPlayAllClick: () -> Unit,
     onTrackClick: (Content) -> Unit,
     onTrackLongClick: (Content) -> Unit,
@@ -1149,12 +1152,14 @@ fun QuickPicksSection(
                     ) {
                         columnItems.forEachIndexed { rowIndex, item ->
                             val isSelected = currentPlayingVideoId != null && currentPlayingVideoId == item.videoId
+                            val isLiked = item.videoId != null && likedVideoIds.contains(item.videoId)
                             val isFirstInGroup = rowIndex == 0
                             val isLastInGroup = rowIndex == columnItems.lastIndex
 
                             QuickPickCard(
                                 item = item,
                                 isSelected = isSelected,
+                                isLiked = isLiked,
                                 isFirstInGroup = isFirstInGroup,
                                 isLastInGroup = isLastInGroup,
                                 customCoversMap = customCoversMap,
@@ -1174,6 +1179,7 @@ fun QuickPicksSection(
 private fun QuickPickCard(
     item: Content,
     isSelected: Boolean,
+    isLiked: Boolean = false,
     isFirstInGroup: Boolean,
     isLastInGroup: Boolean,
     customCoversMap: Map<String, String> = emptyMap(),
@@ -1342,10 +1348,10 @@ private fun QuickPickCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isSelected) {
+                if (isLiked) {
                     Icon(
                         imageVector = SimpIcons.Favorite,
-                        contentDescription = "Now Playing Favorite",
+                        contentDescription = "Liked",
                         tint = Color(0xFF8BA7C4),
                         modifier = Modifier.size(12.dp),
                     )

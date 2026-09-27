@@ -129,8 +129,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
     val isLiquidGlassEnabled = if (getPlatform() == Platform.Android) TRUE else DataStoreManager.FALSE
 
     val rawFloatingSurfaceStyle by viewModel.getFloatingSurfaceStyle().collectAsStateWithLifecycle(DataStoreManager.FLOATING_SURFACE_GLASSY)
-    val performanceModeString by viewModel.getPerformanceMode().collectAsStateWithLifecycle(DataStoreManager.FALSE)
-    val isPerformanceMode = performanceModeString == DataStoreManager.TRUE
+    val isPerformanceMode by viewModel.getPerformanceMode().collectAsStateWithLifecycle(false)
 
     val effectiveFloatingSurfaceStyle = if (isPerformanceMode) {
         DataStoreManager.FLOATING_SURFACE_LASTCHAT

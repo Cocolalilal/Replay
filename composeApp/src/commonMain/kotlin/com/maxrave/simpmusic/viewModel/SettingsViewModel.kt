@@ -629,7 +629,7 @@ class SettingsViewModel(
     private fun getPerformanceMode() {
         viewModelScope.launch {
             dataStoreManager.performanceMode.collect {
-                _performanceMode.value = it == DataStoreManager.TRUE
+                _performanceMode.value = it
             }
         }
     }

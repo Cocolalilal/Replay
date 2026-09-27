@@ -366,6 +366,15 @@ fun ReferenceNowPlayingLayout(
             ?: paletteState.palette?.getDominantColor(0)?.takeIf { it != 0 }?.let { Color(it) }
             ?: Color(0xFF1E1E1E)
     }
+    // One corner radius for the artwork everywhere: 16dp big on the player tab,
+    // 8dp small on lyrics/queue. Both ends of the shared-element morph animate
+    // toward the same value during a tab switch, so the corners glide instead
+    // of snapping at the handoff.
+    val contentCornerRadius by animateDpAsState(
+        targetValue = if (selectedTab == 0) 16.dp else 8.dp,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "contentCornerRadius",
+    )
 
     // The first colour is the tint at 30% opacity (button fills, played progress); the second is
     // the tint at 20% opacity (backing surfaces, unplayed progress). Nothing is solid: icons stay
@@ -550,6 +559,7 @@ fun ReferenceNowPlayingLayout(
                                         },
                                         onArtworkLoaded = { sharedViewModel.setBitmap(it) },
                                         timeLine = sharedViewModel.timeline,
+                                        cornerRadius = contentCornerRadius,
                                     )
                                 }
 
@@ -572,6 +582,7 @@ fun ReferenceNowPlayingLayout(
                                         onRepeat = { sharedViewModel.onUIEvent(UIEvent.Repeat) },
                                         currentVideoId = currentVideoId,
                                         onArtworkLoaded = { sharedViewModel.setBitmap(it) },
+                                        cornerRadius = contentCornerRadius,
                                     )
                                 }
 
@@ -590,6 +601,7 @@ fun ReferenceNowPlayingLayout(
                                             swapState = swapState,
                                             videoId = currentVideoId,
                                             tintColor = animatedTint,
+                                            cornerRadius = contentCornerRadius,
                                             onSongSelected = { sharedViewModel.toggleSongVideo(preferSong = true) },
                                             onVideoSelected = { sharedViewModel.toggleSongVideo(preferSong = false) },
                                             onFullscreen = {
@@ -902,9 +914,10 @@ private fun SwapAtmospherePlaceholder(
     artworkBitmap: androidx.compose.ui.graphics.ImageBitmap?,
     tint: Color,
     modifier: Modifier = Modifier,
+    cornerRadius: Dp = 16.dp,
 ) {
     Box(
-        modifier = modifier.clip(RoundedCornerShape(16.dp)),
+        modifier = modifier.clip(RoundedCornerShape(cornerRadius)),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -956,6 +969,7 @@ private fun ReferencePlayerPage(
     swapState: com.maxrave.simpmusic.viewModel.SharedViewModel.SongVideoSwapState? = null,
     videoId: String? = null,
     tintColor: Color = Color(0xFF1E1E1E),
+    cornerRadius: Dp = 16.dp,
     onSongSelected: () -> Unit = {},
     onVideoSelected: () -> Unit = {},
     onFullscreen: () -> Unit,
@@ -1075,6 +1089,7 @@ private fun ReferencePlayerPage(
                             SwapAtmospherePlaceholder(
                                 artworkBitmap = screenDataState.bitmap,
                                 tint = tintColor,
+                                cornerRadius = cornerRadius,
                                 modifier = Modifier.size(artworkSize),
                             )
                         }
@@ -1091,6 +1106,7 @@ private fun ReferencePlayerPage(
                                 isPlaying = controllerState.isPlaying,
                                 videoAspectRatio = videoAspectRatio,
                                 onVideoAspectRatioChanged = onVideoAspectRatioChanged,
+                                cornerRadius = cornerRadius,
                                 onFullscreen = onFullscreen,
                                 onBackward = onBackward,
                                 onForward = onForward,
@@ -1102,6 +1118,7 @@ private fun ReferencePlayerPage(
                                 url = screenDataState.thumbnailURL,
                                 onSuccess = onArtworkLoaded,
                                 modifier = Modifier.size(artworkSize),
+                                cornerRadius = cornerRadius,
                                 scale = pauseScale,
                             )
                         }
@@ -1143,6 +1160,7 @@ private fun ReferenceInlineVideo(
     onFullscreen: () -> Unit,
     onBackward: () -> Unit,
     onForward: () -> Unit,
+    cornerRadius: Dp = 16.dp,
     sharedViewModel: SharedViewModel = koinInject(),
     modifier: Modifier = Modifier,
 ) {
@@ -1169,7 +1187,7 @@ private fun ReferenceInlineVideo(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "videoAspectRatio",
     )
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(cornerRadius)
     val sizeModifier =
         if (animatedAspectRatio >= 1f) {
             modifier
@@ -1295,6 +1313,7 @@ private fun ReferenceLyricsPage(
     onLineClick: (Float) -> Unit,
     onArtworkLoaded: (androidx.compose.ui.graphics.ImageBitmap) -> Unit,
     timeLine: StateFlow<TimeLine>,
+    cornerRadius: Dp = 8.dp,
 ) {
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -1318,6 +1337,7 @@ private fun ReferenceLyricsPage(
                 onArtistClick = onArtistClick,
                 onArtworkClick = onArtworkClick,
                 onArtworkLoaded = onArtworkLoaded,
+                cornerRadius = cornerRadius,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -1542,6 +1562,7 @@ private fun ReferenceQueuePage(
     onRepeat: () -> Unit,
     currentVideoId: String?,
     onArtworkLoaded: (androidx.compose.ui.graphics.ImageBitmap) -> Unit,
+    cornerRadius: Dp = 8.dp,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
@@ -1660,6 +1681,7 @@ private fun ReferenceQueuePage(
             onArtistClick = onArtistClick,
             onArtworkClick = onArtworkClick,
             onArtworkLoaded = onArtworkLoaded,
+            cornerRadius = cornerRadius,
             modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp),
         )
         Row(
@@ -1843,9 +1865,9 @@ private fun queueDataPlaylistName(screenDataState: NowPlayingScreenData): String
 
 /**
  * The small video window in the lyrics/queue headers: the shared-element destination of the
- * big inline video (same key, same pause scale, matching dynamic aspect ratio) with a
- * smaller 8dp radius so the 44dp mini reads as a soft square. Subtitles are off —
- * unreadable at this size.
+ * big inline video (same key, same pause scale, matching dynamic aspect ratio). The corner
+ * radius follows the shared morph value (8dp settled) so tab switches glide instead of
+ * snapping. Subtitles are off — unreadable at this size.
  */
 @Composable
 private fun ReferenceMiniVideo(
@@ -1856,6 +1878,7 @@ private fun ReferenceMiniVideo(
     pauseScale: Float,
     videoAspectRatio: Float,
     onVideoAspectRatioChanged: (Float) -> Unit,
+    cornerRadius: Dp = 8.dp,
     modifier: Modifier = Modifier,
 ) {
     val sharedState = LocalSharedArtworkState.current
@@ -1866,7 +1889,7 @@ private fun ReferenceMiniVideo(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "miniVideoAspectRatio",
     )
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(cornerRadius)
     val sizedModifier = modifier.aspectRatio(animatedAspectRatio, matchHeightConstraintsFirst = true)
     val baseModifier =
         if (sharedState != null && sharedScope != null && sharedTransitionScope != null) {
@@ -1967,6 +1990,7 @@ private fun ReferenceTrackHeader(
     onArtistClick: () -> Unit,
     onArtworkClick: (() -> Unit)? = null,
     onArtworkLoaded: (androidx.compose.ui.graphics.ImageBitmap) -> Unit,
+    cornerRadius: Dp = 8.dp,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -1998,17 +2022,18 @@ private fun ReferenceTrackHeader(
                         pauseScale = pauseScale,
                         videoAspectRatio = videoAspectRatio,
                         onVideoAspectRatioChanged = onVideoAspectRatioChanged,
+                        cornerRadius = cornerRadius,
                         modifier = Modifier.height(44.dp),
                     )
                 } else {
                     // Perfect square, and the shared-element destination of the big artwork —
-                    // deliberately uses a smaller 8dp radius (vs 16dp on the big artwork) so
-                    // the 44dp mini reads as a soft square rather than a bubble.
+                    // the radius follows the shared morph value (8dp settled) so the 44dp
+                    // mini reads as a soft square rather than a bubble.
                     ReferenceStaticArtwork(
                         url = screenDataState.thumbnailURL,
                         onSuccess = onArtworkLoaded,
                         modifier = Modifier.size(44.dp),
-                        cornerRadius = 8.dp,
+                        cornerRadius = cornerRadius,
                         scale = pauseScale,
                     )
                 }

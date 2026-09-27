@@ -222,15 +222,20 @@ class SharedViewModel(
 
     val songVideoSwapState: StateFlow<SongVideoSwapState> =
         combine(
-            _nowPlayingState,
-            _songCounterpart,
-            _videoCounterpart,
+            combine(_nowPlayingState, _songCounterpart, _videoCounterpart) { nowPlaying, song, video ->
+                Triple(nowPlaying, song, video)
+            },
             _isResolvingCounterpart,
             _isSwapping,
             _swapTargetIsVideo,
-        ) { nowPlaying, song, video, resolving, swapping, swappingToVideo ->
+        ) { trio, resolving, swapping, swappingToVideo ->
+            val (nowPlaying, song, video) = trio
             val track = nowPlaying?.track ?: nowPlaying?.songEntity?.toTrack()
-            val currentIsVideo = track?.isVideoContent() ?: nowPlaying?.mediaItem?.isVideo() ?: false
+            // Either side may carry stale/junk type info (offline rows, exotic
+            // parsers), so trust whichever claims video: the media item is what
+            // is actually loaded and rendered.
+            val currentIsVideo =
+                nowPlaying?.mediaItem?.isVideo() == true || track?.isVideoContent() == true
             SongVideoSwapState(
                 currentIsVideo = currentIsVideo,
                 songAvailable = song != null || !currentIsVideo,
