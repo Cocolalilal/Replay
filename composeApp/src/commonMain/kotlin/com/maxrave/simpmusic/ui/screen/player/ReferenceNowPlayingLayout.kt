@@ -833,6 +833,7 @@ private fun SongVideoToggle(
     swappingToVideo: Boolean = false,
     onSongSelected: () -> Unit,
     onVideoSelected: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
     // While a swap is in flight (formats warming, then buffering), the side
@@ -844,7 +845,7 @@ private fun SongVideoToggle(
     val pillFill = LocalReferenceSecondary.current
     Row(
         modifier =
-            Modifier
+            modifier
                 .clip(CircleShape)
                 .background(pillFill)
                 .padding(4.dp),
@@ -1080,29 +1081,22 @@ private fun ReferencePlayerPage(
         // fit inside it, so only the header itself is reserved from the available height.
         val stageWidth = (maxWidth - 48.dp).coerceAtLeast(0.dp)
         val maxStageHeight = (maxHeight - 160.dp).coerceAtLeast(0.dp)
-        // Song mode keeps a square cover. Video mode sizes the stage to true AR (landscape
-        // gets a sensible short height) so the clip is NOT trapped in a black square letterbox.
-        // Toggle stays ABOVE the stage (weight spacer) — do not reintroduce shove-up / toggle-
-        // through-cover regressions. Lower chrome (progress) is untouched.
+        // ALWAYS reserve the same square cover-art slot in song and video mode. Video AR
+        // morphs *inside* this slot (centered); the outer slot height never changes with AR,
+        // so the format switch stays pinned and never almost-touches the cover on small phones.
+        // Do NOT resize the outer NP column / shove chrome when AR changes.
+        val slotSize = minOf(stageWidth, maxStageHeight)
+        // Comfortable minimum gap between the format switch and the media slot (song-mode
+        // reference geometry). Fixed — never collapses when free space shrinks.
+        val minGapAboveSlot = 20.dp
         val showVideoEarly = screenDataState.isVideo && shouldShowVideo
         val swappingToVideoEarly = swapState?.isSwapping == true && swapState.swappingToVideo
-        val useVideoStage = showVideoEarly || swappingToVideoEarly
-        val ar = videoAspectRatio.coerceIn(0.35f, 3.0f)
-        val stageHeight =
-            if (useVideoStage) {
-                val ideal = stageWidth / ar
-                minOf(ideal, maxStageHeight, stageWidth) // never taller than square budget
-            } else {
-                minOf(stageWidth, maxStageHeight)
-            }
         Column(Modifier.fillMaxSize()) {
-            // YTM-style song/video hot-swap, vertically centered in the free space
-            // between the top of the screen and the cover art.
+            // Pinned format switch: lives in the top weight band, anchored just above the
+            // reserved square slot with a fixed min gap. Slot height is identical in song
+            // and video mode, so this band (and the switch) never moves when AR morphs.
             if (swapState != null) {
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     SongVideoToggle(
                         currentIsVideo = swapState.currentIsVideo,
                         songAvailable = swapState.songAvailable,
@@ -1112,10 +1106,17 @@ private fun ReferencePlayerPage(
                         swappingToVideo = swapState.swappingToVideo,
                         onSongSelected = onSongSelected,
                         onVideoSelected = onVideoSelected,
+                        // Anchor to bottom of the band so gap-to-slot is exactly minGapAboveSlot
+                        // (Center would shrink the gap on short phones until it almost touches).
+                        modifier =
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = minGapAboveSlot),
                     )
                 }
             } else {
                 Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(minGapAboveSlot))
             }
             // Cover art / video: gently shrinks when paused (like the miniplayer) and sits a
             // touch higher than the plain position.
@@ -1130,16 +1131,14 @@ private fun ReferencePlayerPage(
             Box(
                 modifier =
                     Modifier
-                        .width(stageWidth)
-                        .height(stageHeight)
+                        .size(slotSize)
                         .offset(y = (-10).dp)
                         .align(Alignment.CenterHorizontally),
-                // No black plate behind cover or video — art/video paint themselves with
-                // their own rounded clip/shadow. Video stage is already true-AR sized above.
+                // Reserved square slot — art fills it; video AR stage is centered inside it.
+                // No black plate; art/video paint their own rounded clip/shadow.
                 contentAlignment = Alignment.Center,
             ) {
                 // One motion per layer, nothing fights: fade between art/video/loading.
-                // Video stage height follows true AR (see stageHeight above).
                 val showVideo = showVideoEarly
                 val swappingToVideo = swappingToVideoEarly
                 // Atmosphere only while song→video loads — never under settled art/video
@@ -1175,8 +1174,8 @@ private fun ReferencePlayerPage(
                         }
 
                         key.startsWith("video:") -> {
-                            // Adaptive AR stage: frame follows the real video aspect (16:9, 4:3,
-                            // square, vertical). Content fills without stretch or letterboxing.
+                            // True-AR stage centered inside the reserved square slot.
+                            // ContentScale.Crop inside fills the stage (no stretch / no bars).
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center,
@@ -1220,6 +1219,8 @@ private fun ReferencePlayerPage(
                 modifier = Modifier.padding(horizontal = 26.dp),
             )
             Spacer(Modifier.height(8.dp))
+            // No bottom weight — leftover space stays in the top band (song-mode reference).
+            // Slot is always square so top weight (and pinned switch) never moves with AR.
         }
     }
 }
@@ -1265,8 +1266,9 @@ private fun ReferenceInlineVideo(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "videoPauseScale",
     )
-    // True-AR inside the caller's adaptive stage (fill width for landscape,
-    // height for portrait). Outer NP column / toggle / chrome stay stable.
+    // True-AR frame inside the caller's FIXED square reserved slot (fill width for
+    // landscape, height for portrait). Parent centers this frame; outer NP column /
+    // pinned toggle / chrome never move with AR.
     val animatedAspectRatio by animateFloatAsState(
         targetValue = videoAspectRatio.coerceIn(0.35f, 3.0f),
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
