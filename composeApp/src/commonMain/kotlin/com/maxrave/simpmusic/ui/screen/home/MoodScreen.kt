@@ -26,14 +26,20 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 import simpmusic.composeapp.generated.resources.*
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
+
 @Composable
 fun MoodScreen(
     navController: NavController,
     viewModel: MoodViewModel = koinViewModel(),
     params: String?,
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val moodData by viewModel.moodsMomentObject.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
+    val lazyState = rememberLazyListState()
+    lazyState.TrackScrolling(onScrolling = onScrolling)
 
     LaunchedEffect(key1 = params) {
         if (params != null) {
@@ -60,6 +66,7 @@ fun MoodScreen(
         )
         AnimatedVisibility(visible = !loading) {
             LazyColumn(
+                state = lazyState,
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(moodData?.items ?: emptyList()) { item ->

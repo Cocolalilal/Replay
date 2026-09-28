@@ -13,6 +13,7 @@ import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistScreen
 fun NavGraphBuilder.libraryScreenGraph(
     innerPadding: PaddingValues,
     navController: NavController,
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     composable<LibraryDynamicPlaylistDestination> { entry ->
         val data = entry.toRoute<LibraryDynamicPlaylistDestination>()
@@ -20,6 +21,7 @@ fun NavGraphBuilder.libraryScreenGraph(
             innerPadding = innerPadding,
             navController = navController,
             type = data.type,
+            onScrolling = onScrolling,
         )
     }
 }

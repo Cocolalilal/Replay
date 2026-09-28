@@ -34,7 +34,6 @@ val viewModelModule =
                 get(),
                 get(),
                 get(),
-                get(),
             )
         }
         single {
@@ -54,7 +53,6 @@ val viewModelModule =
         }
         viewModel {
             LibraryViewModel(
-                get(),
                 get(),
                 get(),
                 get(),
@@ -82,6 +80,7 @@ val viewModelModule =
         }
         viewModel {
             HomeViewModel(
+                get(),
                 get(),
                 get(),
             )

@@ -1,10 +1,15 @@
 package com.maxrave.simpmusic.ui.screen.library
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +20,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -28,13 +37,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -91,6 +104,33 @@ import simpmusic.composeapp.generated.resources.your_top_albums
 import simpmusic.composeapp.generated.resources.your_top_artists
 import simpmusic.composeapp.generated.resources.your_top_tracks
 
+enum class LikedFilter { ALL, SONGS, VIDEOS }
+
+fun SongEntity.isVideoTrack(): Boolean {
+    when (videoType) {
+        "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC", "Video", "Videos" -> return true
+        "MUSIC_VIDEO_TYPE_ATV", "Song", "Songs" -> return false
+    }
+    if (category == "Videos" || category == "Video" || resultType == "Videos" || resultType == "Video") return true
+    if (category == "Song" || category == "Songs" || resultType == "Song" || resultType == "Songs") return false
+    // Stored rows only keep the artwork URL. Prefer authoritative square music art;
+    // only strong video still markers count as video. Generic /vi/hqdefault fallbacks
+    // are too common on songs to treat as video — unknown stays a song so Liked Songs
+    // never empties incorrectly.
+    val thumb = thumbnails
+    if (!thumb.isNullOrEmpty()) {
+        if ((thumb.contains("w544") && thumb.contains("h544")) ||
+            (thumb.contains("w120") && thumb.contains("h120"))
+        ) {
+            return false
+        }
+        if (thumb.contains("hq720") || thumb.contains("maxresdefault")) {
+            return true
+        }
+    }
+    return false
+}
+
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 @ExperimentalMaterial3Api
@@ -101,6 +141,7 @@ fun LibraryDynamicPlaylistScreen(
     viewModel: LibraryDynamicPlaylistViewModel = koinViewModel(),
     analyticsViewModel: AnalyticsViewModel = koinViewModel(),
     sharedViewModel: SharedViewModel = koinInject(),
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val nowPlayingVideoId by viewModel.nowPlayingVideoId.collectAsStateWithLifecycle()
 
@@ -108,6 +149,7 @@ fun LibraryDynamicPlaylistScreen(
     var showBottomSheet by rememberSaveable { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    val likedFilter by viewModel.likedFilter.collectAsStateWithLifecycle()
 
     val favorite by viewModel.listFavoriteSong.collectAsStateWithLifecycle()
     var tempFavorite by remember { mutableStateOf(emptyList<SongEntity>()) }
@@ -121,10 +163,23 @@ fun LibraryDynamicPlaylistScreen(
     var tempTopTracks by remember { mutableStateOf(analyticsUIState.topTracks.data ?: emptyList()) }
     var tempTopArtists by remember { mutableStateOf(analyticsUIState.topArtists.data ?: emptyList()) }
     var tempTopAlbums by remember { mutableStateOf(analyticsUIState.topAlbums.data ?: emptyList()) }
+
+    val filteredFavorite = remember(favorite, tempFavorite, query, showSearchBar, likedFilter) {
+        val base = if (query.isNotEmpty() && showSearchBar) tempFavorite else favorite
+        when (likedFilter) {
+            LikedFilter.ALL -> base
+            LikedFilter.SONGS -> base.filter { !it.isVideoTrack() }
+            LikedFilter.VIDEOS -> base.filter { it.isVideoTrack() }
+        }
+    }
+
     val hazeState =
         rememberHazeState(
             blurEnabled = true,
         )
+
+    val lazyState = rememberLazyListState()
+    lazyState.TrackScrolling(onScrolling = onScrolling)
 
     LaunchedEffect(query) {
         Logger.w("LibraryDynamicPlaylistScreen", "Check query: $query")
@@ -154,6 +209,7 @@ fun LibraryDynamicPlaylistScreen(
     }
 
     LazyColumn(
+        state = lazyState,
         modifier = Modifier.hazeSource(hazeState),
         contentPadding = innerPadding,
     ) {
@@ -166,6 +222,43 @@ fun LibraryDynamicPlaylistScreen(
             }
         }
         val type = LibraryDynamicPlaylistType.toType(type)
+        if (type == LibraryDynamicPlaylistType.Favorite) {
+            item(key = "liked_filter_chips") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    listOf(
+                        LikedFilter.ALL to "All",
+                        LikedFilter.SONGS to "Songs",
+                        LikedFilter.VIDEOS to "Videos",
+                    ).forEach { (filter, label) ->
+                        val selected = likedFilter == filter
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (selected) Color.White else Color(0xFF1E1E22))
+                                .border(
+                                    BorderStroke(1.dp, if (selected) Color.White else Color.White.copy(alpha = 0.15f)),
+                                    RoundedCornerShape(50),
+                                )
+                                .clickable { viewModel.setLikedFilter(filter) }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                        ) {
+                            Text(
+                                text = label,
+                                style = typo().labelSmall,
+                                color = if (selected) Color.Black else Color.White,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
+        }
         if (type == LibraryDynamicPlaylistType.Followed) {
             items(
                 if (query.isNotEmpty() && showSearchBar) {
@@ -190,14 +283,14 @@ fun LibraryDynamicPlaylistScreen(
             when (analyticsUIState.topArtists) {
                 is LocalResource.Success if (!analyticsUIState.topArtists.data.isNullOrEmpty()) -> {
                     val data = analyticsUIState.topArtists.data ?: emptyList()
-                    items(
+                    itemsIndexed(
                         if (query.isNotEmpty() && showSearchBar) {
                             tempTopArtists
                         } else {
                             data
                         },
-                        key = { it.first.hashCode() },
-                    ) { artist ->
+                        key = { index, artist -> "top_artist_${artist.second.channelId}_$index" },
+                    ) { _, artist ->
                         ArtistFullWidthItems(
                             artist.second,
                             rightView = {
@@ -225,14 +318,14 @@ fun LibraryDynamicPlaylistScreen(
             when (analyticsUIState.topAlbums) {
                 is LocalResource.Success if (!analyticsUIState.topAlbums.data.isNullOrEmpty()) -> {
                     val data = analyticsUIState.topAlbums.data ?: emptyList()
-                    items(
+                    itemsIndexed(
                         if (query.isNotEmpty() && showSearchBar) {
                             tempTopAlbums
                         } else {
                             data
                         },
-                        key = { it.first.hashCode() },
-                    ) { album ->
+                        key = { index, album -> "top_album_${album.second.browseId}_$index" },
+                    ) { _, album ->
                         PlaylistFullWidthItems(
                             album.second,
                             rightView = {
@@ -260,14 +353,14 @@ fun LibraryDynamicPlaylistScreen(
             when (analyticsUIState.topTracks) {
                 is LocalResource.Success if (!analyticsUIState.topTracks.data.isNullOrEmpty()) -> {
                     val data = analyticsUIState.topTracks.data ?: emptyList()
-                    items(
+                    itemsIndexed(
                         if (query.isNotEmpty() && showSearchBar) {
                             tempTopTracks
                         } else {
                             data
                         },
-                        key = { it.hashCode() },
-                    ) { song ->
+                        key = { index, song -> "top_track_${song.second.videoId}_$index" },
+                    ) { _, song ->
                         SongFullWidthItems(
                             songEntity = song.second,
                             isPlaying = song.second.videoId == nowPlayingVideoId,
@@ -324,7 +417,7 @@ fun LibraryDynamicPlaylistScreen(
                 else -> {}
             }
         } else {
-            items(
+            itemsIndexed(
                 when (type) {
                     LibraryDynamicPlaylistType.Downloaded -> {
                         if (query.isNotEmpty() && showSearchBar) {
@@ -335,11 +428,7 @@ fun LibraryDynamicPlaylistScreen(
                     }
 
                     LibraryDynamicPlaylistType.Favorite -> {
-                        if (query.isNotEmpty() && showSearchBar) {
-                            tempFavorite
-                        } else {
-                            favorite
-                        }
+                        filteredFavorite
                     }
 
                     LibraryDynamicPlaylistType.MostPlayed -> {
@@ -350,8 +439,8 @@ fun LibraryDynamicPlaylistScreen(
                         }
                     }
                 },
-                key = { it.hashCode() },
-            ) { song ->
+                key = { index, song -> "song_${song.videoId}_$index" },
+            ) { _, song ->
                 SongFullWidthItems(
                     songEntity = song,
                     isPlaying = song.videoId == nowPlayingVideoId,
@@ -605,9 +694,12 @@ sealed class LibraryDynamicPlaylistType {
         }
 
     companion object {
+        val LikedSongs: LibraryDynamicPlaylistType = Favorite
+
         fun toType(input: String): LibraryDynamicPlaylistType =
             when (input) {
                 "favorite" -> Favorite
+                "liked_songs" -> Favorite
                 "followed" -> Followed
                 "most_played" -> MostPlayed
                 "downloaded" -> Downloaded

@@ -123,11 +123,6 @@
     <string name="github">Github</string>
     <string name="maxrave_dev">maxrave-dev</string>
     <string name="buy_me_a_coffee">Spendiere mir einen Kaffee</string>
-    <string name="developer_blog">Entwickler-Blog</string>
-    <string name="developer_blog_tagline">Lesen Sie Entwicklernotizen, Tutorials &amp; hinter den Kulissen</string>
-    <string name="blog_promo_title">Neues vom Entwickler</string>
-    <string name="blog_promo_message">Ich habe gerade meinen persönlichen Blog unter maxrave.dev gestartet – dort teile ich die Geschichte hinter SimpMusic, ausführliche Einblicke in die Musiktechnologie und technische Notizen. Schaut doch mal rein, wenn ihr neugierig seid ✨</string>
-    <string name="visit_blog">Blog besuchen</string>
     <string name="paypal">PayPal</string>
     <string name="title">Titel</string>
     <string name="custom_order">Individuelle Reinfolge</string>
@@ -183,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Zeitüberschreitung, überprüfe die Internetverbindung (%1$s)</string>
     <string name="save_last_played">Zuletzt gespielt speichern</string>
     <string name="save_last_played_track_and_queue">Zuletzt gespielten Song und Wiedergabeliste speichern</string>
-    <string name="update_available">Neues Update verfügbar</string>
-    <string name="update_message">Version %1$s verfügbar\nRelease: %2$s\n</string>
-    <string name="check_for_update">Nach Updates suchen</string>
     <string name="last_checked_at">Zuletzt gesucht um %1$s</string>
     <string name="checking">Suche nach Updates...</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Segment %1$s überspringen</string>
@@ -217,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">In die Zwischenablage kopieren</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">In die Zwischenablage kopiert</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Fehler-Information</string>
-    <string name="no_update">Du hast die neueste Version</string>
     <string name="sleep_timer">Sleep-Timer - %1$s Minute(n)</string>
     <string name="sleep_timer_end_of_song">Sleep-Timer - Ende des Liedes</string>
     <string name="sleep_timer_off">Sleep-Timer</string>
@@ -317,11 +308,9 @@
     <string name="less">Weniger</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Bei Spotify anmelden</string>
-    <string name="intro_login_to_spotify">Melde dich an für Spotify Songtexte, Canvas und mehr</string>
+    <string name="intro_login_to_spotify">Melde dich an für Spotify Songtexte und mehr</string>
     <string name="enable_spotify_lyrics">Spotify Songtexte nutzen</string>
     <string name="spotify_lyrícs_info">Mehr Lyrics ohne Übersetzung</string>
-    <string name="enable_canvas">Canvas nutzen</string>
-    <string name="canvas_info">Zeige Spotify Canvas in SimpMusic</string>
     <string name="spotify_lyrics_provider">Songtexte bereitgestellt von Spotify</string>
     <string name="offline_mode">Offline-Modus</string>
     <string name="added_to_youtube_liked">Zu YouTube-Like-Playlist hinzugefügt</string>
@@ -380,8 +369,8 @@
     <string name="updating">Updating</string>
     <string name="go_to_log_in_page">Zur Anmeldeseite</string>
     <string name="log_in_warning">YouTube Music erfordert jetzt das Einloggen um Musik zu streamen, Piped Instance kann manchmal nicht funktionieren. Du solltest dich bei YouTube anmelden, um ein besseres Erlebnis mit SimpMusic zu bekommen.</string>
-    <string name="spotify_canvas_cache">Spotify Canvas-Cache</string>
-    <string name="clear_canvas_cache">Leere Canvas-Cache</string>
+    <string name="animated_artwork_cache">Cache für animierte Artworks</string>
+    <string name="clear_animated_artwork_cache">Animierte-Artwork-Cache leeren</string>
     <string name="proxy">Proxy</string>
     <string name="proxy_description">Verwenden eines Proxys, um die Blockierung von Länderinhalten zu umgehen</string>
     <string name="proxy_type">Proxy-Typ</string>
@@ -402,8 +391,6 @@
     <string name="sync_first">Diese Playlist erst mit Youtube Musik synchronisieren</string>
     <string name="endless_queue">Endlose Warteschlange</string>
     <string name="do_not_show_again">Nicht erneut anzeigen</string>
-    <string name="auto_check_for_update">Automatisches Überprüfen auf Updates</string>
-    <string name="auto_check_for_update_description">Überprüfung auf Updates beim App Start</string>
     <string name="playback_speed_pitch"><![CDATA[Wiedergabegeschwindigkeit und Tonhöhe]]></string>
     <string name="playback_speed_pitch_disabled"><![CDATA[Wiedergabegeschwindigkeit & Tonhöhe (deaktiviert, wenn Crossfade aktiviert ist)]]></string>
     <string name="playback_speed">Wiedergabegeschwindigkeit</string>
@@ -494,7 +481,6 @@
     <string name="no_playlist_found">Keine lokalen Playlisten gefunden, bitte erstellen Sie zuerst eine</string>
     <string name="list_all_cookies_of_this_page">Alle Cookies dieser Seite auflisten</string>
     <string name="copied_to_clipboard">In die Zwischenablage kopiert</string>
-    <string name="update_channel">Update-Kanal</string>
     <string name="enable_liquid_glass_effect">Liquid-Glass-Effekt aktivieren (BETA)</string>
     <string name="enable_liquid_glass_effect_description">Aktiviere den Liquid-Glass-Effekt von iOS in bestimmten Positionen (Android 13+).</string>
     <string name="your_library">Deine Bibliothek</string>
@@ -505,7 +491,6 @@
     <string name="no_mixes_found">Keine Mixes gefunden</string>
     <string name="no_charts_found">Keine Charts gefunden</string>
     <string name="desktop_webview_description">Aufgrund der Einschränkungen von Compose Multiplattform, kann ich WebView nicht auf dem Desktop implementieren.\nLies dies, um mehr zu erfahren, wie du dich im Desktop einloggst:\n</string>
-    <string name="open_blog_post">Blog-Beitrag öffnen</string>
     <string name="discord_integration">Discord-Integration</string>
     <string name="log_in_to_discord">Bei Discord anmelden</string>
     <string name="intro_login_to_discord">Melde dich an, um Discord Rich-Präsenz zu aktivieren</string>
@@ -562,8 +547,6 @@
     <string name="quit_app">App beenden</string>
     <string name="local_tracking_title">Lokale Aufzeichnung der Wiedergabehistorie</string>
     <string name="local_tracking_description">Zeichne die Wiedergabehistorie in der lokalen Datenbank auf</string>
-    <string name="blog_notification_title">Benachrichtigungen zu Blogbeiträgen</string>
-    <string name="blog_notification_description">Werde benachrichtigt wenn ein neuer Blog-Beitrag veröffentlicht wird</string>
     <string name="simpmusic_charts">SimpMusic Charts</string>
     <string name="crossfading">Crossfading (überblenden)</string>
     <string name="your_320kbps_url">Deine 320kbps URL</string>

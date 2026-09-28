@@ -7,6 +7,18 @@ val isFullBuild: Boolean =
         false
     }
 
+val localProperties = Properties().also { properties ->
+    val propertiesFile = rootProject.file("local.properties")
+    if (propertiesFile.exists()) {
+        propertiesFile.inputStream().use(properties::load)
+    }
+}
+
+val replaySigningStoreFile = localProperties.getProperty("replay.signing.storeFile")
+val replaySigningStorePassword = localProperties.getProperty("replay.signing.storePassword")
+val replaySigningKeyAlias = localProperties.getProperty("replay.signing.keyAlias")
+val replaySigningKeyPassword = localProperties.getProperty("replay.signing.keyPassword")
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.sentry.gradle)
@@ -20,7 +32,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.maxrave.simpmusic"
+        applicationId = "cocolalilal.replay.music"
         minSdk = 26
         targetSdk = 36
         versionCode =
@@ -81,8 +93,23 @@ android {
         }
     }
 
+    signingConfigs {
+        create("replayJulianRelease") {
+            check(replaySigningStoreFile != null) { "Missing replay.signing.storeFile in local.properties" }
+            check(replaySigningStorePassword != null) { "Missing replay.signing.storePassword in local.properties" }
+            check(replaySigningKeyAlias != null) { "Missing replay.signing.keyAlias in local.properties" }
+            check(replaySigningKeyPassword != null) { "Missing replay.signing.keyPassword in local.properties" }
+            storeFile = file(replaySigningStoreFile!!)
+            storePassword = replaySigningStorePassword
+            keyAlias = replaySigningKeyAlias
+            keyPassword = replaySigningKeyPassword
+        }
+    }
+
     buildTypes {
         release {
+            // Keep release updates compatible with Julian's installed Replay APK.
+            signingConfig = signingConfigs.getByName("replayJulianRelease")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -191,8 +218,8 @@ sentry {
                 null
             }
         authToken.set(token ?: "")
-        includeProguardMapping.set(true)
-        autoUploadProguardMapping.set(true)
+        includeProguardMapping.set(!token.isNullOrEmpty())
+        autoUploadProguardMapping.set(!token.isNullOrEmpty())
     } else {
         includeProguardMapping.set(false)
         autoUploadProguardMapping.set(false)

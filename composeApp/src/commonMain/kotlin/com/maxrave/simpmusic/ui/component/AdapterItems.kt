@@ -91,6 +91,12 @@ import com.maxrave.simpmusic.ui.navigation.destination.list.PodcastDestination
 import com.maxrave.simpmusic.ui.theme.LocalForceDarkText
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.HomeViewModel
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.simpmusic.util.isLikedSongsPlaylist
+import com.maxrave.simpmusic.util.resolvePlaylistCover
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.remember
+import org.koin.compose.koinInject
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -311,6 +317,19 @@ fun HomeItemContentPlaylist(
     forceDark: Boolean = LocalForceDarkText.current,
 ) {
     val titleColor = if (forceDark) Color.White else MaterialTheme.colorScheme.onSurface
+    val dataStoreManager: DataStoreManager = koinInject()
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
     Box(
         Modifier
             .wrapContentSize()
@@ -325,7 +344,7 @@ fun HomeItemContentPlaylist(
                     .padding(10.dp)
                     .heightIn(min = thumbSize + 76.dp),
         ) {
-            val thumb =
+            val rawThumb =
                 when (data) {
                     is Content -> data.thumbnails.lastOrNull()?.url
                     is com.maxrave.domain.data.model.mood.genre.Content -> data.thumbnail?.lastOrNull()?.url
@@ -342,69 +361,108 @@ fun HomeItemContentPlaylist(
                     is AlbumsResult -> data.thumbnails.lastOrNull()?.url
                     else -> null
                 }
-            AsyncImage(
-                model =
-                    ImageRequest
-                        .Builder(LocalPlatformContext.current)
-                        .data(thumb)
-                        .diskCachePolicy(CachePolicy.ENABLED)
-                        .diskCacheKey(thumb)
-                        .crossfade(550)
-                        .build(),
-                placeholder =
-                    when (data) {
-                        is LocalPlaylistEntity -> {
-                            painterPlaylistThumbnail(
-                                data.title,
-                                style = typo().bodySmall,
-                                thumbSize * 0.9f to thumbSize * 0.9f,
-                            )
-                        }
+            val playlistId = when (data) {
+                is PlaylistsResult -> data.browseId
+                is PlaylistEntity -> data.id
+                is ResultPlaylist -> data.id
+                is LocalPlaylistEntity -> data.youtubePlaylistId ?: data.id.toString()
+                is Content -> data.browseId
+                else -> null
+            }
+            val playlistTitle = when (data) {
+                is Content -> data.title
+                is com.maxrave.domain.data.model.mood.genre.Content -> data.title.title
+                is com.maxrave.domain.data.model.mood.moodmoments.Content -> data.title
+                is LocalPlaylistEntity -> data.title
+                is ChartItem -> data.name
+                is PlaylistsResult -> data.title
+                is AlbumEntity -> data.title
+                is PlaylistEntity -> data.title
+                is ResultSingle -> data.title
+                is ResultAlbum -> data.title
+                is ResultPlaylist -> data.title
+                is PodcastsEntity -> data.title
+                is AlbumsResult -> data.title
+                else -> null
+            }
+            val isLikedSongs = isLikedSongsPlaylist(playlistId, playlistTitle)
+            if (isLikedSongs) {
+                LikedSongsCover(
+                    modifier =
+                        Modifier
+                            .size(thumbSize)
+                            .aspectRatio(1f)
+                            .clip(
+                                RoundedCornerShape(10.dp),
+                            ),
+                    iconSize = thumbSize * 0.45f,
+                )
+            } else {
+                val thumb = resolvePlaylistCover(playlistId, rawThumb, customCoversMap)
+                AsyncImage(
+                    model =
+                        ImageRequest
+                            .Builder(LocalPlatformContext.current)
+                            .data(thumb)
+                            .diskCachePolicy(CachePolicy.ENABLED)
+                            .diskCacheKey(thumb)
+                            .crossfade(550)
+                            .build(),
+                    placeholder =
+                        when (data) {
+                            is LocalPlaylistEntity -> {
+                                painterPlaylistThumbnail(
+                                    data.title,
+                                    style = typo().bodySmall,
+                                    thumbSize * 0.9f to thumbSize * 0.9f,
+                                )
+                            }
 
-                        is ChartItem -> {
-                            painterPlaylistThumbnail(
-                                data.name,
-                                style = typo().bodySmall,
-                                thumbSize * 0.9f to thumbSize * 0.9f,
-                            )
-                        }
+                            is ChartItem -> {
+                                painterPlaylistThumbnail(
+                                    data.name,
+                                    style = typo().bodySmall,
+                                    thumbSize * 0.9f to thumbSize * 0.9f,
+                                )
+                            }
 
-                        else -> {
-                            rememberHolderPainter()
-                        }
-                    },
-                error =
-                    when (data) {
-                        is LocalPlaylistEntity -> {
-                            painterPlaylistThumbnail(
-                                data.title,
-                                style = typo().bodySmall,
-                                thumbSize * 0.9f to thumbSize * 0.9f,
-                            )
-                        }
+                            else -> {
+                                rememberHolderPainter()
+                            }
+                        },
+                    error =
+                        when (data) {
+                            is LocalPlaylistEntity -> {
+                                painterPlaylistThumbnail(
+                                    data.title,
+                                    style = typo().bodySmall,
+                                    thumbSize * 0.9f to thumbSize * 0.9f,
+                                )
+                            }
 
-                        is ChartItem -> {
-                            painterPlaylistThumbnail(
-                                data.name,
-                                style = typo().bodySmall,
-                                thumbSize * 0.9f to thumbSize * 0.9f,
-                            )
-                        }
+                            is ChartItem -> {
+                                painterPlaylistThumbnail(
+                                    data.name,
+                                    style = typo().bodySmall,
+                                    thumbSize * 0.9f to thumbSize * 0.9f,
+                                )
+                            }
 
-                        else -> {
-                            rememberHolderPainter()
-                        }
-                    },
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier =
-                    Modifier
-                        .size(thumbSize)
-                        .aspectRatio(1f)
-                        .clip(
-                            RoundedCornerShape(10.dp),
-                        ),
-            )
+                            else -> {
+                                rememberHolderPainter()
+                            }
+                        },
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier =
+                        Modifier
+                            .size(thumbSize)
+                            .aspectRatio(1f)
+                            .clip(
+                                RoundedCornerShape(10.dp),
+                            ),
+                )
+            }
             Text(
                 text =
                     when (data) {
@@ -1307,7 +1365,7 @@ fun MoodAndGenresContentItem(
                                 videoId = songVideoId,
                                 videoType = null,
                                 category = null,
-                                feedbackTokens = null,
+                                feedbackTokens = moodSong.feedbackTokens,
                                 resultType = null,
                             )
                         homeViewModel.setQueueData(

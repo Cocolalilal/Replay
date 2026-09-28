@@ -178,9 +178,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings">Времето изтече, проверете интернет връзката си (%1$s)</string>
     <string name="save_last_played">Запази последното възпроизвеждане</string>
     <string name="save_last_played_track_and_queue">Запази последната изпълнена песен и опашката</string>
-    <string name="update_available">Налична е нова актуализация</string>
-    <string name="update_message">Версия %1$s е достъпна\nИздание: %2$s\n</string>
-    <string name="check_for_update">Проверка за актуализации</string>
     <string name="last_checked_at">Последна проверка на %1$s</string>
     <string name="checking">Проверява се</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: Прескачане на сегмент %1$s</string>
@@ -212,7 +209,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Копиране в буферната памет</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Копирано е в буферната памет</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Информация за грешката</string>
-    <string name="no_update">Имаш най-новата версия</string>
     <string name="sleep_timer">Таймер за сън - %1$s минута(и)</string>
     <string name="sleep_timer_off">Таймер за сън</string>
     <string name="sleep_minutes">Обратно броене (в минути)</string>
@@ -311,11 +307,9 @@
     <string name="less">По-малко</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Вход в Spotify</string>
-    <string name="intro_login_to_spotify">Вход за Spotify Lyrics, Canvas и още</string>
+    <string name="intro_login_to_spotify">Вход за Spotify Lyrics и още</string>
     <string name="enable_spotify_lyrics">Включи Spotify Lyrics</string>
     <string name="spotify_lyrícs_info">Повече текстове без превод</string>
-    <string name="enable_canvas">Включване на Canvas</string>
-    <string name="canvas_info">Покажи Spotify Canvas в SimpMusic</string>
     <string name="spotify_lyrics_provider">Текст предоставен от Spotify</string>
     <string name="offline_mode">Режим офлайн</string>
     <string name="added_to_youtube_liked">Добавено в YouTube харесани</string>
@@ -365,8 +359,8 @@
     <string name="updating">Актуализиране</string>
     <string name="go_to_log_in_page">Отиди на страницата за вход</string>
     <string name="log_in_warning">YouTube Music вече изисква да сте вписани за да стриймвате музика, Piped понякога също не работи. Трябва да влезете в YouTube по-добро преживяване със SimpMusic.</string>
-    <string name="spotify_canvas_cache">Spotify кеш на изображенията</string>
-    <string name="clear_canvas_cache">Изстрий кеша на изображенията</string>
+    <string name="animated_artwork_cache">Кеш за анимирани обложки</string>
+    <string name="clear_animated_artwork_cache">Изчисти кеша за анимирани обложки</string>
     <string name="proxy">Прокси</string>
     <string name="proxy_description">Използване на прокси за да се прескочат ограниченията за някои държави</string>
     <string name="proxy_type">Тип прокси</string>
@@ -383,8 +377,6 @@
     <string name="sync_first">Синхронизирай плейлиста първо в YouTube Music</string>
     <string name="endless_queue">Безкрайна опашка</string>
     <string name="do_not_show_again">Не показвай отново</string>
-    <string name="auto_check_for_update">Автоматична проверка за актуализации</string>
-    <string name="auto_check_for_update_description">Проверка за актуализации когато отворите приложението</string>
     <string name="playback_speed_pitch"><![CDATA[Скорост на възпроизвеждане и тон]]></string>
     <string name="playback_speed">Скорост на възпроизвеждане</string>
     <string name="pitch">Тон</string>

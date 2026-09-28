@@ -74,6 +74,7 @@ import com.maxrave.simpmusic.extension.smoothScrimBrush
 import com.maxrave.simpmusic.extension.toSquareThumbnailUrl
 import com.maxrave.simpmusic.ui.icon.ArrowBackIosNew
 import com.maxrave.simpmusic.ui.icon.SimpIcons
+import com.maxrave.simpmusic.ui.theme.sectionTitleFontFamily
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.jetbrains.compose.resources.painterResource
@@ -392,6 +393,7 @@ private fun Title(
     Text(
         text = title,
         fontSize = 30.sp, // Reduced from 48.sp — still bold and prominent, fits longer names
+        fontFamily = sectionTitleFontFamily(),
         fontWeight = FontWeight.Bold,
         color = Color.White,
         maxLines = 1,

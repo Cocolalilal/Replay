@@ -18,6 +18,7 @@ import com.maxrave.domain.utils.toQueryList
 import com.maxrave.logger.LogLevel
 import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,6 +52,14 @@ data class SearchScreenState(
     val searchPodcastsResult: List<PlaylistsResult> = emptyList(),
     val suggestQueries: List<String> = emptyList(),
     val suggestYTItems: List<SearchResultType> = emptyList(),
+    /** Last query actually submitted to a search call — non-empty means results are on screen. */
+    val query: String = "",
+    /** Live text of the liquid-glass search bar, so SearchScreen can show suggestions while typing. */
+    val barQuery: String = "",
+    /** Whether the liquid-glass search field is open. */
+    val searchBarActive: Boolean = false,
+    /** Whether the user actually tapped into the search field — only then does history show. */
+    val searchFieldTapped: Boolean = false,
 )
 
 // Loại tìm kiếm
@@ -195,7 +204,10 @@ class SearchViewModel(
                     is Resource.Success -> {
                         values.data?.let { songsList ->
                             _searchScreenState.update { state ->
-                                state.copy(searchSongsResult = songsList)
+                                state.copy(
+                                    searchSongsResult = songsList,
+                                    query = query,
+                                )
                             }
                         }
                         _searchScreenUIState.value = SearchScreenUIState.Success
@@ -318,6 +330,7 @@ class SearchViewModel(
                 _searchScreenState.update { state ->
                     state.copy(
                         searchType = SearchType.ALL,
+                        query = query,
                         searchAllResult = temp,
                         searchSongsResult = song,
                         searchArtistsResult = artist,
@@ -336,17 +349,33 @@ class SearchViewModel(
         }
     }
 
+    private var suggestJob: Job? = null
+
     fun suggestQuery(query: String) {
-        viewModelScope.launch {
+        suggestJob?.cancel()
+        if (query.isBlank()) {
+            _searchScreenState.update { state ->
+                state.copy(
+                    suggestQueries = emptyList(),
+                    suggestYTItems = emptyList(),
+                )
+            }
+            return
+        }
+        suggestJob = viewModelScope.launch {
             searchRepository.getSuggestQuery(query).collect { values ->
                 when (values) {
                     is Resource.Success -> {
                         values.data?.let { suggestData ->
                             _searchScreenState.update { state ->
-                                state.copy(
-                                    suggestQueries = suggestData.queries,
-                                    suggestYTItems = suggestData.recommendedItems,
-                                )
+                                if (state.barQuery == query) {
+                                    state.copy(
+                                        suggestQueries = suggestData.queries,
+                                        suggestYTItems = suggestData.recommendedItems,
+                                    )
+                                } else {
+                                    state
+                                }
                             }
                         }
                     }
@@ -370,6 +399,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.ALBUMS,
+                                    query = query,
                                     searchAlbumsResult = albumsList,
                                 )
                             }
@@ -395,6 +425,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.FEATURED_PLAYLISTS,
+                                    query = query,
                                     searchFeaturedPlaylistsResult = featuredPlaylistList,
                                 )
                             }
@@ -445,6 +476,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.ARTISTS,
+                                    query = query,
                                     searchArtistsResult = artistsList,
                                 )
                             }
@@ -470,6 +502,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.PLAYLISTS,
+                                    query = query,
                                     searchPlaylistsResult = playlistsList,
                                 )
                             }
@@ -495,6 +528,7 @@ class SearchViewModel(
                             _searchScreenState.update { state ->
                                 state.copy(
                                     searchType = SearchType.VIDEOS,
+                                    query = query,
                                     searchVideosResult = videosList,
                                 )
                             }
@@ -513,6 +547,59 @@ class SearchViewModel(
     fun setSearchType(searchType: SearchType) {
         _searchScreenState.update { state ->
             state.copy(searchType = searchType)
+        }
+    }
+
+    /** Live text of the liquid-glass search bar; lets SearchScreen show suggestions while typing. */
+    fun setSearchBarQuery(text: String) {
+        _searchScreenState.update { state ->
+            state.copy(
+                barQuery = text,
+                suggestQueries = if (text.isEmpty()) emptyList() else state.suggestQueries,
+                suggestYTItems = if (text.isEmpty()) emptyList() else state.suggestYTItems,
+            )
+        }
+    }
+
+    /** Clears active search query, results and suggestions, keeping search field tapped so history is visible. */
+    fun clearQuery() {
+        suggestJob?.cancel()
+        _searchScreenState.update { state ->
+            state.copy(
+                query = "",
+                barQuery = "",
+                suggestQueries = emptyList(),
+                suggestYTItems = emptyList(),
+                searchAllResult = emptyList(),
+                searchSongsResult = emptyList(),
+                searchVideosResult = emptyList(),
+                searchAlbumsResult = emptyList(),
+                searchArtistsResult = emptyList(),
+                searchPlaylistsResult = emptyList(),
+                searchFeaturedPlaylistsResult = emptyList(),
+                searchPodcastsResult = emptyList(),
+                searchFieldTapped = true,
+            )
+        }
+        _searchScreenUIState.value = SearchScreenUIState.Empty
+    }
+
+    /** Whether the liquid-glass search field is open (its circle/field expanded). */
+    fun setSearchBarActive(active: Boolean) {
+        _searchScreenState.update { state ->
+            state.copy(
+                searchBarActive = active,
+                // Closing the bar (or leaving the screen) resets the tap, so the next
+                // visit starts on the mood grid again until the field is tapped.
+                searchFieldTapped = if (active) state.searchFieldTapped else false,
+            )
+        }
+    }
+
+    /** The user tapped into the search field — this is what reveals the search history. */
+    fun setSearchFieldTapped(tapped: Boolean) {
+        _searchScreenState.update { state ->
+            state.copy(searchFieldTapped = tapped)
         }
     }
 }

@@ -172,8 +172,6 @@
     <string name="time_out_check_internet_connection_or_change_piped_instance_in_settings"></string>
     <string name="save_last_played">حفظ آخر تشغيل</string>
     <string name="save_last_played_track_and_queue">حفظ آخر مسار وقائمة الانتظار تم تشغيله</string>
-    <string name="update_available">تحديث جديد متوفر</string>
-    <string name="check_for_update">التحقق من وجود التحديث</string>
     <string name="last_checked_at">آخر تحقق: %1$s</string>
     <string name="checking">التحقق</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: تخطي %1$s مقطع</string>
@@ -205,7 +203,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">نسخ إلى الحافظة</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">تم النسخ إلى الحافظة</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">معلومات الخطأ</string>
-    <string name="no_update">نسختك هي الأحدث</string>
     <string name="sleep_timer">مؤقت النوم - %1$s دقيقة/دقائق</string>
     <string name="sleep_timer_off">مؤقت النوم</string>
     <string name="sleep_minutes">وقت العد التنازلي (بالدقائق)</string>
@@ -306,11 +303,9 @@
     <string name="less">أقل</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">تسجيل الدخول إلى Spotify</string>
-    <string name="intro_login_to_spotify">تسجيل الدخول إلى كلمات Spotify و Canvas والمزيد</string>
+    <string name="intro_login_to_spotify">تسجيل الدخول إلى كلمات Spotify والمزيد</string>
     <string name="enable_spotify_lyrics">تمكين كلمات أغاني Spotify</string>
     <string name="spotify_lyrícs_info">المزيد من كلمات الأغاني بدون ترجمة</string>
-    <string name="enable_canvas">تمكين Canvas</string>
-    <string name="canvas_info">إظهار Spotify Canvas في SimpMusic</string>
     <string name="spotify_lyrics_provider">كلمات الأغاني المقدمة من Spotify</string>
     <string name="offline_mode">وضع غير متصل</string>
     <string name="added_to_youtube_liked">تمت الإضافة إلى إعجابات YouTube</string>

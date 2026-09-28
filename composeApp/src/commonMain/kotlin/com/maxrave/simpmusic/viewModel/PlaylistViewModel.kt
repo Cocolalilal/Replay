@@ -13,6 +13,10 @@ import com.maxrave.domain.data.model.browse.playlist.Author
 import com.maxrave.domain.data.model.browse.playlist.PlaylistBrowse
 import com.maxrave.domain.data.model.browse.playlist.PlaylistState
 import com.maxrave.domain.extension.now
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_ALL
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_SONGS
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_VIDEOS
 import com.maxrave.domain.mediaservice.handler.DownloadHandler
 import com.maxrave.domain.mediaservice.handler.PlaylistType
 import com.maxrave.domain.mediaservice.handler.QueueData
@@ -64,6 +68,7 @@ class PlaylistViewModel(
     private val localPlaylistRepository: LocalPlaylistRepository,
     private val playlistRepository: PlaylistRepository,
 ) : BaseViewModel() {
+    private val dataStoreManager: DataStoreManager by inject<DataStoreManager>()
     val downloadUtils: DownloadHandler by inject<DownloadHandler>()
     private var _uiState = MutableStateFlow<PlaylistUIState>(Loading)
     val uiState: StateFlow<PlaylistUIState> = _uiState
@@ -176,6 +181,8 @@ class PlaylistViewModel(
         _playlistEntity.value = null
         _downloadedList.value = emptyList()
         _listColors.value = emptyList()
+        _songSubstitutions.value = emptyMap()
+        substitutionJob?.cancel()
         checkDownloadedPlaylist?.cancel()
         checkDownloadedPlaylist = null
     }
@@ -183,6 +190,17 @@ class PlaylistViewModel(
     fun getData(id: String) {
         resetData()
         viewModelScope.launch {
+            // Restore the All/Songs/Videos filter the user left this playlist on.
+            runCatching {
+                dataStoreManager.getPlaylistTag(id).firstOrNull()?.let { saved ->
+                    _selectedTag.value =
+                        when (saved) {
+                            PLAYLIST_TAG_SONGS -> PlaylistTag.SONGS
+                            PLAYLIST_TAG_VIDEOS -> PlaylistTag.VIDEOS
+                            else -> PlaylistTag.ALL
+                        }
+                }
+            }
             // Check radio
             if (id.isRadioPlaylistId()) {
                 playlistRepository
@@ -415,6 +433,97 @@ class PlaylistViewModel(
         _listColors.value = listColors
     }
 
+    private var _selectedTag = MutableStateFlow(PlaylistTag.ALL)
+    val selectedTag: StateFlow<PlaylistTag> = _selectedTag
+
+    /** Loved-track substitution: original videoId -> resolved song counterpart (LM only). */
+    private val _songSubstitutions = MutableStateFlow<Map<String, Track>>(emptyMap())
+    val songSubstitutions: StateFlow<Map<String, Track>> = _songSubstitutions
+    private val _isSubstituting = MutableStateFlow(false)
+    val isSubstituting: StateFlow<Boolean> = _isSubstituting
+    private var substitutionJob: Job? = null
+
+    fun isLikedSongsPlaylist(id: String?): Boolean =
+        id == "LM" || id == "VLLM" || id == "FEmusic_liked_videos"
+
+    fun setSelectedTag(tag: PlaylistTag) {
+        _selectedTag.value = tag
+        // Remember per playlist so reopening restores the filter left on.
+        val playlistId = uiState.value.data?.id ?: return
+        viewModelScope.launch {
+            runCatching {
+                dataStoreManager.setPlaylistTag(
+                    playlistId,
+                    when (tag) {
+                        PlaylistTag.SONGS -> PLAYLIST_TAG_SONGS
+                        PlaylistTag.VIDEOS -> PLAYLIST_TAG_VIDEOS
+                        PlaylistTag.ALL -> PLAYLIST_TAG_ALL
+                    },
+                )
+            }
+        }
+    }
+
+    /**
+     * Applies the active All/Songs/Videos tag filter to [list]. Used both for the track list
+     * shown in the UI and for the queue built when a filtered track is played.
+     *
+     * For the Liked Songs playlist, videos are replaced by their song counterparts
+     * (falling back to the video when none exists); SONGS then only keeps tracks
+     * with a proper song counterpart, VIDEOS keeps the original videos.
+     */
+    fun filterBySelectedTag(list: List<Track>): List<Track> {
+        val playlistId = uiState.value.data?.id
+        if (!isLikedSongsPlaylist(playlistId)) {
+            return when (_selectedTag.value) {
+                PlaylistTag.ALL -> list
+                PlaylistTag.SONGS -> list.filterNot { it.isVideoTrack() }
+                PlaylistTag.VIDEOS -> list.filter { it.isVideoTrack() }
+            }
+        }
+        val subs = _songSubstitutions.value
+        return when (_selectedTag.value) {
+            PlaylistTag.ALL -> list.map { subs[it.videoId] ?: it }
+            PlaylistTag.SONGS ->
+                list.mapNotNull { track ->
+                    if (!track.isVideoTrack()) {
+                        track
+                    } else {
+                        subs[track.videoId]
+                    }
+                }
+            PlaylistTag.VIDEOS -> list.filter { it.isVideoTrack() }
+        }
+    }
+
+    /**
+     * Progressively resolves song counterparts for video tracks in a Liked Songs
+     * playlist. The UI repaints as [songSubstitutions] fills; unresolved videos
+     * keep showing (and playing) as videos until their match arrives.
+     */
+    fun ensureLikedSubstitution(source: List<Track>) {
+        val playlistId = uiState.value.data?.id
+        if (!isLikedSongsPlaylist(playlistId)) return
+        substitutionJob?.cancel()
+        substitutionJob =
+            viewModelScope.launch(Dispatchers.IO) {
+                _isSubstituting.value = true
+                try {
+                    for (track in source) {
+                        if (!track.isVideoTrack()) continue
+                        if (_songSubstitutions.value.containsKey(track.videoId)) continue
+                        val song =
+                            runCatching {
+                                songRepository.getSongCounterpartForVideo(track)
+                            }.getOrNull() ?: continue
+                        _songSubstitutions.update { it + (track.videoId to song) }
+                    }
+                } finally {
+                    _isSubstituting.value = false
+                }
+            }
+    }
+
     fun updatePlaylistLiked(
         liked: Boolean,
         id: String,
@@ -436,7 +545,7 @@ class PlaylistViewModel(
         when (event) {
             is PlaylistUIEvent.ItemClick -> {
                 val videoId = event.videoId
-                val loadedList = tracks.value
+                val loadedList = filterBySelectedTag(tracks.value)
                 val clickedSong = loadedList.first { it.videoId == videoId }
                 val index = loadedList.indexOf(clickedSong)
                 setQueueData(
@@ -461,7 +570,7 @@ class PlaylistViewModel(
             }
 
             PlaylistUIEvent.PlayAll -> {
-                val loadedList = tracks.value
+                val loadedList = filterBySelectedTag(tracks.value)
                 if (loadedList.isEmpty()) {
                     makeToast(
                         getString(Res.string.playlist_is_empty),
@@ -503,11 +612,16 @@ class PlaylistViewModel(
                             val result = res.data
                             when (res) {
                                 is Resource.Success if (result != null) -> {
-                                    Logger.d(tag, "Shuffle data: ${result.first.size}")
+                                    val filtered = filterBySelectedTag(result.first)
+                                    Logger.d(tag, "Shuffle data: ${filtered.size}")
+                                    if (filtered.isEmpty()) {
+                                        makeToast(getString(Res.string.playlist_is_empty))
+                                        return@collectLatest
+                                    }
                                     setQueueData(
                                         QueueData.Data(
-                                            listTracks = result.first.toCollection(arrayListOf<Track>()),
-                                            firstPlayedTrack = result.first.firstOrNull() ?: return@collectLatest,
+                                            listTracks = filtered.toCollection(arrayListOf<Track>()),
+                                            firstPlayedTrack = filtered.first(),
                                             playlistId = shuffleEndpoint.playlistId,
                                             playlistName = "\"${data.title}\" ${getString(Res.string.shuffle)}",
                                             playlistType = PlaylistType.RADIO,
@@ -515,7 +629,7 @@ class PlaylistViewModel(
                                         ),
                                     )
                                     loadMediaItem(
-                                        result.first.firstOrNull() ?: return@collectLatest,
+                                        filtered.first(),
                                         Config.RADIO_CLICK,
                                         0,
                                     )
@@ -677,6 +791,115 @@ class PlaylistViewModel(
         }
     }
 
+    fun removeTrackFromPlaylist(
+        playlistId: String,
+        videoId: String,
+        setVideoId: String? = null,
+    ) {
+        viewModelScope.launch {
+            playlistRepository.removeTrackFromPlaylist(playlistId, videoId, setVideoId.orEmpty()).collectLatest { res ->
+                if (res is Resource.Success) {
+                    _tracks.update { it.filterNot { t -> t.videoId == videoId } }
+                    makeToast("Song removed from playlist")
+                } else if (res is Resource.Error) {
+                    makeToast(res.message ?: "Failed to remove song")
+                }
+            }
+        }
+    }
+
+    fun editPlaylistDetails(
+        playlistId: String,
+        title: String? = null,
+        description: String? = null,
+        privacyStatus: String? = null,
+    ) {
+        viewModelScope.launch {
+            playlistRepository.editPlaylist(playlistId, title, description, privacyStatus).collectLatest { res ->
+                if (res is Resource.Success) {
+                    getData(playlistId)
+                    makeToast("Playlist updated")
+                } else if (res is Resource.Error) {
+                    makeToast(res.message ?: "Failed to update playlist")
+                }
+            }
+        }
+    }
+
+    fun deletePlaylist(
+        playlistId: String,
+        onDeleted: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            playlistRepository.deletePlaylist(playlistId).collectLatest { res ->
+                if (res is Resource.Success) {
+                    makeToast("Playlist deleted")
+                    onDeleted()
+                } else if (res is Resource.Error) {
+                    makeToast(res.message ?: "Failed to delete playlist")
+                }
+            }
+        }
+    }
+
+    private val _suggestions = MutableStateFlow<LocalPlaylistState.SuggestionSongs?>(null)
+    val suggestions: StateFlow<LocalPlaylistState.SuggestionSongs?> = _suggestions
+
+    private val _isLoadingSuggestions = MutableStateFlow(false)
+    val isLoadingSuggestions: StateFlow<Boolean> = _isLoadingSuggestions
+
+    private var lastPlaylistIdForSuggestions: String? = null
+
+    fun getSuggestions(playlistId: String) {
+        lastPlaylistIdForSuggestions = playlistId
+        _isLoadingSuggestions.value = true
+        viewModelScope.launch {
+            try {
+                playlistRepository.getPlaylistSuggestions(playlistId).collectLatest { res ->
+                    when (res) {
+                        is Resource.Success -> {
+                            val data = res.data
+                            val reloadParams = data?.first
+                            val songs = data?.second
+                            if (songs != null) {
+                                _suggestions.value = LocalPlaylistState.SuggestionSongs(reloadParams ?: "", songs)
+                            } else {
+                                _suggestions.value = null
+                            }
+                            _isLoadingSuggestions.value = false
+                        }
+                        is Resource.Error -> {
+                            _isLoadingSuggestions.value = false
+                            _suggestions.value = null
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                _isLoadingSuggestions.value = false
+            }
+        }
+    }
+
+    fun reloadSuggestions() {
+        val pid = lastPlaylistIdForSuggestions ?: return
+        getSuggestions(pid)
+    }
+
+    fun addSuggestionTrack(playlistId: String, track: Track) {
+        viewModelScope.launch {
+            playlistRepository.addTrackToPlaylist(playlistId, track.videoId).collectLatest { res ->
+                if (res is Resource.Success) {
+                    val current = _suggestions.value
+                    if (current != null) {
+                        val remaining = current.songs.filterNot { it.videoId == track.videoId }
+                        _suggestions.value = current.copy(songs = remaining)
+                    }
+                    getFullTracks {}
+                }
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         collectDownloadedJob?.cancel()
@@ -725,4 +948,39 @@ enum class ListState {
     PAGINATING,
     ERROR,
     PAGINATION_EXHAUST,
+}
+
+/**
+ * Which kind of track is shown/played by [PlaylistScreen].
+ */
+enum class PlaylistTag {
+    ALL,
+    SONGS,
+    VIDEOS,
+}
+
+/**
+ * Classifies a playlist track as a music video. Only YTM's authoritative markers
+ * count: `MUSIC_VIDEO_TYPE_OMV`/`MUSIC_VIDEO_TYPE_UGC` (video) and
+ * `MUSIC_VIDEO_TYPE_ATV` (audio). The search parsers' coarse `Video`/`Song`
+ * category labels are honored as a fallback. When YTM sends no marker at all,
+ * the artwork shape decides — square artwork is music, wide/portrait stills are
+ * video — and anything still unknown is a song: the filter must never hide
+ * playable tracks.
+ */
+fun Track.isVideoTrack(): Boolean {
+    when (videoType) {
+        "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC", "Video", "Videos" -> return true
+        "MUSIC_VIDEO_TYPE_ATV", "Song", "Songs" -> return false
+    }
+    if (category == "Videos" || category == "Video" || resultType == "Videos" || resultType == "Video") return true
+    if (category == "Song" || category == "Songs" || resultType == "Song" || resultType == "Songs") return false
+    thumbnails?.lastOrNull()?.let { thumb ->
+        val url = thumb.url
+        if (url.contains("hq720") || url.contains("maxresdefault")) return true
+        if (thumb.height > 0 && thumb.width > 0) {
+            return kotlin.math.abs(thumb.width.toFloat() / thumb.height.toFloat() - 1f) > 0.06f
+        }
+    }
+    return false
 }

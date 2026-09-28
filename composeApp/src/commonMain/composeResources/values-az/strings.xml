@@ -170,8 +170,6 @@
     <string name="skip_no_music_part">Musiqisiz hissəni ötür</string>
     <string name="save_last_played">Son Oynadılanı Saxla</string>
     <string name="save_last_played_track_and_queue">Son səslənən axını və növbəni saxla</string>
-    <string name="update_available">Yeni quraşdırma mövcuddur</string>
-    <string name="check_for_update">Yeniləmələri yoxla</string>
     <string name="last_checked_at">Son dəfə yoxlanılıb: %1$s</string>
     <string name="checking">Yoxlanılır</string>
     <string name="sponsorblock_skip_segment">SponsorBlock: %1$s bölümün ötür</string>
@@ -201,7 +199,6 @@
     <string name="customactivityoncrash_error_activity_error_details_copy">Buferə köçür</string>
     <string name="customactivityoncrash_error_activity_error_details_copied">Buferə köçürüldü</string>
     <string name="customactivityoncrash_error_activity_error_details_clipboard_label">Xəta məlumatı</string>
-    <string name="no_update">Versiyanız ən yenidir</string>
     <string name="sleep_timer">Yuxu Taymeri - %1$s dəqiqə</string>
     <string name="sleep_timer_off">Yuxu Taymeri</string>
     <string name="sleep_minutes">Geri sayım müddəti (dəqiqə)</string>
@@ -292,11 +289,9 @@
     <string name="less">Daha az</string>
     <string name="spotify">Spotify</string>
     <string name="log_in_to_spotify">Spotify-a daxil olun</string>
-    <string name="intro_login_to_spotify">Spotify Lirika, Canvas və daha çoxu üçün daxil olun</string>
+    <string name="intro_login_to_spotify">Spotify Lirika və daha çoxu üçün daxil olun</string>
     <string name="enable_spotify_lyrics">Spotify Lirikasını Aktivləşdir</string>
     <string name="spotify_lyrícs_info">Tərcüməsiz daha çox lirika</string>
-    <string name="enable_canvas">Canvas-ı Aktivləşdir</string>
-    <string name="canvas_info">SimpMusic-də Spotify Canvas-ı Göstər</string>
     <string name="spotify_lyrics_provider">Lirika Spotify tərəfindən təmin edilib</string>
     <string name="offline_mode">Oflayn rejim</string>
     <string name="added_to_youtube_liked">YouTube Bəyənməyə Əlavə Edildi</string>
@@ -346,8 +341,8 @@
     <string name="updating">Yenilənir</string>
     <string name="go_to_log_in_page">Giriş səhifəsinə keç</string>
     <string name="log_in_warning">YouTube Music indi musiqi yayımı üçün daxil olmanızı tələb edir, Piped Serveri də hərdən işləyə bilməz. SimpMusic ilə daha yaxşı təcrübə əldə etmək üçün YouTube-a daxil olmalısınız.</string>
-    <string name="spotify_canvas_cache">Spotify Canvas Keşkəsi</string>
-    <string name="clear_canvas_cache">Canvas keşkəsin təmizlə</string>
+    <string name="animated_artwork_cache">Animasiyalı şəkil keşkəsi</string>
+    <string name="clear_animated_artwork_cache">Animasiyalı şəkil keşkəsini təmizlə</string>
     <string name="proxy">Proksi</string>
     <string name="proxy_description">Ölkə məzmun qadağasın ötürmək üçün Proksi istifadə et</string>
     <string name="proxy_type">Proksi növü</string>
@@ -364,8 +359,6 @@
     <string name="sync_first">Əvvəlcə bu pleylisti YouTube Music ilə sinxronlaşdır</string>
     <string name="endless_queue">Sonsuz növbə</string>
     <string name="do_not_show_again">Təkrar göstərmə</string>
-    <string name="auto_check_for_update">Yeniləmə üçün avtomatik yoxla</string>
-    <string name="auto_check_for_update_description">Tətbiqi açdığınızda yeniləmə yoxlanılır</string>
     <string name="playback_speed_pitch"><![CDATA[Səslənmə sürəti və ucalıq]]></string>
     <string name="playback_speed">Səslənmə sürəti</string>
     <string name="pitch">Ucalıq</string>

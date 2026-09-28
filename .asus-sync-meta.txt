@@ -1,0 +1,6 @@
+Synced from ASUS-Julian Documents/Replay working tree
+Capture time: ~2026-09-28 00:38 Europe/Bucharest
+Intended tip at capture: main @ 98038e2f (+ dirty CLAUDE.md, ReferenceNowPlayingLayout.kt, SharedViewModel.kt, core submodule)
+Live ASUS after later fetch: main @ 905ad734 (includes 98038e2f parent) + only core dirty remaining
+Verification tree = capture working tree (lean tar) + dirty file overlay
+Do NOT push from this tree.

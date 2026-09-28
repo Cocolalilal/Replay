@@ -1,17 +1,21 @@
 package com.maxrave.simpmusic.extension
 
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -315,11 +319,16 @@ fun NonLazyGrid(
     columns: Int,
     itemCount: Int,
     modifier: Modifier = Modifier,
+    horizontalSpacing: Dp = 0.dp,
+    verticalSpacing: Dp = 0.dp,
     content:
         @Composable()
         (Int) -> Unit,
 ) {
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(verticalSpacing),
+    ) {
         var rows = (itemCount / columns)
         if (itemCount.mod(columns) > 0) {
             rows += 1
@@ -328,13 +337,12 @@ fun NonLazyGrid(
         for (rowId in 0 until rows) {
             val firstIndex = rowId * columns
 
-            Row {
+            Row(horizontalArrangement = Arrangement.spacedBy(horizontalSpacing)) {
                 for (columnId in 0 until columns) {
                     val index = firstIndex + columnId
                     Box(
                         modifier =
                             Modifier
-                                .fillMaxWidth()
                                 .weight(1f),
                     ) {
                         if (index < itemCount) {
@@ -347,7 +355,7 @@ fun NonLazyGrid(
     }
 }
 
-suspend fun LazyListState.animateScrollAndCentralizeItem(index: Int) {
+suspend fun LazyListState.animateScrollAndCentralizeItem(index: Int, bias: Float = 0.5f) {
     if (index < 0) return
     // If target item is not currently visible, jump close to it first so layoutInfo updates next frame.
     val initiallyVisible = this.layoutInfo.visibleItemsInfo.any { it.index == index }
@@ -360,11 +368,15 @@ suspend fun LazyListState.animateScrollAndCentralizeItem(index: Int) {
         this.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return
     val viewportStart = this.layoutInfo.viewportStartOffset
     val viewportEnd = this.layoutInfo.viewportEndOffset
-    val viewportCenter = (viewportStart + viewportEnd) / 2
+    // bias: fraction down the viewport the item settles at (0.5 = centred,
+    // 0.40 = Apple Music lyrics resting position with read-ahead below).
+    val viewportTarget = viewportStart + (viewportEnd - viewportStart) * bias.coerceIn(0f, 1f)
     val itemCenter = itemInfo.offset + itemInfo.size / 2
+    // Spring, not tween: the view glides in with a soft settle instead of
+    // stopping dead (Apple/lyra follow-spring feel).
     this.animateScrollBy(
-        value = (itemCenter - viewportCenter).toFloat(),
-        animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing),
+        value = (itemCenter - viewportTarget).toFloat(),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
     )
 }
 
@@ -483,6 +495,41 @@ fun Palette?.toImmersiveBackground(): Color {
     // Darken more for lighter artwork so the page stays dark enough for white text.
     val darkenFactor = 0.35f + 0.45f * luminance
     return androidx.compose.ui.graphics.lerp(base, Color.Black, darkenFactor)
+}
+
+/**
+ * Apple-Music-style button tint for the player controls.
+ *
+ * Starts from the MOST SATURATED swatch of the artwork ("the strongest colour"), then quarters its
+ * saturation and pushes brightness to maximum. The result is a pale, soft tint — never a vivid
+ * fill — which the player applies at 20-30% opacity so the controls read as frosted glass rather
+ * than solid colour. Falls back to the warm-white [Color(0xFFF4F3F0)] with no artwork.
+ */
+fun Palette?.toAppleMusicTintColor(): Color {
+    val p = this ?: return Color(0xFFF4F3F0)
+    val strongestRgb =
+        p.swatches.maxByOrNull { it.hsl?.getOrNull(1) ?: 0f }?.rgb?.takeIf { it != 0 }
+            ?: p.getVibrantColor(0).takeIf { it != 0 }
+            ?: p.getDominantColor(0).takeIf { it != 0 }
+            ?: p.getMutedColor(0).takeIf { it != 0 }
+            ?: return Color(0xFFF4F3F0)
+    return Color(strongestRgb).quarterSaturationAtMaxBrightness()
+}
+
+/** Quarter the HSV saturation and set the value (brightness) to maximum. */
+private fun Color.quarterSaturationAtMaxBrightness(): Color {
+    val max = maxOf(red, green, blue)
+    val min = minOf(red, green, blue)
+    val delta = max - min
+    val hue =
+        when {
+            delta == 0f -> 0f
+            max == red -> 60f * (((green - blue) / delta) % 6f)
+            max == green -> 60f * ((blue - red) / delta + 2f)
+            else -> 60f * ((red - green) / delta + 4f)
+        }.let { if (it < 0f) it + 360f else it }
+    val saturation = if (max == 0f) 0f else delta / max
+    return hsvToColor(hue, saturation * 0.25f, 1f)
 }
 
 /**

@@ -1,11 +1,15 @@
 package com.maxrave.simpmusic
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,12 +36,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.maxrave.simpmusic.ui.theme.LocalFloatingSurfaceStyle
+import com.maxrave.simpmusic.ui.theme.LocalPerformanceMode
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,37 +94,23 @@ import com.maxrave.simpmusic.ui.theme.ForceDarkContent
 import com.maxrave.simpmusic.ui.theme.parseThemeColorHex
 import com.maxrave.simpmusic.ui.theme.fontFamily
 import com.maxrave.simpmusic.ui.theme.typo
-import com.maxrave.simpmusic.utils.VersionManager
 import com.maxrave.simpmusic.viewModel.SharedViewModel
-import com.mikepenz.markdown.m3.Markdown
-import com.mikepenz.markdown.m3.markdownTypography
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.runBlocking
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.format
-import kotlinx.datetime.format.MonthNames
-import kotlinx.datetime.format.char
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.cancel
 import simpmusic.composeapp.generated.resources.do_not_show_again
-import simpmusic.composeapp.generated.resources.download
 import simpmusic.composeapp.generated.resources.good_night
 import simpmusic.composeapp.generated.resources.notification
 import simpmusic.composeapp.generated.resources.sleep_timer_off
 import simpmusic.composeapp.generated.resources.this_app_needs_to_access_your_notification
 import simpmusic.composeapp.generated.resources.this_link_is_not_supported
-import simpmusic.composeapp.generated.resources.unknown
-import simpmusic.composeapp.generated.resources.update_available
-import simpmusic.composeapp.generated.resources.update_message
-import simpmusic.composeapp.generated.resources.version_format
 import simpmusic.composeapp.generated.resources.yes
 import kotlin.time.ExperimentalTime
 
@@ -128,12 +122,20 @@ fun App(viewModel: SharedViewModel = koinInject()) {
 
     val sleepTimerState by viewModel.sleepTimerState.collectAsStateWithLifecycle()
     val nowPlayingData by viewModel.nowPlayingState.collectAsStateWithLifecycle()
-    val updateData by viewModel.updateResponse.collectAsStateWithLifecycle()
     val intent by viewModel.intent.collectAsStateWithLifecycle()
     val showNotificationPermissionDialog by viewModel.showNotificationPermissionDialog.collectAsStateWithLifecycle()
 
     val isTranslucentBottomBar by viewModel.getTranslucentBottomBar().collectAsStateWithLifecycle(DataStoreManager.FALSE)
-    val isLiquidGlassEnabled by viewModel.getEnableLiquidGlass().collectAsStateWithLifecycle(DataStoreManager.FALSE)
+    val isLiquidGlassEnabled = if (getPlatform() == Platform.Android) TRUE else DataStoreManager.FALSE
+
+    val rawFloatingSurfaceStyle by viewModel.getFloatingSurfaceStyle().collectAsStateWithLifecycle(DataStoreManager.FLOATING_SURFACE_GLASSY)
+    val isPerformanceMode by viewModel.getPerformanceMode().collectAsStateWithLifecycle(false)
+
+    val effectiveFloatingSurfaceStyle = if (isPerformanceMode) {
+        DataStoreManager.FLOATING_SURFACE_LASTCHAT
+    } else {
+        rawFloatingSurfaceStyle
+    }
 
     val themeMode by viewModel.getThemeMode().collectAsStateWithLifecycle(DataStoreManager.THEME_MODE_DARK)
     val themeColorSource by viewModel.getThemeColorSource().collectAsStateWithLifecycle(DataStoreManager.THEME_COLOR_DEFAULT)
@@ -157,13 +159,9 @@ fun App(viewModel: SharedViewModel = koinInject()) {
         mutableStateOf(true)
     }
 
-    var shouldShowUpdateDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-
     val hazeState =
         rememberHazeState(
-            blurEnabled = true,
+            blurEnabled = !isPerformanceMode,
         )
 
     LaunchedEffect(nowPlayingData) {
@@ -320,15 +318,6 @@ fun App(viewModel: SharedViewModel = koinInject()) {
         }
     }
 
-    LaunchedEffect(updateData) {
-        val response = updateData ?: return@LaunchedEffect
-        if (viewModel.showedUpdateDialog &&
-            response.tagName != getString(Res.string.version_format, VersionManager.getVersionName())
-        ) {
-            shouldShowUpdateDialog = true
-        }
-    }
-
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     LaunchedEffect(navBackStackEntry) {
         Logger.d("MainActivity", "Current destination: ${navBackStackEntry?.destination?.route}")
@@ -339,8 +328,14 @@ fun App(viewModel: SharedViewModel = koinInject()) {
             it.hasRoute(FullscreenDestination::class)
         } == true
     }
-    var isScrolledToTop by rememberSaveable {
-        mutableStateOf(false)
+    var isScrolledToTop by remember {
+        mutableStateOf(true)
+    }
+    var lastScrollDirection by remember {
+        mutableIntStateOf(0)
+    }
+    var scrollEpoch by remember {
+        mutableIntStateOf(0)
     }
     val isTablet = windowSize.isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)
     val isTabletLandscape = isTablet && currentOrientation() == Orientation.LANDSCAPE
@@ -350,25 +345,29 @@ fun App(viewModel: SharedViewModel = koinInject()) {
         themeColorSource = themeColorSource,
         customThemeColor = parseThemeColorHex(customThemeColorHex),
     ) {
-        // Backdrop base must match the theme: white page → white glass, dark/AMOLED → black glass.
-        // Read inside AppTheme so MaterialTheme reflects the resolved scheme (light background is #FFFFFF).
-        val backdrop =
-            rememberBackdrop(
-                if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.White else Color.Black,
-            )
-        Scaffold(
+        CompositionLocalProvider(
+            LocalFloatingSurfaceStyle provides effectiveFloatingSurfaceStyle,
+            LocalPerformanceMode provides isPerformanceMode,
+        ) {
+            // Backdrop base must match the theme: white page → white glass, dark/AMOLED → black glass.
+            // Read inside AppTheme so MaterialTheme reflects the resolved scheme (light background is #FFFFFF).
+            val backdrop =
+                rememberBackdrop(
+                    if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.White else Color.Black,
+                )
+            Scaffold(
             bottomBar = {
-                if (!isTablet) {
+                if (isLiquidGlassEnabled == TRUE || !isTablet) {
                     AnimatedVisibility(
                         isNavBarVisible,
-                        enter = fadeIn() + slideInHorizontally(),
-                        exit = fadeOut(),
+                        enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                        exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it / 2 },
                     ) {
                         Column {
                             AnimatedVisibility(
                                 isShowMiniPlayer && isLiquidGlassEnabled == DataStoreManager.FALSE,
-                                enter = fadeIn() + slideInHorizontally(),
-                                exit = fadeOut(),
+                                enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                                exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it / 2 },
                             ) {
                                 MiniPlayer(
                                     Modifier
@@ -396,6 +395,8 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                                     viewModel = viewModel,
                                     onOpenNowPlaying = { isShowNowPlaylistScreen = true },
                                     isScrolledToTop = isScrolledToTop,
+                                    scrollDirection = lastScrollDirection,
+                                    scrollEpoch = scrollEpoch,
                                 ) { klass ->
                                     viewModel.reloadDestination(klass)
                                 }
@@ -416,7 +417,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                     Modifier
                         .fillMaxSize()
                         .then(
-                            if (isLiquidGlassEnabled == TRUE && !isTablet) {
+                            if (isLiquidGlassEnabled == TRUE) {
                                 Modifier.layerBackdrop(backdrop)
                             } else {
                                 Modifier
@@ -426,7 +427,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                     Row(
                         Modifier.fillMaxSize(),
                     ) {
-                        if (isTablet && !isInFullscreen) {
+                        if (isLiquidGlassEnabled != TRUE && isTablet && !isInFullscreen) {
                             AppNavigationRail(
                                 navController = navController,
                             ) { klass ->
@@ -441,13 +442,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                             Box(
                                 Modifier
                                     .fillMaxSize()
-                                    .then(
-                                        if (isLiquidGlassEnabled == TRUE && isTablet && !isInFullscreen) {
-                                            Modifier.layerBackdrop(backdrop)
-                                        } else {
-                                            Modifier
-                                        },
-                                    ).hazeSource(hazeState),
+                                    .hazeSource(hazeState),
                             ) {
                                 AppNavigationGraph(
                                     innerPadding = innerPadding,
@@ -461,51 +456,44 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                                     showNowPlayingSheet = {
                                         isShowNowPlaylistScreen = true
                                     },
-                                    onScrolling = {
-                                        isScrolledToTop = it
+                                    onScrolling = { isAtTop, direction ->
+                                        isScrolledToTop = isAtTop
+                                        lastScrollDirection = direction
+                                        scrollEpoch++
                                     },
                                 )
                             }
-                            this@Row.AnimatedVisibility(
-                                modifier =
-                                    Modifier
-                                        .padding(innerPadding)
-                                        .align(Alignment.BottomCenter),
-                                visible = isShowMiniPlayer && isTablet && !isInFullscreen,
-                                enter = fadeIn() + slideInHorizontally(),
-                                exit = fadeOut(),
-                            ) {
-                                MiniPlayer(
-                                    if (getPlatform() == Platform.Android) {
+                            if (isLiquidGlassEnabled != TRUE) {
+                                this@Row.AnimatedVisibility(
+                                    modifier =
                                         Modifier
-                                            .height(56.dp)
-                                            .fillMaxWidth(0.8f)
-                                            .padding(
-                                                horizontal = 12.dp,
-                                            ).padding(
-                                                bottom = 4.dp,
-                                            )
-                                    } else {
+                                            .padding(innerPadding)
+                                            .align(Alignment.BottomCenter),
+                                    visible = isShowMiniPlayer && isTablet && !isInFullscreen,
+                                    enter = fadeIn(tween(250, easing = FastOutSlowInEasing)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                                    exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it / 2 },
+                                ) {
+                                    MiniPlayer(
                                         Modifier
                                             .fillMaxWidth()
                                             .height(84.dp)
                                             .background(Color.Transparent)
                                             .hazeEffect(hazeState, style = HazeMaterials.ultraThin()) {
                                                 blurEnabled = true
-                                            }
-                                    },
-                                    backdrop = backdrop,
-                                    onClick = {
-                                        isShowNowPlaylistScreen = true
-                                    },
-                                    onClose = {
-                                        viewModel.stopPlayer()
-                                        viewModel.isServiceRunning = false
-                                    },
-                                )
+                                            },
+                                        backdrop = backdrop,
+                                        onClick = {
+                                            isShowNowPlaylistScreen = true
+                                        },
+                                        onClose = {
+                                            viewModel.stopPlayer()
+                                            viewModel.isServiceRunning = false
+                                        },
+                                    )
+                                }
                             }
                         }
-                        if (isTablet && isTabletLandscape && !isInFullscreen) {
+                        if (isLiquidGlassEnabled != TRUE && isTablet && isTabletLandscape && !isInFullscreen) {
                             AnimatedVisibility(
                                 isShowNowPlaylistScreen,
                                 enter = expandHorizontally() + fadeIn(),
@@ -546,7 +534,7 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                     }
                 }
 
-                if (isShowNowPlaylistScreen && !isTabletLandscape) {
+                if (isShowNowPlaylistScreen && (isLiquidGlassEnabled == TRUE || !isTabletLandscape)) {
                     ForceDarkContent {
                         NowPlayingScreen(
                             navController = navController,
@@ -591,128 +579,6 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                         },
                     )
                 }
-
-                if (shouldShowUpdateDialog) {
-                    val response = updateData ?: return@Scaffold
-                    AlertDialog(
-                        properties =
-                            DialogProperties(
-                                dismissOnBackPress = false,
-                                dismissOnClickOutside = false,
-                            ),
-                        onDismissRequest = {
-                            shouldShowUpdateDialog = false
-                            viewModel.showedUpdateDialog = false
-                        },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    shouldShowUpdateDialog = false
-                                    viewModel.showedUpdateDialog = false
-                                    openUrl("https://simpmusic.org/download")
-                                },
-                            ) {
-                                Text(
-                                    stringResource(Res.string.download),
-                                    style = typo().bodySmall,
-                                )
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(
-                                onClick = {
-                                    shouldShowUpdateDialog = false
-                                    viewModel.showedUpdateDialog = false
-                                },
-                            ) {
-                                Text(
-                                    stringResource(Res.string.cancel),
-                                    style = typo().bodySmall,
-                                )
-                            }
-                        },
-                        title = {
-                            Text(
-                                stringResource(Res.string.update_available),
-                                style = typo().labelSmall,
-                            )
-                        },
-                        text = {
-                            val formatted =
-                                response.releaseTime?.let { input ->
-                                    try {
-                                        val instant = kotlin.time.Instant.parse(input)
-                                        val dateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-                                        dateTime.format(
-                                            LocalDateTime.Format {
-                                                day()
-                                                char(' ')
-                                                monthName(MonthNames.ENGLISH_ABBREVIATED)
-                                                char(' ')
-                                                year()
-                                                char(' ')
-                                                hour()
-                                                char(':')
-                                                minute()
-                                                char(':')
-                                                second()
-                                            },
-                                        )
-                                    } catch (e: Exception) {
-                                        stringResource(Res.string.unknown)
-                                    }
-                                } ?: stringResource(Res.string.unknown)
-
-                            val updateMessage =
-                                runBlocking {
-                                    getString(
-                                        Res.string.update_message,
-                                        response.tagName,
-                                        formatted,
-                                    )
-                                }
-                            Column(
-                                Modifier
-                                    .heightIn(
-                                        max = 400.dp,
-                                    ).verticalScroll(
-                                        rememberScrollState(),
-                                    ),
-                            ) {
-                                Text(
-                                    text = updateMessage,
-                                    style = typo().labelMedium,
-                                    modifier =
-                                        Modifier.padding(
-                                            vertical = 8.dp,
-                                        ),
-                                )
-                                Markdown(
-                                    response.body,
-                                    typography =
-                                        markdownTypography(
-                                            h1 = typo().labelLarge,
-                                            h2 = typo().labelMedium,
-                                            h3 = typo().labelSmall,
-                                            text = typo().bodySmall,
-                                            bullet = typo().bodySmall,
-                                            paragraph = typo().bodySmall,
-                                            textLink =
-                                                TextLinkStyles(
-                                                    SpanStyle(
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Normal,
-                                                        fontFamily = fontFamily(),
-                                                        textDecoration = TextDecoration.Underline,
-                                                    ),
-                                                ),
-                                        ),
-                                )
-                            }
-                        },
-                    )
-                }
-
                 if (showNotificationPermissionDialog) {
                     var doNotShowAgain by remember { mutableStateOf(false) }
                     AlertDialog(
@@ -767,5 +633,6 @@ fun App(viewModel: SharedViewModel = koinInject()) {
                 }
             },
         )
+        }
     }
 }

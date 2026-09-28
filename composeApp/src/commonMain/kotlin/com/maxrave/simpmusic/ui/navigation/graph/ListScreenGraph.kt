@@ -26,6 +26,7 @@ import com.maxrave.simpmusic.ui.theme.ForceDarkContent
 fun NavGraphBuilder.listScreenGraph(
     innerPadding: PaddingValues,
     navController: NavController,
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     composable<AlbumDestination> { entry ->
         val data = entry.toRoute<AlbumDestination>()
@@ -33,6 +34,7 @@ fun NavGraphBuilder.listScreenGraph(
             AlbumScreen(
                 browseId = data.browseId,
                 navController = navController,
+                onScrolling = onScrolling,
             )
         }
     }
@@ -42,6 +44,7 @@ fun NavGraphBuilder.listScreenGraph(
             ArtistScreen(
                 channelId = data.channelId,
                 navController = navController,
+                onScrolling = onScrolling,
             )
         }
     }
@@ -51,6 +54,7 @@ fun NavGraphBuilder.listScreenGraph(
             LocalPlaylistScreen(
                 id = data.id,
                 navController = navController,
+                onScrolling = onScrolling,
             )
         }
     }
@@ -61,6 +65,7 @@ fun NavGraphBuilder.listScreenGraph(
             navController = navController,
             type = data.type,
             id = data.id,
+            onScrolling = onScrolling,
         )
     }
     composable<PlaylistDestination> { entry ->
@@ -70,6 +75,7 @@ fun NavGraphBuilder.listScreenGraph(
                 playlistId = data.playlistId,
                 isYourYouTubePlaylist = data.isYourYouTubePlaylist,
                 navController = navController,
+                onScrolling = onScrolling,
             )
         }
     }
@@ -79,6 +85,7 @@ fun NavGraphBuilder.listScreenGraph(
             PodcastScreen(
                 podcastId = data.podcastId,
                 navController = navController,
+                onScrolling = onScrolling,
             )
         }
     }

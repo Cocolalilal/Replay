@@ -1,7 +1,7 @@
 [versions]
 # App version
-version-name = "1.7.0"
-version-code = "56"
+version-name = "1.7.4"
+version-code = "60"
 
 android = "9.2.1"
 kotlin = "2.4.10"
@@ -74,7 +74,7 @@ okio = "3.18.1"
 material3-multiplatform = "1.12.0-alpha01" # alpha01 = skiko 0.148.1 (has Matrix33.makeTranslate) to match compottie 1.12 snapshot; alpha02 bumps skiko 0.148.2 which removed it → compottie crash
 adaptive = "1.2.0"
 componentsResources = "1.11.1"
-compottie = "2.2.2-compose-1.12-SNAPSHOT" # Compose 1.12 / skiko 0.148.2 snapshot — material3 1.12-alpha forces skiko 0.148.2, stable compottie needs 0.144.6 and crashes
+compottie = "2.2.4-compose-1.12-SNAPSHOT" # Compose 1.12 / skiko 0.148.2 snapshot — material3 1.12-alpha forces skiko 0.148.2, stable compottie needs 0.144.6 and crashes
 cmptoast = "1.0.71"
 uri = "0.0.21"
 buildkonfig = "0.22.0"
@@ -84,7 +84,6 @@ calf = "0.13.0"
 material = "1.14.0"
 osdetector = "1.7.3"
 tray = "1.3.3"
-nucleus-notification = "2.4.4"
 commonsIo = "2.5"
 packagedeps = "0.2.5"
 conveyor = "2.0"
@@ -213,7 +212,6 @@ compottie-resources = { module = "io.github.alexzhirkevich:compottie-resources",
 cmptoast = { module = "network.chaintech:cmptoast", version.ref = "cmptoast" }
 file-picker = { module = "com.mohamedrejeb.calf:calf-file-picker", version.ref = "calf" }
 native-tray = { module = "io.github.kdroidfilter:composenativetray", version.ref = "tray" }
-nucleus-notification = { module = "dev.nucleusframework:nucleus.notification-common", version.ref = "nucleus-notification" }
 
 #JVM
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }

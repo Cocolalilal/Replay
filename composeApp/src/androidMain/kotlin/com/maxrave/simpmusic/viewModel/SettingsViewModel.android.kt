@@ -12,6 +12,7 @@ import coil3.imageLoader
 import com.eygraber.uri.Uri
 import com.eygraber.uri.toAndroidUri
 import com.maxrave.common.Config
+import com.maxrave.common.CUSTOM_COVERS_FOLDER
 import com.maxrave.common.DB_NAME
 import com.maxrave.common.DOWNLOAD_EXOPLAYER_FOLDER
 import com.maxrave.common.EXOPLAYER_DB_NAME
@@ -46,7 +47,7 @@ actual suspend fun calculateDataFraction(cacheRepository: CacheRepository): Sett
     return withContext(Dispatchers.Default) {
         val playerCache = cacheRepository.getCacheSize(Config.PLAYER_CACHE)
         val downloadCache = cacheRepository.getCacheSize(Config.DOWNLOAD_CACHE)
-        val canvasCache = cacheRepository.getCacheSize(Config.CANVAS_CACHE)
+        val animatedArtworkCache = cacheRepository.getCacheSize(Config.ANIMATED_ARTWORK_CACHE)
         val mStorageStatsManager =
             application.getSystemService(StorageStatsManager::class.java)
         if (mStorageStatsManager != null) {
@@ -59,7 +60,7 @@ actual suspend fun calculateDataFraction(cacheRepository: CacheRepository): Sett
             val thumbSize = (application.imageLoader.diskCache?.size ?: 0L).bytesToMB()
             val otherApp = simpMusicSize.let { usedSpace.minus(it) - thumbSize }
             val databaseSize =
-                simpMusicSize - playerCache.bytesToMB() - downloadCache.bytesToMB() - canvasCache.bytesToMB()
+                simpMusicSize - playerCache.bytesToMB() - downloadCache.bytesToMB() - animatedArtworkCache.bytesToMB()
             if (totalByte ==
                 freeSpace + otherApp + simpMusicSize + thumbSize
             ) {
@@ -75,8 +76,8 @@ actual suspend fun calculateDataFraction(cacheRepository: CacheRepository): Sett
                             .bytesToMB()
                             .toFloat()
                             .div(totalByte.toFloat()),
-                    canvasCache =
-                        canvasCache
+                    animatedArtworkCache =
+                        animatedArtworkCache
                             .bytesToMB()
                             .toFloat()
                             .div(totalByte.toFloat()),
@@ -109,6 +110,7 @@ actual suspend fun restoreNative(
                 }
 
             var downloadFolderCleared = false
+            var customCoversFolderCleared = false
 
             while (entry != null) {
                 Logger.d("BackupRestore", "Processing entry: ${entry.name}")
@@ -135,6 +137,21 @@ actual suspend fun restoreNative(
                         FileOutputStream(application.getDatabasePath(EXOPLAYER_DB_NAME)).use { outputStream ->
                             inputStream.copyTo(outputStream)
                         }
+                    }
+
+                    entry.name.startsWith("$CUSTOM_COVERS_FOLDER/") -> {
+                        Logger.d("BackupRestore", "Found custom covers entry: ${entry.name}")
+                        if (!customCoversFolderCleared) {
+                            val coversFolder = application.filesDir / CUSTOM_COVERS_FOLDER
+                            Logger.d("BackupRestore", "=== RESTORE: Custom covers folder contents BEFORE clearing ===")
+                            debugFolderContents(coversFolder)
+                            Logger.d("BackupRestore", "Clearing custom covers folder: ${coversFolder.absolutePath}")
+                            clearFolder(coversFolder)
+                            Logger.d("BackupRestore", "=== RESTORE: Custom covers folder contents AFTER clearing ===")
+                            debugFolderContents(coversFolder)
+                            customCoversFolderCleared = true
+                        }
+                        restoreFolder(entry.name, inputStream, CUSTOM_COVERS_FOLDER)
                     }
 
                     entry.name.startsWith("$DOWNLOAD_EXOPLAYER_FOLDER/") -> {
@@ -299,6 +316,13 @@ actual suspend fun backupNative(
             FileInputStream(commonRepository.getDatabasePath()).use { inputStream ->
                 outputStream.putNextEntry(ZipEntry(DB_NAME))
                 inputStream.copyTo(outputStream)
+            }
+            // Backup custom covers folder
+            val customCoversFolder = application.filesDir / CUSTOM_COVERS_FOLDER
+            if (customCoversFolder.exists() && customCoversFolder.isDirectory) {
+                Logger.d("BackupRestore", "=== BACKUP: Custom covers folder contents BEFORE backup ===")
+                debugFolderContents(customCoversFolder)
+                backupFolder(customCoversFolder, CUSTOM_COVERS_FOLDER, outputStream)
             }
             if (backupDownloaded) {
                 (application.getDatabasePath(EXOPLAYER_DB_NAME))

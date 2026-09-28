@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.MarqueeAnimationMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -37,10 +38,14 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -57,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -104,17 +110,22 @@ import com.maxrave.simpmusic.getPlatform
 import com.maxrave.simpmusic.ui.component.CenterLoadingBox
 import com.maxrave.simpmusic.ui.component.DescriptionView
 import com.maxrave.simpmusic.ui.component.EndOfPage
+import com.maxrave.simpmusic.ui.component.GradientHeartIcon
 import com.maxrave.simpmusic.ui.component.HeartCheckBox
+import com.maxrave.simpmusic.ui.component.LikedSongsCover
 import com.maxrave.simpmusic.ui.component.LiquidGlassIconButton
 import com.maxrave.simpmusic.ui.component.LoadingDialog
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.PlaylistBottomSheet
+import com.maxrave.simpmusic.util.isLikedSongsPlaylist
+import com.maxrave.simpmusic.util.resolvePlaylistCover
 import com.maxrave.simpmusic.ui.component.RippleIconButton
 import com.maxrave.simpmusic.ui.component.SongFullWidthItems
 import com.maxrave.simpmusic.ui.component.liquidGlass
 import com.maxrave.simpmusic.ui.icon.ArrowBackIosNew
 import com.maxrave.simpmusic.ui.icon.Close
 import com.maxrave.simpmusic.ui.icon.DownloadForOffline
+import com.maxrave.simpmusic.ui.icon.LibraryMusic
 import com.maxrave.simpmusic.ui.icon.MoreVert
 import com.maxrave.simpmusic.ui.icon.Pause
 import com.maxrave.simpmusic.ui.icon.PauseCircle
@@ -129,11 +140,13 @@ import com.maxrave.simpmusic.ui.theme.LocalIsDarkTheme
 import com.maxrave.simpmusic.ui.theme.seed
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.ListState
+import com.maxrave.simpmusic.viewModel.PlaylistTag
 import com.maxrave.simpmusic.viewModel.PlaylistUIEvent
 import com.maxrave.simpmusic.viewModel.PlaylistUIState
 import com.maxrave.simpmusic.viewModel.PlaylistViewModel
 import com.maxrave.simpmusic.viewModel.SharedViewModel
 import com.maxrave.simpmusic.viewModel.UIEvent
+import com.maxrave.simpmusic.viewModel.isVideoTrack
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -162,8 +175,16 @@ import simpmusic.composeapp.generated.resources.error
 import simpmusic.composeapp.generated.resources.no_description
 import simpmusic.composeapp.generated.resources.playlist
 import simpmusic.composeapp.generated.resources.radio
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.simpmusic.ui.component.SuggestItems
+import simpmusic.composeapp.generated.resources.reload
 import simpmusic.composeapp.generated.resources.search
+import simpmusic.composeapp.generated.resources.suggest
 import simpmusic.composeapp.generated.resources.unlimited
+import androidx.compose.ui.text.font.FontWeight
+import com.maxrave.common.Config
+import com.maxrave.domain.mediaservice.handler.PlaylistType
+import com.maxrave.domain.mediaservice.handler.QueueData
 
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -173,12 +194,12 @@ fun PlaylistScreen(
     playlistId: String,
     isYourYouTubePlaylist: Boolean,
     navController: NavController,
+    onScrolling: (isAtTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
-    // Home shelves navigate with the browseEndpoint id, which is "VL" + the playlist id
-    // (HomeParser reads title.runs[0].navigationEndpoint.browseEndpoint.browseId). Every radio
-    // prefix check and the watch endpoint expect the bare id, so normalise once on the way in
-    // rather than stripping "VL" again at each consumer.
-    val id = playlistId.removePrefix("VL")
+    val id = if (playlistId.startsWith("VL")) playlistId.removePrefix("VL") else playlistId
+    var isDownloaded by rememberSaveable { mutableStateOf(false) }
+    var isSavedToLocal by rememberSaveable { mutableStateOf(false) }
+
     val tag = "PlaylistScreen"
 
     val composition by rememberLottieComposition {
@@ -193,11 +214,41 @@ fun PlaylistScreen(
     val liked by viewModel.liked.collectAsStateWithLifecycle()
     val tracks by viewModel.tracks.collectAsStateWithLifecycle()
     val tracksListState by viewModel.tracksListState.collectAsStateWithLifecycle()
+    val selectedTag by viewModel.selectedTag.collectAsStateWithLifecycle()
+    val songSubstitutions by viewModel.songSubstitutions.collectAsStateWithLifecycle()
+
+    LaunchedEffect(tracks, uiState.data?.id) {
+        viewModel.ensureLikedSubstitution(tracks)
+    }
+
+    val dataStoreManager: DataStoreManager = koinInject()
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+    val customCoverUri = remember(customCoversMap, id, playlistId) {
+        resolvePlaylistCover(id, null, customCoversMap)
+            ?: resolvePlaylistCover(playlistId, null, customCoversMap)
+    }
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val isLoadingSuggestions by viewModel.isLoadingSuggestions.collectAsStateWithLifecycle()
+
+    LaunchedEffect(id) {
+        viewModel.getSuggestions(id)
+    }
 
     var showSearchBar by rememberSaveable { mutableStateOf(false) }
     var searchBarHeightPx by remember { mutableStateOf(0) }
 
     val lazyState = rememberLazyListState()
+    lazyState.TrackScrolling(onScrolling = onScrolling)
     val firstItemVisible by remember {
         derivedStateOf {
             lazyState.firstVisibleItemIndex == 0
@@ -208,10 +259,15 @@ fun PlaylistScreen(
 
     val filteredTrack by remember {
         derivedStateOf {
+            // Subscribe to these so the list repaints on tag or substitution updates
+            // (filterBySelectedTag reads the ViewModel flows directly).
+            selectedTag
+            songSubstitutions
+            val tagFiltered = viewModel.filterBySelectedTag(tracks)
             if (query.isEmpty() || !showSearchBar) {
-                tracks
+                tagFiltered
             } else {
-                tracks.filter {
+                tagFiltered.filter {
                     it.title.contains(query, ignoreCase = true) ||
                         it.artists?.joinToString(", ")?.contains(query, ignoreCase = true) == true
                 }
@@ -287,7 +343,8 @@ fun PlaylistScreen(
         )
     }
     val onItemMoreClick: (videoId: String) -> Unit = { videoId ->
-        currentItem = tracks.firstOrNull { it.videoId == videoId }
+        currentItem = viewModel.filterBySelectedTag(tracks).firstOrNull { it.videoId == videoId }
+            ?: tracks.firstOrNull { it.videoId == videoId }
         if (currentItem != null) {
             itemBottomSheetShow = true
         }
@@ -446,6 +503,9 @@ fun PlaylistScreen(
                                     Column(
                                         horizontalAlignment = Alignment.Start,
                                     ) {
+                                        val isLikedSongs = id == "LM" || id == "VLLM" || id == "favorite_songs" || data.id == "LM" || data.id == "VLLM" || data.id == "favorite_songs" || (data.title.contains("Liked", ignoreCase = true) && !data.isRadio) || isLikedSongsPlaylist(id, data.title) || isLikedSongsPlaylist(data.id, data.title)
+                                        val displayTitle = if (isLikedSongs) "Liked Songs" else data.title
+                                        val activeThumbnail = customCoverUri ?: data.thumbnail
                                         if (isMobilePortrait) {
                                             // Apple Music-style: edge-to-edge artwork + liquid glass buttons.
                                             // Glass buttons MUST be siblings of the backdrop source (not children)
@@ -459,26 +519,45 @@ fun PlaylistScreen(
                                             ) {
                                                 // Inner Box — backdrop SOURCE (artwork + overlays only, NO glass)
                                                 Box(modifier = Modifier.fillMaxSize().layerBackdrop(artworkBackdrop)) {
-                                                    AsyncImage(
-                                                        model =
-                                                            ImageRequest
-                                                                .Builder(LocalPlatformContext.current)
-                                                                .data(data.thumbnail)
-                                                                .diskCachePolicy(CachePolicy.ENABLED)
-                                                                .memoryCachePolicy(CachePolicy.ENABLED)
-                                                                .diskCacheKey(data.thumbnail)
-                                                                .memoryCacheKey(data.thumbnail)
-                                                                .crossfade(false)
-                                                                .build(),
-                                                        placeholder = rememberHolderPainter(),
-                                                        error = rememberHolderPainter(),
-                                                        contentDescription = null,
-                                                        contentScale = ContentScale.Crop,
-                                                        onSuccess = {
-                                                            bitmap = it.result.image.toImageBitmap()
-                                                        },
-                                                        modifier = Modifier.fillMaxSize(),
-                                                    )
+                                                    if (isLikedSongs) {
+                                                        LikedSongsCover(
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            iconSize = 96.dp,
+                                                        )
+                                                    } else if (customCoverUri == null && activeThumbnail.isNullOrEmpty()) {
+                                                        Box(
+                                                            modifier = Modifier.fillMaxSize().background(Color(0xFF141416)),
+                                                            contentAlignment = Alignment.Center,
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = SimpIcons.LibraryMusic,
+                                                                contentDescription = null,
+                                                                tint = Color.White,
+                                                                modifier = Modifier.size(96.dp),
+                                                            )
+                                                        }
+                                                    } else {
+                                                        AsyncImage(
+                                                            model =
+                                                                ImageRequest
+                                                                    .Builder(LocalPlatformContext.current)
+                                                                    .data(activeThumbnail)
+                                                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                                                    .memoryCachePolicy(CachePolicy.ENABLED)
+                                                                    .diskCacheKey(activeThumbnail)
+                                                                    .memoryCacheKey(activeThumbnail)
+                                                                    .crossfade(false)
+                                                                    .build(),
+                                                            placeholder = rememberHolderPainter(),
+                                                            error = rememberHolderPainter(),
+                                                            contentDescription = null,
+                                                            contentScale = ContentScale.Crop,
+                                                            onSuccess = {
+                                                                bitmap = it.result.image.toImageBitmap()
+                                                            },
+                                                            modifier = Modifier.fillMaxSize(),
+                                                        )
+                                                    }
                                                     // Scrim spans 70% of the artwork (not a fixed 200dp): the
                                                     // shorter the ramp, the steeper the alpha, and a steep ramp
                                                     // is what makes the fade read as an edge. See
@@ -501,7 +580,7 @@ fun PlaylistScreen(
                                                         horizontalAlignment = Alignment.CenterHorizontally,
                                                     ) {
                                                         Text(
-                                                            text = data.title,
+                                                            text = displayTitle,
                                                             style = typo().titleLarge,
                                                             color = Color.White,
                                                             maxLines = 2,
@@ -611,29 +690,57 @@ fun PlaylistScreen(
                                                 }
                                             }
                                         } else {
-                                            AsyncImage(
-                                                model =
-                                                    ImageRequest
-                                                        .Builder(LocalPlatformContext.current)
-                                                        .data(data.thumbnail)
-                                                        .diskCachePolicy(CachePolicy.ENABLED)
-                                                        .diskCacheKey(data.thumbnail)
-                                                        .crossfade(true)
-                                                        .build(),
-                                                placeholder = rememberHolderPainter(),
-                                                error = rememberHolderPainter(),
-                                                contentDescription = null,
-                                                contentScale = ContentScale.FillHeight,
-                                                onSuccess = {
-                                                    bitmap = it.result.image.toImageBitmap()
-                                                },
-                                                modifier =
-                                                    Modifier
-                                                        .height(artworkSizeDp.dp)
-                                                        .wrapContentWidth()
-                                                        .align(Alignment.CenterHorizontally)
-                                                        .clip(RoundedCornerShape(8.dp)),
-                                            )
+                                            if (isLikedSongs) {
+                                                LikedSongsCover(
+                                                    modifier =
+                                                        Modifier
+                                                            .size(artworkSizeDp.dp)
+                                                            .align(Alignment.CenterHorizontally)
+                                                            .clip(RoundedCornerShape(8.dp)),
+                                                    iconSize = (artworkSizeDp * 0.45f).dp,
+                                                )
+                                            } else if (customCoverUri == null && activeThumbnail.isNullOrEmpty()) {
+                                                Box(
+                                                    modifier =
+                                                        Modifier
+                                                            .size(artworkSizeDp.dp)
+                                                            .align(Alignment.CenterHorizontally)
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .background(Color(0xFF141416)),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Icon(
+                                                        imageVector = SimpIcons.LibraryMusic,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(72.dp),
+                                                    )
+                                                }
+                                            } else {
+                                                AsyncImage(
+                                                    model =
+                                                        ImageRequest
+                                                            .Builder(LocalPlatformContext.current)
+                                                            .data(activeThumbnail)
+                                                            .diskCachePolicy(CachePolicy.ENABLED)
+                                                            .diskCacheKey(activeThumbnail)
+                                                            .crossfade(true)
+                                                            .build(),
+                                                    placeholder = rememberHolderPainter(),
+                                                    error = rememberHolderPainter(),
+                                                    contentDescription = null,
+                                                    contentScale = ContentScale.FillHeight,
+                                                    onSuccess = {
+                                                        bitmap = it.result.image.toImageBitmap()
+                                                    },
+                                                    modifier =
+                                                        Modifier
+                                                            .height(artworkSizeDp.dp)
+                                                            .wrapContentWidth()
+                                                            .align(Alignment.CenterHorizontally)
+                                                            .clip(RoundedCornerShape(8.dp)),
+                                                )
+                                            }
                                         }
                                         Box(
                                             modifier =
@@ -645,8 +752,8 @@ fun PlaylistScreen(
                                                 if (!isMobilePortrait) {
                                                     Spacer(modifier = Modifier.size(25.dp))
                                                     Text(
-                                                        text = data.title,
-                                                        style = typo().titleMedium,
+                                                        text = displayTitle,
+                                                        style = typo().titleLarge.copy(fontSize = 24.sp),
                                                         color = Color.White,
                                                         maxLines = 2,
                                                     )
@@ -674,7 +781,7 @@ fun PlaylistScreen(
                                                             ) {
                                                                 Text(
                                                                     text = data.author.name,
-                                                                    style = typo().labelSmall,
+                                                                    style = typo().titleSmall,
                                                                     color = Color.White,
                                                                 )
                                                             }
@@ -1018,6 +1125,50 @@ fun PlaylistScreen(
                             )
                         }
                     }
+                    if (!data.isRadio && tracks.isNotEmpty()) {
+                        item(key = "playlist_tag_chips") {
+                            Row(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                PlaylistTag.entries.forEach { tag ->
+                                    val selected = selectedTag == tag
+                                    FilterChip(
+                                        selected = selected,
+                                        onClick = { viewModel.setSelectedTag(tag) },
+                                        label = {
+                                            Text(
+                                                text =
+                                                    when (tag) {
+                                                        PlaylistTag.ALL -> "All"
+                                                        PlaylistTag.SONGS -> "Songs"
+                                                        PlaylistTag.VIDEOS -> "Videos"
+                                                    },
+                                                style = typo().labelMedium,
+                                            )
+                                        },
+                                        colors =
+                                            FilterChipDefaults.filterChipColors(
+                                                containerColor = Color(0xFF1E1E22),
+                                                labelColor = Color.White,
+                                                selectedContainerColor = Color.White,
+                                                selectedLabelColor = Color.Black,
+                                            ),
+                                        border =
+                                            BorderStroke(
+                                                1.dp,
+                                                if (selected) Color.White else Color.White.copy(alpha = 0.15f),
+                                            ),
+                                        shape = RoundedCornerShape(50),
+                                    )
+                                }
+                            }
+                        }
+                    }
                     items(count = filteredTrack.size, key = { index ->
                         val item = filteredTrack.getOrNull(index)
                         (item?.videoId ?: "") + "item_$index"
@@ -1066,6 +1217,71 @@ fun PlaylistScreen(
                                         thickness = 0.5.dp,
                                         color = Color.White.copy(alpha = 0.12f),
                                     )
+                                }
+                            }
+                        }
+                    }
+                    if (!showSearchBar && (suggestions != null || isLoadingSuggestions)) {
+                        item(key = "playlist_suggestions_section") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        text = stringResource(Res.string.suggest),
+                                        style = typo().titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    TextButton(
+                                        onClick = { viewModel.reloadSuggestions() },
+                                    ) {
+                                        Text(
+                                            text = stringResource(Res.string.reload),
+                                            color = Color(0xFF8BA7C4),
+                                            style = typo().bodySmall,
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                if (isLoadingSuggestions && suggestions == null) {
+                                    CenterLoadingBox(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(100.dp),
+                                    )
+                                } else {
+                                    suggestions?.songs?.forEach { track ->
+                                        SuggestItems(
+                                            forceDark = true,
+                                            track = track,
+                                            isPlaying = playingTrack?.videoId == track.videoId,
+                                            onClickListener = {
+                                                val firstTrack = track
+                                                val videoId = track.videoId
+                                                sharedViewModel.setQueueData(
+                                                    QueueData.Data(
+                                                        listTracks = arrayListOf(firstTrack),
+                                                        firstPlayedTrack = firstTrack,
+                                                        playlistId = "RDAMVM$videoId",
+                                                        playlistName = "\"${track.title}\" Radio",
+                                                        playlistType = PlaylistType.RADIO,
+                                                        continuation = null,
+                                                    ),
+                                                )
+                                                sharedViewModel.loadMediaItem(firstTrack, Config.SONG_CLICK)
+                                            },
+                                            onAddClickListener = {
+                                                viewModel.addSuggestionTrack(id, track)
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1204,6 +1420,7 @@ fun PlaylistScreen(
 
                 if (itemBottomSheetShow && currentItem != null) {
                     val track = currentItem?.toSongEntity() ?: return@Crossfade
+                    val videoId = currentItem?.videoId ?: ""
                     NowPlayingBottomSheet(
                         onDismiss = {
                             itemBottomSheetShow = false
@@ -1211,6 +1428,17 @@ fun PlaylistScreen(
                         },
                         navController = navController,
                         song = track,
+                        onDelete =
+                            if (isYourYouTubePlaylist && !data.isRadio) {
+                                {
+                                    viewModel.removeTrackFromPlaylist(
+                                        playlistId = data.id,
+                                        videoId = videoId,
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                     )
                 }
                 if (playlistBottomSheetShow) {
@@ -1227,6 +1455,11 @@ fun PlaylistScreen(
                         playlistId = data.id,
                         playlistName = data.title,
                         isYourYouTubePlaylist = isYourYouTubePlaylist && !data.isRadio,
+                        onDelete = {
+                            viewModel.deletePlaylist(data.id) {
+                                navController.navigateUp()
+                            }
+                        },
                         onSaveToLocal = {
                             viewModel.getFullTracks { track ->
                                 viewModel.saveToLocal(track)

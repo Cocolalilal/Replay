@@ -6,6 +6,7 @@ import coil3.SingletonImageLoader
 import coil3.annotation.ExperimentalCoilApi
 import com.eygraber.uri.Uri
 import com.maxrave.common.Config
+import com.maxrave.common.LocationResolver
 import com.maxrave.common.QUALITY
 import com.maxrave.common.SELECTED_LANGUAGE
 import com.maxrave.common.VIDEO_QUALITY
@@ -41,17 +42,15 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.koin.core.component.inject
 import org.simpmusic.lastfm.isLastfmAvailable
-import org.jetbrains.compose.resources.getString as formatString
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.backup_create_failed
 import simpmusic.composeapp.generated.resources.backup_create_success
 import simpmusic.composeapp.generated.resources.backup_in_progress
 import simpmusic.composeapp.generated.resources.cancel
-import simpmusic.composeapp.generated.resources.clear_canvas_cache
+import simpmusic.composeapp.generated.resources.clear_animated_artwork_cache
 import simpmusic.composeapp.generated.resources.clear_downloaded_cache
 import simpmusic.composeapp.generated.resources.clear_player_cache
 import simpmusic.composeapp.generated.resources.clear_thumbnail_cache
-import simpmusic.composeapp.generated.resources.downloading_liked_songs
 import simpmusic.composeapp.generated.resources.log_out_confirm_message
 import simpmusic.composeapp.generated.resources.restore_failed
 import simpmusic.composeapp.generated.resources.restore_in_progress
@@ -83,8 +82,6 @@ class SettingsViewModel(
     val savedPlaybackState: StateFlow<String?> = _savedPlaybackState
     private var _saveRecentSongAndQueue: MutableStateFlow<String?> = MutableStateFlow(null)
     val saveRecentSongAndQueue: StateFlow<String?> = _saveRecentSongAndQueue
-    private var _lastCheckForUpdate: MutableStateFlow<String?> = MutableStateFlow(null)
-    val lastCheckForUpdate: StateFlow<String?> = _lastCheckForUpdate
     private var _sponsorBlockEnabled: MutableStateFlow<String?> = MutableStateFlow(null)
     val sponsorBlockEnabled: StateFlow<String?> = _sponsorBlockEnabled
     private var _sponsorBlockCategories: MutableStateFlow<ArrayList<String>?> =
@@ -107,8 +104,8 @@ class SettingsViewModel(
     val videoQuality: StateFlow<String?> = _videoQuality
     private var _thumbCacheSize = MutableStateFlow<Long?>(null)
     val thumbCacheSize: StateFlow<Long?> = _thumbCacheSize
-    private var _canvasCacheSize: MutableStateFlow<Long?> = MutableStateFlow(null)
-    val canvasCacheSize: StateFlow<Long?> = _canvasCacheSize
+    private var _animatedArtworkCacheSize: MutableStateFlow<Long?> = MutableStateFlow(null)
+    val animatedArtworkCacheSize: StateFlow<Long?> = _animatedArtworkCacheSize
     private var _translucentBottomBar: MutableStateFlow<String?> = MutableStateFlow(null)
     val translucentBottomBar: StateFlow<String?> = _translucentBottomBar
     private var _usingProxy = MutableStateFlow(false)
@@ -123,10 +120,6 @@ class SettingsViewModel(
     val proxyUsername: StateFlow<String> = _proxyUsername
     private var _proxyPassword = MutableStateFlow("")
     val proxyPassword: StateFlow<String> = _proxyPassword
-    private var _autoCheckUpdate = MutableStateFlow(false)
-    val autoCheckUpdate: StateFlow<Boolean> = _autoCheckUpdate
-    private var _updateChannel: MutableStateFlow<String> = MutableStateFlow(DataStoreManager.GITHUB)
-    val updateChannel: StateFlow<String> = _updateChannel
     private val _aiProvider = MutableStateFlow<String>(DataStoreManager.AI_PROVIDER_OPENAI)
     val aiProvider: StateFlow<String> = _aiProvider
     private val _isHasApiKey = MutableStateFlow<Boolean>(false)
@@ -139,16 +132,18 @@ class SettingsViewModel(
     val customOpenAIBaseUrl: StateFlow<String> = _customOpenAIBaseUrl
     private val _customOpenAIHeaders = MutableStateFlow<String>("")
     val customOpenAIHeaders: StateFlow<String> = _customOpenAIHeaders
-    private val _crossfadeEnabled = MutableStateFlow<Boolean>(false)
+    private val _crossfadeEnabled = MutableStateFlow<Boolean>(true)
     val crossfadeEnabled: StateFlow<Boolean> = _crossfadeEnabled
-    private val _crossfadeDuration = MutableStateFlow<Int>(5000)
+    private val _crossfadeDuration = MutableStateFlow<Int>(DataStoreManager.CROSSFADE_DURATION_AUTO)
     val crossfadeDuration: StateFlow<Int> = _crossfadeDuration
     private val _crossfadeDjMode = MutableStateFlow<Boolean>(true)
     val crossfadeDjMode: StateFlow<Boolean> = _crossfadeDjMode
-    private val _crossfadeSkipAlbum = MutableStateFlow<Boolean>(false)
-    val crossfadeSkipAlbum: StateFlow<Boolean> = _crossfadeSkipAlbum
-    private val _autoDownloadLikedSongs = MutableStateFlow<Boolean>(false)
-    val autoDownloadLikedSongs: StateFlow<Boolean> = _autoDownloadLikedSongs
+    private val _djTransitionStyle = MutableStateFlow<String>(DataStoreManager.DJ_TRANSITION_STYLE_SMART_AI)
+    val djTransitionStyle: StateFlow<String> = _djTransitionStyle
+    private val _djBpmMatching = MutableStateFlow<Boolean>(true)
+    val djBpmMatching: StateFlow<Boolean> = _djBpmMatching
+    private val _djTransitionOnSkip = MutableStateFlow<Boolean>(true)
+    val djTransitionOnSkip: StateFlow<Boolean> = _djTransitionOnSkip
     private val _youtubeSubtitleLanguage = MutableStateFlow<String>("")
     val youtubeSubtitleLanguage: StateFlow<String> = _youtubeSubtitleLanguage
 
@@ -162,6 +157,15 @@ class SettingsViewModel(
 
     private var _enableLiquidGlass: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val enableLiquidGlass: StateFlow<Boolean> = _enableLiquidGlass
+
+    private var _floatingSurfaceStyle: MutableStateFlow<String> = MutableStateFlow(DataStoreManager.FLOATING_SURFACE_GLASSY)
+    val floatingSurfaceStyle: StateFlow<String> = _floatingSurfaceStyle
+
+    private var _performanceMode: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    val performanceMode: StateFlow<Boolean> = _performanceMode
+
+    private var _animatedNowPlayingBackground: MutableStateFlow<Boolean> = MutableStateFlow(true)
+    val animatedNowPlayingBackground: StateFlow<Boolean> = _animatedNowPlayingBackground
 
     private val _explicitContentEnabled = MutableStateFlow(false)
     val explicitContentEnabled: StateFlow<Boolean> = _explicitContentEnabled
@@ -205,9 +209,6 @@ class SettingsViewModel(
 
     private val _localTrackingEnabled = MutableStateFlow<Boolean>(false)
     val localTrackingEnabled: StateFlow<Boolean> = _localTrackingEnabled
-
-    private val _blogNotificationEnabled = MutableStateFlow(true)
-    val blogNotificationEnabled: StateFlow<Boolean> = _blogNotificationEnabled
 
     // Auto Backup
     private val _autoBackupEnabled = MutableStateFlow<Boolean>(false)
@@ -266,7 +267,6 @@ class SettingsViewModel(
         getSavedPlaybackState()
         getSendBackToGoogle()
         getSaveRecentSongAndQueue()
-        getLastCheckForUpdate()
         getSponsorBlockEnabled()
         getSponsorBlockCategories()
         getTranslationLanguage()
@@ -277,11 +277,9 @@ class SettingsViewModel(
         getVideoQuality()
         getSpotifyLogIn()
         getSpotifyLyrics()
-        getSpotifyCanvas()
         getUsingProxy()
-        getCanvasCache()
+        getAnimatedArtworkCache()
         getTranslucentBottomBar()
-        getAutoCheckUpdate()
         getAIProvider()
         getAIApiKey()
         getAITranslation()
@@ -292,12 +290,15 @@ class SettingsViewModel(
         getCrossfadeEnabled()
         getCrossfadeDuration()
         getCrossfadeDjMode()
-        getCrossfadeSkipAlbum()
-        getAutoDownloadLikedSongs()
+        getDjTransitionStyle()
+        getDjBpmMatching()
+        getDjTransitionOnSkip()
         getContributorNameAndEmail()
         getBackupDownloaded()
-        getUpdateChannel()
         getEnableLiquidGlass()
+        getFloatingSurfaceStyle()
+        getPerformanceMode()
+        getAnimatedNowPlayingBackground()
         getExplicitContentEnabled()
         getDiscordLoggedIn()
         getDiscordRichPresenceEnabled()
@@ -309,7 +310,6 @@ class SettingsViewModel(
         getDownloadQuality()
         getVideoDownloadQuality()
         getLocalTrackingEnabled()
-        getBlogNotificationEnabled()
         getAutoBackupEnabled()
         getAutoBackupFrequency()
         getAutoBackupMaxFiles()
@@ -335,21 +335,6 @@ class SettingsViewModel(
         viewModelScope.launch {
             dataStoreManager.setLocalTrackingEnabled(enabled)
             getLocalTrackingEnabled()
-        }
-    }
-
-    private fun getBlogNotificationEnabled() {
-        viewModelScope.launch {
-            dataStoreManager.blogNotificationEnabled.collect { enabled ->
-                _blogNotificationEnabled.value = enabled == DataStoreManager.TRUE
-            }
-        }
-    }
-
-    fun setBlogNotificationEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            dataStoreManager.setBlogNotificationEnabled(enabled)
-            getBlogNotificationEnabled()
         }
     }
 
@@ -483,44 +468,48 @@ class SettingsViewModel(
         }
     }
 
-    private fun getCrossfadeSkipAlbum() {
+    private fun getDjTransitionStyle() {
         viewModelScope.launch {
-            dataStoreManager.crossfadeSkipAlbum.collect { enabled ->
-                _crossfadeSkipAlbum.value = enabled == DataStoreManager.TRUE
+            dataStoreManager.djTransitionStyle.collect { style ->
+                _djTransitionStyle.value = style
             }
         }
     }
 
-    fun setCrossfadeSkipAlbum(enabled: Boolean) {
+    fun setDjTransitionStyle(style: String) {
         viewModelScope.launch {
-            // No re-read afterwards: the collector started in init never completes, so it already
-            // picks this up. Calling the getter again would leave a second collector running for
-            // the life of the ViewModel, one more per toggle.
-            dataStoreManager.setCrossfadeSkipAlbum(enabled)
+            dataStoreManager.setDjTransitionStyle(style)
+            getDjTransitionStyle()
         }
     }
 
-    private fun getAutoDownloadLikedSongs() {
+    private fun getDjBpmMatching() {
         viewModelScope.launch {
-            dataStoreManager.autoDownloadLikedSongs.collect { enabled ->
-                _autoDownloadLikedSongs.value = enabled == DataStoreManager.TRUE
+            dataStoreManager.djBpmMatching.collect { enabled ->
+                _djBpmMatching.value = enabled == DataStoreManager.TRUE
             }
         }
     }
 
-    fun setAutoDownloadLikedSongs(enabled: Boolean) {
+    fun setDjBpmMatching(enabled: Boolean) {
         viewModelScope.launch {
-            dataStoreManager.setAutoDownloadLikedSongs(enabled)
-            // Switching it on also catches up on everything liked before now. Songs already
-            // downloaded are skipped, so toggling it off and on again queues nothing.
-            if (enabled) {
-                val queued = songRepository.downloadAllLikedSongs()
-                if (queued > 0) {
-                    // Not BaseViewModel.getString: that one takes no format arguments and would
-                    // leave the placeholder in the text.
-                    makeToast(formatString(Res.string.downloading_liked_songs, queued))
-                }
+            dataStoreManager.setDjBpmMatching(enabled)
+            getDjBpmMatching()
+        }
+    }
+
+    private fun getDjTransitionOnSkip() {
+        viewModelScope.launch {
+            dataStoreManager.djTransitionOnSkip.collect { enabled ->
+                _djTransitionOnSkip.value = enabled == DataStoreManager.TRUE
             }
+        }
+    }
+
+    fun setDjTransitionOnSkip(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setDjTransitionOnSkip(enabled)
+            getDjTransitionOnSkip()
         }
     }
 
@@ -623,18 +612,46 @@ class SettingsViewModel(
         }
     }
 
-    private fun getUpdateChannel() {
+    private fun getFloatingSurfaceStyle() {
         viewModelScope.launch {
-            dataStoreManager.updateChannel.collect { channel ->
-                _updateChannel.value = channel
+            dataStoreManager.floatingSurfaceStyle.collect {
+                _floatingSurfaceStyle.value = it
             }
         }
     }
 
-    fun setUpdateChannel(channel: String) {
+    fun setFloatingSurfaceStyle(style: String) {
         viewModelScope.launch {
-            dataStoreManager.setUpdateChannel(channel)
-            getUpdateChannel()
+            dataStoreManager.setFloatingSurfaceStyle(style)
+        }
+    }
+
+    private fun getPerformanceMode() {
+        viewModelScope.launch {
+            dataStoreManager.performanceMode.collect {
+                _performanceMode.value = it
+            }
+        }
+    }
+
+    fun setPerformanceMode(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setPerformanceMode(enabled)
+        }
+    }
+
+    private fun getAnimatedNowPlayingBackground() {
+        viewModelScope.launch {
+            dataStoreManager.animatedNowPlayingBackground.collect { enabled ->
+                _animatedNowPlayingBackground.value = enabled == DataStoreManager.TRUE
+            }
+        }
+    }
+
+    fun setAnimatedNowPlayingBackground(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setAnimatedNowPlayingBackground(enabled)
+            getAnimatedNowPlayingBackground()
         }
     }
 
@@ -826,24 +843,9 @@ class SettingsViewModel(
         }
     }
 
-    private fun getAutoCheckUpdate() {
+    private fun getAnimatedArtworkCache() {
         viewModelScope.launch {
-            dataStoreManager.autoCheckForUpdates.collect { autoCheckUpdate ->
-                _autoCheckUpdate.value = autoCheckUpdate == DataStoreManager.TRUE
-            }
-        }
-    }
-
-    fun setAutoCheckUpdate(autoCheckUpdate: Boolean) {
-        viewModelScope.launch {
-            dataStoreManager.setAutoCheckForUpdates(autoCheckUpdate)
-            getAutoCheckUpdate()
-        }
-    }
-
-    private fun getCanvasCache() {
-        viewModelScope.launch {
-            _canvasCacheSize.value = cacheRepository.getCacheSize(Config.CANVAS_CACHE)
+            _animatedArtworkCacheSize.value = cacheRepository.getCacheSize(Config.ANIMATED_ARTWORK_CACHE)
         }
     }
 
@@ -1063,7 +1065,7 @@ class SettingsViewModel(
 
     fun changeLocation(location: String) {
         viewModelScope.launch {
-            dataStoreManager.setLocation(location)
+            dataStoreManager.setLocation(LocationResolver.normalizeCountryCode(location) ?: location)
             getLocation()
         }
     }
@@ -1072,14 +1074,6 @@ class SettingsViewModel(
         viewModelScope.launch {
             dataStoreManager.saveRecentSongAndQueue.collect { saved ->
                 _saveRecentSongAndQueue.emit(saved)
-            }
-        }
-    }
-
-    fun getLastCheckForUpdate() {
-        viewModelScope.launch {
-            dataStoreManager.getString("CheckForUpdateAt").first().let { lastCheckForUpdate ->
-                _lastCheckForUpdate.emit(lastCheckForUpdate)
             }
         }
     }
@@ -1205,11 +1199,11 @@ class SettingsViewModel(
         }
     }
 
-    fun clearCanvasCache() {
+    fun clearAnimatedArtworkCache() {
         viewModelScope.launch {
-            cacheRepository.clearCache(Config.CANVAS_CACHE)
-            makeToast(getString(Res.string.clear_canvas_cache))
-            getCanvasCache()
+            cacheRepository.clearCache(Config.ANIMATED_ARTWORK_CACHE)
+            makeToast(getString(Res.string.clear_animated_artwork_cache))
+            getAnimatedArtworkCache()
         }
     }
 
@@ -1593,10 +1587,9 @@ class SettingsViewModel(
             if (!loggedIn) {
                 dataStoreManager.setSpdc("")
                 // Logging out of Spotify must also tear down everything gated behind it. Otherwise the
-                // lyrics/canvas flags stay stuck ON with no way to switch them off (the toggles grey out
+                // lyrics flag stays stuck ON with no way to switch it off (the toggle greys out
                 // when logged out) and stale tokens linger — issue #2064, same family as Discord #2157.
                 dataStoreManager.setSpotifyLyrics(false)
-                dataStoreManager.setSpotifyCanvas(false)
                 dataStoreManager.setSpotifyClientToken("")
                 dataStoreManager.setSpotifyClientTokenExpires(0)
                 dataStoreManager.setSpotifyPersonalToken("")
@@ -1609,9 +1602,6 @@ class SettingsViewModel(
 
     private var _spotifyLyrics: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val spotifyLyrics: StateFlow<Boolean> = _spotifyLyrics
-
-    private var _spotifyCanvas: MutableStateFlow<Boolean> = MutableStateFlow(false)
-    val spotifyCanvas: StateFlow<Boolean> = _spotifyCanvas
 
     fun getSpotifyLyrics() {
         viewModelScope.launch {
@@ -1629,25 +1619,6 @@ class SettingsViewModel(
         viewModelScope.launch {
             dataStoreManager.setSpotifyLyrics(loggedIn)
             getSpotifyLyrics()
-        }
-    }
-
-    fun getSpotifyCanvas() {
-        viewModelScope.launch {
-            dataStoreManager.spotifyCanvas.collect {
-                if (it == DataStoreManager.TRUE) {
-                    _spotifyCanvas.emit(true)
-                } else {
-                    _spotifyCanvas.emit(false)
-                }
-            }
-        }
-    }
-
-    fun setSpotifyCanvas(loggedIn: Boolean) {
-        viewModelScope.launch {
-            dataStoreManager.setSpotifyCanvas(loggedIn)
-            getSpotifyCanvas()
         }
     }
 
@@ -1703,12 +1674,12 @@ data class SettingsStorageSectionFraction(
     val otherApp: Float = 0f,
     val downloadCache: Float = 0f,
     val playerCache: Float = 0f,
-    val canvasCache: Float = 0f,
+    val animatedArtworkCache: Float = 0f,
     val thumbCache: Float = 0f,
     val appDatabase: Float = 0f,
     val freeSpace: Float = 0f,
 ) {
-    fun combine(): Float = otherApp + downloadCache + playerCache + canvasCache + thumbCache + appDatabase + freeSpace
+    fun combine(): Float = otherApp + downloadCache + playerCache + animatedArtworkCache + thumbCache + appDatabase + freeSpace
 }
 
 data class SettingAlertState(

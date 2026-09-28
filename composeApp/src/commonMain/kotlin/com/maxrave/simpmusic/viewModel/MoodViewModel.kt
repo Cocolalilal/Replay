@@ -43,26 +43,26 @@ class MoodViewModel(
         if (params == loadedParams && _moodsMomentObject.value != null) return
         loading.value = true
         viewModelScope.launch {
-//            mainRepository.getMood(params, regionCode!!, SUPPORTED_LANGUAGE.serverCodes[SUPPORTED_LANGUAGE.codes.indexOf(language!!)]).collect{ values ->
-//                _moodsMomentObject.value = values
-//            }
-            homeRepository.getMoodData(params).collect { values ->
-                Logger.w("MoodViewModel", "getMood: $values")
-                when (values) {
-                    is Resource.Success -> {
-                        _moodsMomentObject.value = values.data
-                        // Only remember it once it actually succeeded, so a failed load retries.
-                        loadedParams = params
-                    }
+            try {
+                homeRepository.getMoodData(params).collect { values ->
+                    Logger.w("MoodViewModel", "getMood: $values")
+                    when (values) {
+                        is Resource.Success -> {
+                            _moodsMomentObject.value = values.data
+                            // Only remember it once it actually succeeded, so a failed load retries.
+                            loadedParams = params
+                        }
 
-                    is Resource.Error -> {
-                        _moodsMomentObject.value = null
-                        loadedParams = null
+                        is Resource.Error -> {
+                            _moodsMomentObject.value = null
+                            loadedParams = null
+                        }
                     }
                 }
-            }
-            withContext(Dispatchers.Main) {
-                loading.value = false
+            } finally {
+                withContext(Dispatchers.Main) {
+                    loading.value = false
+                }
             }
         }
     }

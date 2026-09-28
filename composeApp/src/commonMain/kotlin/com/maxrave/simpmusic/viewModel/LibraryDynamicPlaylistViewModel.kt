@@ -7,16 +7,24 @@ import com.maxrave.domain.data.entities.ArtistEntity
 import com.maxrave.domain.data.entities.SongEntity
 import com.maxrave.domain.mediaservice.handler.PlaylistType
 import com.maxrave.domain.mediaservice.handler.QueueData
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_ALL
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_SONGS
+import com.maxrave.domain.manager.DataStoreManager.Values.PLAYLIST_TAG_VIDEOS
 import com.maxrave.domain.repository.ArtistRepository
 import com.maxrave.domain.repository.SongRepository
 import com.maxrave.domain.utils.toArrayListTrack
 import com.maxrave.domain.utils.toTrack
 import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistType
+import com.maxrave.simpmusic.ui.screen.library.LikedFilter
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import org.koin.core.component.inject
 import simpmusic.composeapp.generated.resources.Res
 import simpmusic.composeapp.generated.resources.playlist
 
@@ -24,6 +32,12 @@ class LibraryDynamicPlaylistViewModel(
     private val songRepository: SongRepository,
     private val artistRepository: ArtistRepository,
 ) : BaseViewModel() {
+    private val dataStoreManager: DataStoreManager by inject()
+
+    /** Persisted All/Songs/Videos chip for local Liked Songs (R27). */
+    private val _likedFilter = MutableStateFlow(LikedFilter.ALL)
+    val likedFilter: StateFlow<LikedFilter> = _likedFilter.asStateFlow()
+
     private val _listFavoriteSong: MutableStateFlow<List<SongEntity>> = MutableStateFlow(emptyList())
     val listFavoriteSong: StateFlow<List<SongEntity>> get() = _listFavoriteSong
 
@@ -41,6 +55,42 @@ class LibraryDynamicPlaylistViewModel(
         getFollowedArtist()
         getMostPlayedSong()
         getDownloadedSong()
+        restoreLikedFilter()
+    }
+
+    private fun restoreLikedFilter() {
+        viewModelScope.launch {
+            runCatching {
+                dataStoreManager.getPlaylistTag(LIKED_FILTER_KEY).firstOrNull()?.let { saved ->
+                    _likedFilter.value =
+                        when (saved) {
+                            PLAYLIST_TAG_SONGS -> LikedFilter.SONGS
+                            PLAYLIST_TAG_VIDEOS -> LikedFilter.VIDEOS
+                            else -> LikedFilter.ALL
+                        }
+                }
+            }
+        }
+    }
+
+    fun setLikedFilter(filter: LikedFilter) {
+        _likedFilter.value = filter
+        viewModelScope.launch {
+            runCatching {
+                dataStoreManager.setPlaylistTag(
+                    LIKED_FILTER_KEY,
+                    when (filter) {
+                        LikedFilter.SONGS -> PLAYLIST_TAG_SONGS
+                        LikedFilter.VIDEOS -> PLAYLIST_TAG_VIDEOS
+                        LikedFilter.ALL -> PLAYLIST_TAG_ALL
+                    },
+                )
+            }
+        }
+    }
+
+    companion object {
+        private const val LIKED_FILTER_KEY = "LM"
     }
 
     private fun getFavoriteSong() {

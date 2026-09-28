@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
@@ -54,10 +55,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -120,8 +123,11 @@ import com.maxrave.simpmusic.ui.icon.Shuffle
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
+import androidx.compose.material3.HorizontalDivider
+import com.maxrave.simpmusic.extension.getStringBlocking
 import com.maxrave.simpmusic.ui.navigation.destination.list.MoreAlbumsDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.PlaylistDestination
+import com.maxrave.simpmusic.ui.theme.sectionTitleFontFamily
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.ArtistScreenState
 import com.maxrave.simpmusic.viewModel.ArtistViewModel
@@ -160,10 +166,11 @@ fun ArtistScreen(
     viewModel: ArtistViewModel = koinViewModel(),
     sharedViewModel: SharedViewModel = koinInject(),
     navController: NavController,
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val artistScreenState by viewModel.artistScreenState.collectAsStateWithLifecycle()
     val isFollowed by viewModel.followed.collectAsStateWithLifecycle()
-    val canvasUrl by viewModel.canvasUrl.collectAsStateWithLifecycle()
+    val animatedArtworkUrl by viewModel.animatedArtworkUrl.collectAsStateWithLifecycle()
     val artistLogo by viewModel.artistLogo.collectAsStateWithLifecycle()
 
     val playingTrack by remember {
@@ -214,6 +221,7 @@ fun ArtistScreen(
 
     val hazeState = rememberHazeState(blurEnabled = true)
     val lazyState = rememberLazyListState()
+    lazyState.TrackScrolling(onScrolling = onScrolling)
     val firstItemVisible by remember {
         derivedStateOf { lazyState.firstVisibleItemIndex == 0 }
     }
@@ -252,7 +260,7 @@ fun ArtistScreen(
                                     // (unlike Modifier.offset, which only moves pixels, not layout).
                                     verticalArrangement = Arrangement.spacedBy((-36).dp),
                                 ) {
-                                    // Edge-to-edge artwork (canvas plays on top of it when available).
+                                    // Edge-to-edge artwork (animated artwork plays on top of it when available).
                                     // Glass back button MUST be a sibling of the backdrop source
                                     // (not a child) to avoid render feedback loop / RuntimeShader crash.
                                     val artworkBackdrop = rememberBackdrop(Color.Black)
@@ -267,9 +275,9 @@ fun ArtistScreen(
                                                 .fillMaxWidth()
                                                 .aspectRatio(1f),
                                     ) {
-                                        // Inner Box — backdrop SOURCE (artwork + canvas + overlays, NO glass)
+                                        // Inner Box — backdrop SOURCE (artwork + animated artwork + overlays, NO glass)
                                         Box(modifier = Modifier.fillMaxSize().clipToBounds().layerBackdrop(artworkBackdrop)) {
-                                            // Media layer (artwork + canvas) — Haze SOURCE for the bottom blur.
+                                            // Media layer (artwork + animated artwork) — Haze SOURCE for the bottom blur.
                                             Box(modifier = Modifier.fillMaxSize().hazeSource(headerHaze)) {
                                                 AsyncImage(
                                                     model =
@@ -287,32 +295,32 @@ fun ArtistScreen(
                                                     contentDescription = null,
                                                     contentScale = ContentScale.FillWidth,
                                                     // Always decoded so the page background color can be extracted
-                                                    // from the artwork palette, even when a canvas is playing.
+                                                    // from the artwork palette, even when animated artwork is playing.
                                                     onSuccess = {
                                                         bitmap = it.result.image.toImageBitmap()
                                                     },
-                                                    // Hidden (but still decoded above) while a canvas is present —
-                                                    // the canvas is shown instead. No canvas -> artwork is shown.
+                                                    // Hidden (but still decoded above) while animated artwork is present —
+                                                    // the artwork is shown instead. No artwork -> static image is shown.
                                                     modifier =
                                                         Modifier
                                                             .fillMaxSize()
-                                                            .alpha(if (canvasUrl != null) 0f else 1f),
+                                                            .alpha(if (animatedArtworkUrl != null) 0f else 1f),
                                                 )
-                                                // Canvas (Spotify) plays AS the background when present;
+                                                // Animated artwork plays AS the background when present;
                                                 // otherwise the static artwork above is the fallback.
-                                                canvasUrl?.let { canvas ->
-                                                    // Canvas is a tall/portrait video. cropToBounds center
+                                                animatedArtworkUrl?.let { animatedArtwork ->
+                                                    // Animated artwork is a tall/portrait video. cropToBounds center
                                                     // scale-to-covers it into the square frame (ContentScale.Crop):
                                                     // true video aspect ratio, no stretch, overflow clipped.
                                                     MediaPlayerView(
-                                                        url = canvas.first,
+                                                        url = animatedArtwork.first,
                                                         modifier = Modifier.fillMaxSize(),
                                                         cropToBounds = true,
                                                     )
                                                 }
                                             } // end media layer (Haze source)
                                             // Bottom fade — progressive blur (Haze) over the media layer, so the
-                                            // canvas/artwork edge melts into the page bg.
+                                            // artwork/artwork edge melts into the page bg.
                                             Box(
                                                 modifier =
                                                     Modifier
@@ -596,9 +604,9 @@ fun ArtistScreen(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    AnimatedVisibility(canvasUrl != null) {
+                                    AnimatedVisibility(animatedArtworkUrl != null) {
                                         Row {
-                                            val canvas = canvasUrl ?: return@Row
+                                            val animatedArtwork = animatedArtworkUrl ?: return@Row
                                             LimitedBorderAnimationView(
                                                 isAnimated = true,
                                                 brush = Brush.sweepGradient(listOf(Color.Transparent, Color.White)),
@@ -610,7 +618,7 @@ fun ArtistScreen(
                                                 interactionNumber = 1,
                                             ) {
                                                 MediaPlayerView(
-                                                    url = canvas.first,
+                                                    url = animatedArtwork.first,
                                                     modifier =
                                                         Modifier
                                                             .width(28.dp)
@@ -625,7 +633,7 @@ fun ArtistScreen(
                                                                 shape = RoundedCornerShape(4.dp),
                                                             ).clip(RoundedCornerShape(4.dp))
                                                             .clickable {
-                                                                val firstQueue: Track = canvas.second.toTrack()
+                                                                val firstQueue: Track = animatedArtwork.second.toTrack()
                                                                 viewModel.setQueueData(
                                                                     QueueData.Data(
                                                                         listTracks = arrayListOf(firstQueue),
@@ -714,7 +722,7 @@ fun ArtistScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
                                             Icon(SimpIcons.Sensors, "")
-                                            if (canvasUrl == null) {
+                                            if (animatedArtworkUrl == null) {
                                                 Spacer(Modifier.width(6.dp))
                                                 Text(text = stringResource(Res.string.start_radio))
                                             }
@@ -779,11 +787,11 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.popular),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                     )
@@ -793,7 +801,7 @@ private fun ArtistSections(
                             if (id != null) {
                                 navController.navigate(PlaylistDestination(id))
                             } else {
-                                viewModel.makeToast(runBlocking { getString(Res.string.error) })
+                                viewModel.makeToast(getStringBlocking(Res.string.error))
                             }
                         },
                         colors =
@@ -806,9 +814,17 @@ private fun ArtistSections(
                         Text(stringResource(Res.string.more), style = typo().bodySmall)
                     }
                 }
-                state.data.popularSongs.forEach { song ->
+                state.data.popularSongs.forEachIndexed { index, song ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 72.dp, end = 20.dp),
+                            thickness = 0.5.dp,
+                            color = Color.White.copy(alpha = 0.12f),
+                        )
+                    }
                     SongFullWidthItems(
-                        forceDark = true,                        track = song,
+                        forceDark = true,
+                        track = song,
                         isPlaying = song.videoId == playingTrack,
                         modifier = Modifier.fillMaxWidth(),
                         onMoreClickListener = {
@@ -851,11 +867,11 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.singles),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                     )
@@ -891,7 +907,8 @@ private fun ArtistSections(
                     }
                     items(state.data.singles?.results ?: emptyList()) { single ->
                         HomeItemContentPlaylist(
-                            forceDark = true,                            onClick = {
+                            forceDark = true,
+                            onClick = {
                                 navController.navigate(
                                     AlbumDestination(
                                         single.browseId,
@@ -919,11 +936,11 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.albums),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                     )
@@ -959,7 +976,8 @@ private fun ArtistSections(
                     }
                     items(state.data.albums?.results ?: emptyList()) { album ->
                         HomeItemContentPlaylist(
-                            forceDark = true,                            onClick = {
+                            forceDark = true,
+                            onClick = {
                                 navController.navigate(
                                     AlbumDestination(
                                         browseId = album.browseId,
@@ -987,11 +1005,11 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.videos),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                     )
@@ -1026,7 +1044,8 @@ private fun ArtistSections(
                     }
                     items(state.data.video?.video ?: emptyList()) { video ->
                         HomeItemVideo(
-                            forceDark = true,                            onClick = {
+                            forceDark = true,
+                            onClick = {
                                 val firstQueue: Track = video
                                 viewModel.setQueueData(
                                     QueueData.Data(
@@ -1073,16 +1092,16 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.featured_inArtist),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 4.dp),
                     )
                 }
                 LazyRow(
@@ -1093,7 +1112,8 @@ private fun ArtistSections(
                     }
                     items(state.data.featuredOn) { feature ->
                         HomeItemContentPlaylist(
-                            forceDark = true,                            onClick = {
+                            forceDark = true,
+                            onClick = {
                                 navController.navigate(
                                     PlaylistDestination(
                                         feature.id,
@@ -1121,16 +1141,16 @@ private fun ArtistSections(
             Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = stringResource(Res.string.related_artists),
-                        style = typo().labelMedium,
+                        style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
                         color = Color.White,
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 4.dp),
                     )
                 }
                 LazyRow(

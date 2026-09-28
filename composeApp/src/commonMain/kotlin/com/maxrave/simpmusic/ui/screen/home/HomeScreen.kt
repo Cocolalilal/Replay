@@ -1,65 +1,68 @@
 package com.maxrave.simpmusic.ui.screen.home
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.snapping.SnapLayoutInfoProvider
-import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.roundToInt
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.carousel.CarouselDefaults
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,13 +72,15 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
@@ -83,408 +88,199 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.kmpalette.loader.rememberNetworkLoader
-import com.kmpalette.rememberDominantColorState
-import com.maxrave.common.CHART_SUPPORTED_COUNTRY
 import com.maxrave.common.Config
 import com.maxrave.domain.data.model.browse.album.Track
+import com.maxrave.domain.data.model.home.Content
 import com.maxrave.domain.data.model.home.HomeItem
-import com.maxrave.domain.data.model.home.chart.Chart
-import com.maxrave.domain.data.model.mood.Mood
-import com.maxrave.domain.extension.now
+import com.maxrave.domain.manager.DataStoreManager
 import com.maxrave.domain.mediaservice.handler.PlaylistType
 import com.maxrave.domain.mediaservice.handler.QueueData
+import com.maxrave.domain.utils.connectArtists
 import com.maxrave.domain.utils.toSongEntity
 import com.maxrave.domain.utils.toTrack
-import com.maxrave.logger.Logger
-import com.maxrave.simpmusic.ui.component.rememberHolderPainter
-import com.maxrave.simpmusic.extension.angledGradientBackground
-import com.maxrave.simpmusic.extension.artworkScrimBrush
-import com.maxrave.simpmusic.extension.isScrollingUp
-import com.maxrave.simpmusic.extension.rgbFactor
-import com.maxrave.simpmusic.ui.component.CenterLoadingBox
-import com.maxrave.simpmusic.ui.component.Chip
-import com.maxrave.simpmusic.ui.component.DropdownButton
+import com.maxrave.simpmusic.util.isListenAgainSection
+import com.maxrave.simpmusic.util.isQuickPicksSection
+import com.maxrave.simpmusic.util.resolvePlaylistCover
 import com.maxrave.simpmusic.ui.component.EndOfPage
-import com.maxrave.simpmusic.ui.component.HomeItem
-import com.maxrave.simpmusic.ui.component.BlogPromoDialog
-import com.maxrave.simpmusic.ui.component.HomeItemContentPlaylist
 import com.maxrave.simpmusic.ui.component.HomeShimmer
-import com.maxrave.simpmusic.ui.component.ItemArtistChart
-import com.maxrave.simpmusic.ui.component.MoodMomentAndGenreHomeItem
-import com.maxrave.simpmusic.ui.component.OfflineErrorState
+import com.maxrave.simpmusic.ui.component.LikedSongsCover
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
-import com.maxrave.simpmusic.ui.component.QuickPicksItem
-import com.maxrave.simpmusic.ui.component.ReviewDialog
-import com.maxrave.simpmusic.ui.component.RippleIconButton
-import com.maxrave.simpmusic.ui.component.ShareSavedLyricsDialog
-import com.maxrave.simpmusic.ui.icon.History
-import com.maxrave.simpmusic.ui.icon.Notifications
-import com.maxrave.simpmusic.ui.icon.Settings
+import com.maxrave.simpmusic.ui.component.OfflineErrorState
+import com.maxrave.simpmusic.ui.component.PlaylistBottomSheet
+import com.maxrave.simpmusic.ui.component.ReplayTopBar
+import com.maxrave.simpmusic.ui.icon.CloudOff
+import com.maxrave.simpmusic.ui.icon.Favorite
+import com.maxrave.simpmusic.ui.icon.Pause
+import com.maxrave.simpmusic.ui.icon.PlayArrow
 import com.maxrave.simpmusic.ui.icon.SimpIcons
-import com.maxrave.simpmusic.ui.navigation.destination.home.HomeDestination
-import com.maxrave.simpmusic.ui.navigation.destination.home.MoodDestination
-import com.maxrave.simpmusic.ui.navigation.destination.home.NotificationDestination
-import com.maxrave.simpmusic.ui.navigation.destination.home.RecentlySongsDestination
 import com.maxrave.simpmusic.ui.navigation.destination.home.SettingsDestination
 import com.maxrave.simpmusic.ui.navigation.destination.library.LibraryDynamicPlaylistDestination
+import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
-import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistType
 import com.maxrave.simpmusic.ui.navigation.destination.list.PlaylistDestination
-import com.maxrave.simpmusic.ui.navigation.destination.login.LoginDestination
+import com.maxrave.simpmusic.ui.navigation.destination.list.PodcastDestination
+import com.maxrave.simpmusic.ui.screen.library.LibraryDynamicPlaylistType
+import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
+import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
+import com.maxrave.simpmusic.ui.theme.sectionTitleFontFamily
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.HomeViewModel
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_COMMUTE
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_ENERGIZE
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_FEEL_GOOD
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_FOCUS
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_PARTY
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_RELAX
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_ROMANCE
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_SAD
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_SLEEP
-import com.maxrave.simpmusic.viewModel.HomeViewModel.Companion.HOME_PARAMS_WORKOUT
 import com.maxrave.simpmusic.viewModel.ListState
 import com.maxrave.simpmusic.viewModel.SharedViewModel
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
-import dev.chrisbanes.haze.rememberHazeState
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.http.Url
+import com.maxrave.simpmusic.viewModel.UIEvent
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import simpmusic.composeapp.generated.resources.Res
-import simpmusic.composeapp.generated.resources.all
-import simpmusic.composeapp.generated.resources.app_name
-import simpmusic.composeapp.generated.resources.cancel
-import simpmusic.composeapp.generated.resources.chart
-import simpmusic.composeapp.generated.resources.commute
-import simpmusic.composeapp.generated.resources.do_not_show_again
-import simpmusic.composeapp.generated.resources.energize
-import simpmusic.composeapp.generated.resources.feel_good
-import simpmusic.composeapp.generated.resources.focus
-import simpmusic.composeapp.generated.resources.go_to_log_in_page
-import simpmusic.composeapp.generated.resources.good_afternoon
-import simpmusic.composeapp.generated.resources.good_evening
-import simpmusic.composeapp.generated.resources.good_morning
-import simpmusic.composeapp.generated.resources.good_night
-import simpmusic.composeapp.generated.resources.let_s_pick_a_playlist_for_you
-import simpmusic.composeapp.generated.resources.let_s_start_with_a_radio
-import simpmusic.composeapp.generated.resources.log_in_warning
-import simpmusic.composeapp.generated.resources.party
+import simpmusic.composeapp.generated.resources.home_offline_cached_notice
+import simpmusic.composeapp.generated.resources.listen_again
 import simpmusic.composeapp.generated.resources.quick_picks
-import simpmusic.composeapp.generated.resources.relax
-import simpmusic.composeapp.generated.resources.romance
-import simpmusic.composeapp.generated.resources.sad
-import simpmusic.composeapp.generated.resources.sleep
-import simpmusic.composeapp.generated.resources.top_artists
-import simpmusic.composeapp.generated.resources.warning
-import simpmusic.composeapp.generated.resources.welcome_back
-import simpmusic.composeapp.generated.resources.what_is_best_choice_today
-import simpmusic.composeapp.generated.resources.workout
+import simpmusic.composeapp.generated.resources.retry
 
-// DataStore key for blog-promo one-shot dialog. Bump the suffix (v2, v3, …) to re-promote.
-private const val BLOG_PROMO_KEY = "blog_promo_v1_seen"
-
-private val listOfHomeChip =
-    listOf(
-        Res.string.all,
-        Res.string.relax,
-        Res.string.sleep,
-        Res.string.energize,
-        Res.string.sad,
-        Res.string.romance,
-        Res.string.feel_good,
-        Res.string.workout,
-        Res.string.party,
-        Res.string.commute,
-        Res.string.focus,
-    )
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class)
-@ExperimentalFoundationApi
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
-    onScrolling: (onTop: Boolean) -> Unit = {},
-    viewModel: HomeViewModel =
-        koinViewModel(),
-    sharedViewModel: SharedViewModel =
-        koinInject(),
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
+    viewModel: HomeViewModel = koinViewModel(),
+    sharedViewModel: SharedViewModel = koinInject(),
     navController: NavController,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberLazyListState()
-    val isScrollingUp by scrollState.isScrollingUp()
     val accountInfo by viewModel.accountInfo.collectAsStateWithLifecycle()
     val homeData by viewModel.homeItemList.collectAsStateWithLifecycle()
     val newRelease by viewModel.newRelease.collectAsStateWithLifecycle()
-    val chart by viewModel.chart.collectAsStateWithLifecycle()
-    val moodMomentAndGenre by viewModel.exploreMoodItem.collectAsStateWithLifecycle()
-    val chartLoading by viewModel.loadingChart.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
-    var accountShow by rememberSaveable {
-        mutableStateOf(false)
-    }
-    val regionChart by viewModel.regionCodeChart.collectAsStateWithLifecycle()
-    val reloadDestination by sharedViewModel.reloadDestination.collectAsStateWithLifecycle()
-    val pullToRefreshState = rememberPullToRefreshState()
-    var isRefreshing by remember { mutableStateOf(false) }
-    val chipRowState = rememberScrollState()
-    val params by viewModel.params.collectAsStateWithLifecycle()
     val homeListState by viewModel.homeListState.collectAsStateWithLifecycle()
     val continuation by viewModel.continuation.collectAsStateWithLifecycle()
+    val isOffline by viewModel.isOffline.collectAsStateWithLifecycle()
+    val isRetrying by viewModel.isRetrying.collectAsStateWithLifecycle()
+    val nowPlayingData by sharedViewModel.nowPlayingState.collectAsStateWithLifecycle()
+    val controllerState by sharedViewModel.controllerState.collectAsStateWithLifecycle()
+    val likedVideoIds by viewModel.likedVideoIds.collectAsStateWithLifecycle()
 
-    val shouldShowLogInAlert by viewModel.showLogInAlert.collectAsStateWithLifecycle()
-
-    val openAppTime by sharedViewModel.openAppTime.collectAsStateWithLifecycle()
-    val shareLyricsPermissions by sharedViewModel.shareSavedLyrics.collectAsStateWithLifecycle()
-
-    val backgroundColor = MaterialTheme.colorScheme.background
-    val isLightTheme = backgroundColor.luminance() > 0.5f
-    var topHeaderColor by remember {
-        mutableStateOf(backgroundColor)
-    }
-    val animatedColor by animateColorAsState(topHeaderColor, tween(500))
-    val mainHomeThumbnail by viewModel.mainHomeThumbnail.collectAsStateWithLifecycle()
-    val networkLoader = rememberNetworkLoader(HttpClient(CIO))
-    val dominantColorState =
-        rememberDominantColorState(
-            defaultColor = backgroundColor,
-            defaultOnColor = backgroundColor,
-            loader = networkLoader,
-        )
-
-    LaunchedEffect(mainHomeThumbnail) {
-        mainHomeThumbnail?.let {
-            dominantColorState.updateFrom(Url(it))
+    val dataStoreManager: DataStoreManager = koinInject()
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
         }
     }
 
-    LaunchedEffect(dominantColorState, isLightTheme) {
-        snapshotFlow { dominantColorState.color }.collect {
-            // Light theme: pull the artwork color toward white for a soft pastel header;
-            // dark theme keeps the original darkened tone.
-            topHeaderColor = if (isLightTheme) lerp(it, Color.White, 0.85f) else it.rgbFactor(0.3f)
-        }
+    val pullToRefreshState = rememberPullToRefreshState()
+    val isRefreshing = isRetrying
+
+    val currentNowPlayingVideoId = nowPlayingData?.songEntity?.videoId ?: nowPlayingData?.track?.videoId
+    val isPlaying = controllerState.isPlaying
+    val listenAgainTitle = stringResource(Res.string.listen_again)
+    val quickPicksTitle = stringResource(Res.string.quick_picks)
+
+    // Listen Again section from YouTube Music
+    val listenAgainData = remember(homeData, listenAgainTitle) {
+        homeData.firstOrNull { isListenAgainSection(it.title, listenAgainTitle) }
     }
 
-    var showReviewDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-    var showRequestShareLyricsPermissions by rememberSaveable {
-        mutableStateOf(false)
-    }
-    var showBlogPromoDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    var topAppBarHeightPx by rememberSaveable {
-        mutableIntStateOf(0)
-    }
-
-    val hazeState =
-        rememberHazeState(
-            blurEnabled = true,
-        )
-
-    LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.firstVisibleItemIndex }
-            .collect {
-                if (it <= 1) {
-                    onScrolling.invoke(true)
-                } else {
-                    onScrolling.invoke(isScrollingUp)
-                }
+    // Quick Picks Section identification (matches Quick Picks title or track-based section)
+    val quickPicksData = remember(homeData, quickPicksTitle, listenAgainData) {
+        homeData.firstOrNull { isQuickPicksSection(it.title, quickPicksTitle) }
+            ?: homeData.firstOrNull { section ->
+                section != listenAgainData &&
+                    !isListenAgainSection(section.title) &&
+                    section.contents.filterNotNull().isNotEmpty() &&
+                    section.contents.filterNotNull().all { it.videoId?.isNotEmpty() == true }
+            }
+            ?: homeData.firstOrNull { section ->
+                section != listenAgainData &&
+                    !isListenAgainSection(section.title) &&
+                    section.contents.filterNotNull().count { it.videoId?.isNotEmpty() == true } >= 3
+            }
+            ?: homeData.firstOrNull { section ->
+                section != listenAgainData &&
+                    !isListenAgainSection(section.title) &&
+                    section.contents.filterNotNull().any { it.videoId?.isNotEmpty() == true }
             }
     }
+
+    // Hero carousel items: Listen Again section contents (with fallback to featuredCarouselItems)
+    val featuredItems by viewModel.featuredCarouselItems.collectAsStateWithLifecycle()
+    val carouselItems = remember(listenAgainData, featuredItems) {
+        listenAgainData?.contents?.filterNotNull()?.filter { it.thumbnails.isNotEmpty() }?.takeIf { it.isNotEmpty() }
+            ?: featuredItems
+    }
+
+    // Lower sections: all other sections from YouTube Music in the order YouTube Music gives them
+    val lowerSections = remember(homeData, listenAgainData, quickPicksData) {
+        homeData.filterNot { it == listenAgainData || it == quickPicksData }
+    }
+
+    scrollState.TrackScrolling(onScrolling = onScrolling)
 
     val onRefresh: () -> Unit = {
-        isRefreshing = true
-        viewModel.getHomeItemList(params)
-        Logger.w("HomeScreen", "onRefresh")
+        viewModel.retryHome()
     }
-    LaunchedEffect(key1 = reloadDestination) {
-        if (reloadDestination == HomeDestination::class) {
-            if (scrollState.firstVisibleItemIndex > 1) {
-                Logger.w("HomeScreen", "scrollState.firstVisibleItemIndex: ${scrollState.firstVisibleItemIndex}")
-                scrollState.animateScrollToItem(0)
-                sharedViewModel.reloadDestinationDone()
-            } else {
-                Logger.w("HomeScreen", "scrollState.firstVisibleItemIndex: ${scrollState.firstVisibleItemIndex}")
-                onRefresh.invoke()
-            }
-        }
-    }
-    LaunchedEffect(key1 = loading) {
-        if (!loading) {
-            isRefreshing = false
-            sharedViewModel.reloadDestinationDone()
-            coroutineScope.launch {
-                pullToRefreshState.animateToHidden()
-            }
-        }
-    }
-    LaunchedEffect(key1 = homeData) {
-        accountShow = homeData.find { it.subtitle == accountInfo?.first } == null
-    }
-    LaunchedEffect(openAppTime, shareLyricsPermissions) {
-        Logger.w("HomeScreen", "openAppTime: $openAppTime, shareLyricsPermissions: $shareLyricsPermissions")
-        if (openAppTime >= 10 && openAppTime % 10 == 0 && openAppTime <= 50) {
-            showReviewDialog = true
-        } else if ((openAppTime == 1 || openAppTime % 15 == 0) && openAppTime <= 60 && !shareLyricsPermissions) {
-            showRequestShareLyricsPermissions = true
-        } else if (openAppTime == 5) {
-            // Blog promo: one-shot after 5 app opens, bump key suffix to re-promote later
-            if (sharedViewModel.getString(BLOG_PROMO_KEY) != "true") {
-                showBlogPromoDialog = true
-            }
-        } else {
-            showReviewDialog = false
-            showRequestShareLyricsPermissions = false
+
+    val shouldStartPaginate = remember {
+        derivedStateOf {
+            homeListState != ListState.PAGINATION_EXHAUST &&
+                (scrollState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -9) >= (scrollState.layoutInfo.totalItemsCount - 1)
         }
     }
 
-    val shouldStartPaginate =
-        remember {
-            derivedStateOf {
-                homeListState != ListState.PAGINATION_EXHAUST &&
-                    (
-                        scrollState.layoutInfo.visibleItemsInfo
-                            .lastOrNull()
-                            ?.index ?: -9
-                    ) >= (scrollState.layoutInfo.totalItemsCount - 1)
-            }
-        }
-
-    LaunchedEffect(key1 = shouldStartPaginate.value) {
-        Logger.d("HomeScreen", "shouldStartPaginate: ${shouldStartPaginate.value}")
-        Logger.d("HomeScreen", "homeListState: $homeListState")
-        Logger.d("HomeScreen", "Continuation: $continuation")
+    LaunchedEffect(shouldStartPaginate.value) {
         if (shouldStartPaginate.value && homeListState == ListState.IDLE) {
-            viewModel.getContinueHomeItem(
-                continuation,
+            viewModel.getContinueHomeItem(continuation)
+        }
+    }
+
+    // Modal bottom sheet state for long-click track & item options
+    var selectedTrackForSheet by remember { mutableStateOf<Track?>(null) }
+    var selectedItemForSheet by remember { mutableStateOf<Content?>(null) }
+
+    if (selectedTrackForSheet != null) {
+        NowPlayingBottomSheet(
+            onDismiss = { selectedTrackForSheet = null },
+            song = selectedTrackForSheet?.toSongEntity(),
+            navController = navController,
+        )
+    }
+
+    if (selectedItemForSheet != null) {
+        val sheetItem = selectedItemForSheet!!
+        val browseId = sheetItem.browseId.orEmpty()
+        if (browseId.isNotEmpty()) {
+            PlaylistBottomSheet(
+                onDismiss = { selectedItemForSheet = null },
+                playlistId = browseId,
+                playlistName = sheetItem.title,
+                thumbnailUrl = sheetItem.thumbnails.lastOrNull()?.url,
+                isYourYouTubePlaylist = false,
             )
         }
     }
 
-//    if (shouldShowGetDataSyncIdBottomSheet) {
-//        GetDataSyncIdBottomSheet(
-//            cookie = youTubeCookie,
-//            onDismissRequest = {
-//                shouldShowGetDataSyncIdBottomSheet = false
-//            },
-//        )
-//    }
-
-    if (showReviewDialog) {
-        ReviewDialog(
-            onDismissRequest = {
-                sharedViewModel.onDoneReview(
-                    isDismissOnly = true,
-                )
-                showReviewDialog = false
-            },
-            onDoneReview = {
-                sharedViewModel.onDoneReview(
-                    isDismissOnly = false,
-                )
-                showReviewDialog = false
-            },
-        )
-    }
-
-    if (showBlogPromoDialog) {
-        BlogPromoDialog(
-            onDismissRequest = {
-                sharedViewModel.putString(BLOG_PROMO_KEY, "true")
-                showBlogPromoDialog = false
-            },
-            onVisitBlog = {
-                sharedViewModel.putString(BLOG_PROMO_KEY, "true")
-                showBlogPromoDialog = false
-            },
-        )
-    }
-
-    if (showRequestShareLyricsPermissions) {
-        ShareSavedLyricsDialog(
-            onDismissRequest = {
-                showRequestShareLyricsPermissions = false
-                sharedViewModel.onDoneReview(
-                    isDismissOnly = true,
-                )
-            },
-            onConfirm = { contributor ->
-                sharedViewModel.onDoneRequestingShareLyrics(
-                    contributor,
-                )
-            },
-        )
-    }
-
-    if (shouldShowLogInAlert) {
-        var doNotShowAgain by rememberSaveable {
-            mutableStateOf(false)
+    val handleItemLongClick: (Content) -> Unit = { item ->
+        val vid = item.videoId.orEmpty()
+        val browse = item.browseId.orEmpty()
+        if (vid.isNotEmpty()) {
+            selectedTrackForSheet = item.toTrack()
+        } else if (browse.isNotEmpty()) {
+            selectedItemForSheet = item
         }
-        AlertDialog(
-            title = {
-                Text(stringResource(Res.string.warning))
-            },
-            text = {
-                Column {
-                    Text(text = stringResource(Res.string.log_in_warning))
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier =
-                            Modifier
-                                .clickable {
-                                    doNotShowAgain = !doNotShowAgain
-                                }.fillMaxWidth(),
-                    ) {
-                        Checkbox(
-                            checked = doNotShowAgain,
-                            onCheckedChange = {
-                                doNotShowAgain = it
-                            },
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(stringResource(Res.string.do_not_show_again))
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.doneShowLogInAlert(doNotShowAgain)
-                    navController.navigate(LoginDestination)
-                }) {
-                    Text(stringResource(Res.string.go_to_log_in_page))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    viewModel.doneShowLogInAlert(doNotShowAgain)
-                }) {
-                    Text(stringResource(Res.string.cancel))
-                }
-            },
-            onDismissRequest = {
-                viewModel.doneShowLogInAlert()
-            },
-        )
     }
 
-    Box {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+    ) {
         PullToRefreshBox(
-            modifier =
-                Modifier
-                    .hazeSource(hazeState),
+            modifier = Modifier.fillMaxSize(),
             state = pullToRefreshState,
             onRefresh = onRefresh,
             isRefreshing = isRefreshing,
@@ -492,25 +288,33 @@ fun HomeScreen(
                 PullToRefreshDefaults.Indicator(
                     state = pullToRefreshState,
                     isRefreshing = isRefreshing,
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(
-                                top =
-                                    with(LocalDensity.current) {
-                                        topAppBarHeightPx.toDp()
-                                    },
-                            ),
+                    modifier = Modifier.align(Alignment.TopCenter),
                     containerColor = PullToRefreshDefaults.indicatorContainerColor,
                     color = PullToRefreshDefaults.indicatorColor,
-                    maxDistance = PullToRefreshDefaults.PositionalThreshold,
                 )
             },
         ) {
-            Crossfade(targetState = loading, label = "Home Shimmer") { loading ->
-                if (!loading) {
-                    if (homeData.isEmpty()) {
+            Crossfade(targetState = loading && homeData.isEmpty(), label = "HomeShimmerCrossfade") { isLoadingInitial ->
+                if (isLoadingInitial) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ReplayTopBar(
+                            avatarUrl = accountInfo?.second,
+                            onAvatarClick = {
+                                navController.navigate(SettingsDestination)
+                            },
+                        )
+                        HomeShimmer()
+                    }
+                } else if (homeData.isEmpty()) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ReplayTopBar(
+                            avatarUrl = accountInfo?.second,
+                            onAvatarClick = {
+                                navController.navigate(SettingsDestination)
+                            },
+                        )
                         OfflineErrorState(
+                            isRetrying = isRetrying || isRefreshing,
                             onRetry = onRefresh,
                             onOpenDownloaded = {
                                 navController.navigate(
@@ -519,309 +323,749 @@ fun HomeScreen(
                                     ),
                                 )
                             },
+                            onOpenLibrary = {
+                                navController.navigate(
+                                    PlaylistDestination("LM", isYourYouTubePlaylist = true),
+                                )
+                            },
                         )
-                        return@Crossfade
                     }
+                } else {
                     LazyColumn(
                         state = scrollState,
-                        verticalArrangement = Arrangement.spacedBy(28.dp),
+                        contentPadding = PaddingValues(bottom = 120.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
                     ) {
-                        itemsIndexed(homeData, key = { _, item ->
-                            item.hashCode().toString() + (mainHomeThumbnail ?: "nothumb")
-                        }) { index, item ->
-                            Box {
-                                if (index == 0) {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .height(300.dp)
-                                                .angledGradientBackground(listOf(animatedColor, backgroundColor), 25f),
-                                    ) {
-                                        Box(
-                                            modifier =
-                                                Modifier
-                                                    .fillMaxWidth()
-                                                    .height(180.dp)
-                                                    .align(Alignment.BottomCenter)
-                                                    .background(artworkScrimBrush(backgroundColor)),
-                                        )
-                                    }
-                                }
-                                Column(
-                                    modifier =
-                                        Modifier
-                                            .padding(horizontal = 15.dp),
+                        // Top Bar
+                        item(key = "home_top_bar") {
+                            ReplayTopBar(
+                                avatarUrl = accountInfo?.second,
+                                onAvatarClick = {
+                                    navController.navigate(SettingsDestination)
+                                },
+                            )
+                        }
+
+                        // Offline notice banner (shown when offline but displaying cached home feed)
+                        if (isOffline) {
+                            item(key = "home_offline_banner") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp),
                                 ) {
-                                    if (index == 0) {
-                                        Spacer(
-                                            Modifier.height(
-                                                with(LocalDensity.current) { topAppBarHeightPx.toDp() },
-                                            ),
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                            .border(
+                                                BorderStroke(
+                                                    1.dp,
+                                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                ),
+                                                RoundedCornerShape(16.dp),
+                                            )
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Icon(
+                                            imageVector = SimpIcons.CloudOff,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp),
                                         )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    if (index == 0 && accountInfo != null && accountShow) {
-                                        AccountLayout(
-                                            accountName = accountInfo?.first ?: "",
-                                            url = accountInfo?.second ?: "",
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = stringResource(Res.string.home_offline_cached_notice),
+                                            style = typo().bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f),
                                         )
-                                        Spacer(Modifier.height(8.dp))
-                                    }
-                                    if (item.title == stringResource(Res.string.quick_picks)) {
-                                        AnimatedVisibility(
-                                            visible =
-                                                homeData.find {
-                                                    it.title ==
-                                                        stringResource(
-                                                            Res.string.quick_picks,
-                                                        )
-                                                } != null,
+                                        TextButton(
+                                            onClick = onRefresh,
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                         ) {
-                                            QuickPicks(
-                                                homeItem =
-                                                    (
-                                                        homeData.find {
-                                                            it.title ==
-                                                                stringResource(
-                                                                    Res.string.quick_picks,
-                                                                )
-                                                        } ?: return@AnimatedVisibility
-                                                    ).let { content ->
-                                                        content.copy(
-                                                            contents =
-                                                                content.contents.mapNotNull { ct ->
-                                                                    ct?.copy(
-                                                                        artists =
-                                                                            ct.artists?.let { art ->
-                                                                                if (art.size > 1) {
-                                                                                    art.dropLast(1)
-                                                                                } else {
-                                                                                    art
-                                                                                }
-                                                                            },
-                                                                    )
-                                                                },
-                                                        )
-                                                    },
-                                                navController = navController,
-                                                viewModel = viewModel,
+                                            Text(
+                                                text = stringResource(Res.string.retry),
+                                                style = typo().labelMedium,
+                                                color = MaterialTheme.colorScheme.primary,
                                             )
                                         }
-                                    } else {
-                                        HomeItem(
-                                            navController = navController,
-                                            data = item,
-                                        )
                                     }
                                 }
                             }
                         }
-                        item {
-                            AnimatedVisibility(
-                                homeListState == ListState.PAGINATING,
-                                enter = expandVertically() + expandVertically(),
-                                exit = fadeOut() + shrinkVertically(),
-                            ) {
-                                CenterLoadingBox(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .height(200.dp),
+
+                        // 1. Hero Carousel (WITH Solid Outline & Long Click - Official M3 Multi-Browse Carousel)
+                        if (carouselItems.isNotEmpty()) {
+                            item(key = "hero_carousel") {
+                                Material3MultiBrowseCarousel(
+                                    items = carouselItems,
+                                    customCoversMap = customCoversMap,
+                                    onItemClick = { item ->
+                                        val vid = item.videoId
+                                        val browse = item.browseId
+                                        val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid == null)
+                                        if (isLiked) {
+                                            navController.navigate(PlaylistDestination("LM", isYourYouTubePlaylist = true))
+                                        } else if (!vid.isNullOrEmpty()) {
+                                            val firstTrack = item.toTrack()
+                                            viewModel.setQueueData(
+                                                QueueData.Data(
+                                                    listTracks = arrayListOf(firstTrack),
+                                                    firstPlayedTrack = firstTrack,
+                                                    playlistId = "RDAMVM$vid",
+                                                    playlistName = "\"${item.title}\" Radio",
+                                                    playlistType = PlaylistType.RADIO,
+                                                    continuation = null,
+                                                ),
+                                            )
+                                            viewModel.loadMediaItem(firstTrack, Config.SONG_CLICK)
+                                        } else if (!browse.isNullOrEmpty()) {
+                                            if (browse.startsWith("VL") || browse.startsWith("PL")) {
+                                                navController.navigate(PlaylistDestination(browse, isYourYouTubePlaylist = false))
+                                            } else if (browse.startsWith("UC") || browse.startsWith("FEmusic_library_privately_owned_artist")) {
+                                                navController.navigate(ArtistDestination(browse))
+                                            } else {
+                                                navController.navigate(AlbumDestination(browse))
+                                            }
+                                        }
+                                    },
+                                    onItemLongClick = handleItemLongClick,
                                 )
                             }
                         }
-                        if (homeListState == ListState.PAGINATION_EXHAUST) {
-                            items(newRelease, key = { it.hashCode() }) {
-                                AnimatedVisibility(
-                                    visible = newRelease.isNotEmpty(),
-                                ) {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .padding(horizontal = 15.dp),
-                                    ) {
-                                        HomeItem(
-                                            navController = navController,
-                                            data = it,
-                                        )
-                                    }
-                                }
-                            }
-                            item {
-                                AnimatedVisibility(
-                                    visible = moodMomentAndGenre != null,
-                                ) {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .padding(horizontal = 15.dp),
-                                    ) {
-                                        moodMomentAndGenre?.let {
-                                            MoodMomentAndGenre(
-                                                mood = it,
-                                                navController = navController,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            item {
-                                Column(
-                                    Modifier
-                                        .padding(vertical = 10.dp)
-                                        .padding(horizontal = 15.dp),
-                                    verticalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    ChartTitle()
-                                    Spacer(modifier = Modifier.height(5.dp))
-                                    Crossfade(targetState = regionChart) {
-                                        Logger.w("HomeScreen", "regionChart: $it")
-                                        if (it != null) {
-                                            DropdownButton(
-                                                items = CHART_SUPPORTED_COUNTRY.itemsData.toList(),
-                                                defaultSelected =
-                                                    CHART_SUPPORTED_COUNTRY.itemsData.getOrNull(
-                                                        CHART_SUPPORTED_COUNTRY.items.indexOf(it),
-                                                    )
-                                                        ?: CHART_SUPPORTED_COUNTRY.itemsData[1],
-                                            ) {
-                                                viewModel.exploreChart(
-                                                    CHART_SUPPORTED_COUNTRY.items[
-                                                        CHART_SUPPORTED_COUNTRY.itemsData.indexOf(
-                                                            it,
-                                                        ),
-                                                    ],
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(5.dp))
-                                    Crossfade(
-                                        targetState = chartLoading,
-                                        label = "Chart",
-                                    ) { loading ->
-                                        if (!loading) {
-                                            chart?.let {
-                                                ChartData(
-                                                    chart = it,
-                                                    navController = navController,
-                                                )
-                                            }
+
+                        // 2. Quick Picks Section (WITHOUT OUTLINE - with grouping and optical corner radiuses)
+                        if (quickPicksData != null && quickPicksData.contents.isNotEmpty()) {
+                            item(key = "quick_picks_section") {
+                                QuickPicksSection(
+                                    homeItem = quickPicksData,
+                                    currentPlayingVideoId = currentNowPlayingVideoId,
+                                    isPlaying = isPlaying,
+                                    customCoversMap = customCoversMap,
+                                    likedVideoIds = likedVideoIds,
+                                    onPlayAllClick = {
+                                        if (isPlaying) {
+                                            sharedViewModel.onUIEvent(UIEvent.PlayPause)
                                         } else {
-                                            CenterLoadingBox(
-                                                modifier =
-                                                    Modifier
-                                                        .fillMaxWidth()
-                                                        .height(400.dp),
-                                            )
+                                            val currentVid = currentNowPlayingVideoId
+                                            val isCurrentInQuickPicks = quickPicksData.contents.any { it?.videoId == currentVid }
+                                            if (isCurrentInQuickPicks && !currentVid.isNullOrEmpty()) {
+                                                sharedViewModel.onUIEvent(UIEvent.PlayPause)
+                                            } else {
+                                                viewModel.playAllQuickPicks(quickPicksData)
+                                            }
                                         }
-                                    }
-                                }
+                                    },
+                                    onTrackClick = { item ->
+                                        val vid = item.videoId.orEmpty()
+                                        val browse = item.browseId.orEmpty()
+                                        val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid.isEmpty())
+                                        if (isLiked) {
+                                            navController.navigate(PlaylistDestination("LM", isYourYouTubePlaylist = true))
+                                        } else if (vid.isNotEmpty()) {
+                                            viewModel.playQuickPickTrack(quickPicksData, item)
+                                        } else if (browse.isNotEmpty()) {
+                                            if (browse.startsWith("VL") || browse.startsWith("PL")) {
+                                                navController.navigate(PlaylistDestination(browse, isYourYouTubePlaylist = false))
+                                            } else if (browse.startsWith("UC") || browse.startsWith("FEmusic_library_privately_owned_artist")) {
+                                                navController.navigate(ArtistDestination(browse))
+                                            } else {
+                                                navController.navigate(AlbumDestination(browse))
+                                            }
+                                        }
+                                    },
+                                    onTrackLongClick = handleItemLongClick,
+                                )
                             }
                         }
-                        item {
+
+                        // 3. Dynamic Lower Sections ("Albums for you", "Mixed for you", etc. - WITHOUT OUTLINE)
+                        itemsIndexed(lowerSections, key = { index, section -> "section_${section.title}_${section.hashCode()}_$index" }) { _, section ->
+                            SectionCarousel(
+                                section = section,
+                                customCoversMap = customCoversMap,
+                                onItemClick = { item ->
+                                    val browse = item.browseId.orEmpty()
+                                    val vid = item.videoId.orEmpty()
+                                    val isLiked = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid.isEmpty())
+                                    if (isLiked) {
+                                        navController.navigate(PlaylistDestination("LM", isYourYouTubePlaylist = true))
+                                    } else if (browse.isNotEmpty()) {
+                                        if (browse.startsWith("VL") || browse.startsWith("PL")) {
+                                            navController.navigate(
+                                                PlaylistDestination(
+                                                    playlistId = browse,
+                                                    isYourYouTubePlaylist = false,
+                                                ),
+                                            )
+                                        } else if (browse.startsWith("UC") || browse.startsWith("FEmusic_library_privately_owned_artist")) {
+                                            navController.navigate(ArtistDestination(browse))
+                                        } else {
+                                            navController.navigate(AlbumDestination(browse))
+                                        }
+                                    } else if (vid.isNotEmpty()) {
+                                        val track = item.toTrack()
+                                        viewModel.setQueueData(
+                                            QueueData.Data(
+                                                listTracks = arrayListOf(track),
+                                                firstPlayedTrack = track,
+                                                playlistId = "RDAMVM$vid",
+                                                playlistName = "\"${item.title}\" Radio",
+                                                playlistType = PlaylistType.RADIO,
+                                                continuation = null,
+                                            ),
+                                        )
+                                        viewModel.loadMediaItem(track, Config.SONG_CLICK)
+                                    }
+                                },
+                                onItemLongClick = handleItemLongClick,
+                            )
+                        }
+
+                        item(key = "end_of_page") {
                             EndOfPage()
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+private data class CarouselItemVisuals(
+    val x: Float,
+    val width: Float,
+    val alpha: Float,
+    val darkenAlpha: Float,
+    val overlayAlpha: Float,
+    val zIndex: Float,
+    val heightScale: Float,
+)
+
+/**
+ * Physics-Driven 1:1 Square Multi-Browse Carousel:
+ * - Mathematical 1:1 Perfect Square focal entry.
+ * - Bounded momentum fling physics with critically-damped spring settling.
+ * - Dynamic continuous dimming: 100% brightness (focal) -> 80% (2nd) -> 60% (3rd & beyond).
+ * - Smooth tuck-under scale and alpha fade on left exit with edge boundary fade on right.
+ * - Seamless symmetric transition at end of list.
+ * - Solid #15181C outline container with 0 peeking.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Material3MultiBrowseCarousel(
+    items: List<Content>,
+    customCoversMap: Map<String, String> = emptyMap(),
+    onItemClick: (Content) -> Unit,
+    onItemLongClick: (Content) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (items.isEmpty()) return
+
+    val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val cardShape = RoundedCornerShape(24.dp)
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+    ) {
+        val screenWidth = maxWidth
+        val screenWidthPx = with(density) { screenWidth.toPx() }
+
+        // Focal item width = height for a mathematically perfect square (1:1 aspect ratio)
+        // Scaled proportionally so 3 entries (Focal, Medium, Small peek) are always visible simultaneously
+        val focalWidth = (screenWidth * 0.58f).coerceIn(195.dp, 235.dp)
+        val cardHeight = focalWidth
+        val spacing = 8.dp
+
+        val focalWidthPx = with(density) { focalWidth.toPx() }
+        val spacingPx = with(density) { spacing.toPx() }
+        val stepPx = focalWidthPx + spacingPx
+
+        val minimizedWidthPx = focalWidthPx * 0.36f
+        val trailingWidthPx = focalWidthPx * 0.18f
+
+        val maxOffset = (items.size - 1) * stepPx
+        val scrollOffset = remember { Animatable(0f) }
+        val velocityTracker = remember { VelocityTracker() }
+
+        val progress = (scrollOffset.value / stepPx).coerceIn(0f, (items.size - 1).toFloat())
+
+        // Continuous helper function for keyline layout & interpolation
+        fun getItemVisuals(index: Int): CarouselItemVisuals {
+            val count = items.size
+            if (count <= 1) {
+                return CarouselItemVisuals(
+                    x = 0f,
+                    width = focalWidthPx,
+                    alpha = 1f,
+                    darkenAlpha = 0f,
+                    overlayAlpha = 1f,
+                    zIndex = 100f,
+                    heightScale = 1f,
+                )
+            }
+            if (count == 2) {
+                val u = progress.coerceIn(0f, 1f)
+                val w0 = focalWidthPx + (minimizedWidthPx - focalWidthPx) * u
+                val w1 = minimizedWidthPx + (focalWidthPx - minimizedWidthPx) * u
+                return if (index == 0) {
+                    CarouselItemVisuals(
+                        x = 0f,
+                        width = w0,
+                        alpha = 1f,
+                        darkenAlpha = 0.20f * u,
+                        overlayAlpha = if (u <= 0.5f) (1f - u * 2f).coerceIn(0f, 1f) else 0f,
+                        zIndex = 85f + 15f * (1f - u),
+                        heightScale = 1f,
+                    )
                 } else {
-                    Column {
-                        Spacer(
-                            Modifier.height(
-                                with(LocalDensity.current) {
-                                    topAppBarHeightPx.toDp()
-                                },
-                            ),
+                    CarouselItemVisuals(
+                        x = w0 + spacingPx,
+                        width = w1,
+                        alpha = 1f,
+                        darkenAlpha = 0.20f * (1f - u),
+                        overlayAlpha = if (u >= 0.5f) (u * 2f - 1f).coerceIn(0f, 1f) else 0f,
+                        zIndex = 85f + 15f * u,
+                        heightScale = 1f,
+                    )
+                }
+            }
+
+            // count >= 3
+            val shiftStartProgress = (count - 3).toFloat()
+            if (progress <= shiftStartProgress) {
+                val d = index - progress
+                return when {
+                    d < -1f -> CarouselItemVisuals(
+                        x = 0f,
+                        width = focalWidthPx * 0.4f,
+                        alpha = 0f,
+                        darkenAlpha = 0.40f,
+                        overlayAlpha = 0f,
+                        zIndex = 55f,
+                        heightScale = 0.65f,
+                    )
+                    d in -1f..0f -> CarouselItemVisuals(
+                        x = 0f,
+                        width = focalWidthPx * (1f + d * 0.6f),
+                        alpha = (1f + d * 1.5f).coerceIn(0f, 1f),
+                        darkenAlpha = (-d * 0.40f).coerceIn(0f, 0.40f),
+                        overlayAlpha = if (d >= -0.5f) (1f + d * 2f).coerceIn(0f, 1f) else 0f,
+                        zIndex = 55f + (1f + d).coerceIn(0f, 1f) * 15f,
+                        heightScale = (1f + d * 0.35f).coerceIn(0.65f, 1f),
+                    )
+                    d in 0f..1f -> CarouselItemVisuals(
+                        x = (focalWidthPx + spacingPx) * d,
+                        width = focalWidthPx + (minimizedWidthPx - focalWidthPx) * d,
+                        alpha = 1f,
+                        darkenAlpha = 0.20f * d,
+                        overlayAlpha = if (d <= 0.5f) (1f - d * 2f).coerceIn(0f, 1f) else 0f,
+                        zIndex = 85f + 15f * (1f - d),
+                        heightScale = 1f,
+                    )
+                    d in 1f..2f -> CarouselItemVisuals(
+                        x = (focalWidthPx + spacingPx) + (minimizedWidthPx + spacingPx) * (d - 1f),
+                        width = minimizedWidthPx + (trailingWidthPx - minimizedWidthPx) * (d - 1f),
+                        alpha = 1f,
+                        darkenAlpha = 0.20f + 0.20f * (d - 1f),
+                        overlayAlpha = 0f,
+                        zIndex = 70f + 15f * (2f - d),
+                        heightScale = 1f,
+                    )
+                    d in 2f..3f -> CarouselItemVisuals(
+                        x = (focalWidthPx + spacingPx) + (minimizedWidthPx + spacingPx),
+                        width = (trailingWidthPx * (3f - d)).coerceIn(0f, trailingWidthPx),
+                        alpha = (3f - d).coerceIn(0f, 1f),
+                        darkenAlpha = 0.40f,
+                        overlayAlpha = 0f,
+                        zIndex = 70f,
+                        heightScale = (0.65f + 0.35f * (3f - d)).coerceIn(0.65f, 1f),
+                    )
+                    else -> CarouselItemVisuals(
+                        x = (focalWidthPx + spacingPx) + (minimizedWidthPx + spacingPx),
+                        width = 0f,
+                        alpha = 0f,
+                        darkenAlpha = 0.40f,
+                        overlayAlpha = 0f,
+                        zIndex = 55f,
+                        heightScale = 0.65f,
+                    )
+                }
+            } else {
+                // End shift transition
+                val shift = (progress - shiftStartProgress).coerceIn(0f, 2f)
+                if (index < count - 3) {
+                    return CarouselItemVisuals(
+                        x = 0f,
+                        width = focalWidthPx * 0.4f,
+                        alpha = 0f,
+                        darkenAlpha = 0.40f,
+                        overlayAlpha = 0f,
+                        zIndex = 55f,
+                        heightScale = 0.65f,
+                    )
+                }
+                if (shift <= 1f) {
+                    val u = shift
+                    val wN3 = focalWidthPx + (minimizedWidthPx - focalWidthPx) * u
+                    val wN2 = minimizedWidthPx + (focalWidthPx - minimizedWidthPx) * u
+                    return when (index) {
+                        count - 3 -> CarouselItemVisuals(
+                            x = 0f,
+                            width = wN3,
+                            alpha = 1f,
+                            darkenAlpha = 0.20f * u,
+                            overlayAlpha = if (u <= 0.5f) (1f - u * 2f).coerceIn(0f, 1f) else 0f,
+                            zIndex = 85f + 15f * (1f - u),
+                            heightScale = 1f,
                         )
-                        HomeShimmer()
+                        count - 2 -> CarouselItemVisuals(
+                            x = wN3 + spacingPx,
+                            width = wN2,
+                            alpha = 1f,
+                            darkenAlpha = 0.20f * (1f - u),
+                            overlayAlpha = if (u >= 0.5f) (u * 2f - 1f).coerceIn(0f, 1f) else 0f,
+                            zIndex = 85f + 15f * u,
+                            heightScale = 1f,
+                        )
+                        count - 1 -> CarouselItemVisuals(
+                            x = wN3 + spacingPx + wN2 + spacingPx,
+                            width = trailingWidthPx,
+                            alpha = 1f,
+                            darkenAlpha = 0.40f,
+                            overlayAlpha = 0f,
+                            zIndex = 70f,
+                            heightScale = 1f,
+                        )
+                        else -> CarouselItemVisuals(
+                            x = wN3 + spacingPx + wN2 + spacingPx,
+                            width = 0f,
+                            alpha = 0f,
+                            darkenAlpha = 0.40f,
+                            overlayAlpha = 0f,
+                            zIndex = 55f,
+                            heightScale = 0.65f,
+                        )
+                    }
+                } else {
+                    val v = shift - 1f
+                    val wN3 = minimizedWidthPx + (trailingWidthPx - minimizedWidthPx) * v
+                    val wN2 = focalWidthPx + (minimizedWidthPx - focalWidthPx) * v
+                    val wN1 = trailingWidthPx + (focalWidthPx - trailingWidthPx) * v
+                    return when (index) {
+                        count - 3 -> CarouselItemVisuals(
+                            x = 0f,
+                            width = wN3,
+                            alpha = 1f,
+                            darkenAlpha = 0.20f + 0.20f * v,
+                            overlayAlpha = 0f,
+                            zIndex = 70f + 15f * (1f - v),
+                            heightScale = 1f,
+                        )
+                        count - 2 -> CarouselItemVisuals(
+                            x = wN3 + spacingPx,
+                            width = wN2,
+                            alpha = 1f,
+                            darkenAlpha = 0.20f * v,
+                            overlayAlpha = if (v <= 0.5f) (1f - v * 2f).coerceIn(0f, 1f) else 0f,
+                            zIndex = 85f + 15f * (1f - v),
+                            heightScale = 1f,
+                        )
+                        count - 1 -> CarouselItemVisuals(
+                            x = wN3 + spacingPx + wN2 + spacingPx,
+                            width = wN1,
+                            alpha = 1f,
+                            darkenAlpha = 0.40f * (1f - v),
+                            overlayAlpha = if (v >= 0.5f) (v * 2f - 1f).coerceIn(0f, 1f) else 0f,
+                            zIndex = 70f + 30f * v,
+                            heightScale = 1f,
+                        )
+                        else -> CarouselItemVisuals(
+                            x = wN3 + spacingPx + wN2 + spacingPx,
+                            width = 0f,
+                            alpha = 0f,
+                            darkenAlpha = 0.40f,
+                            overlayAlpha = 0f,
+                            zIndex = 55f,
+                            heightScale = 0.65f,
+                        )
                     }
                 }
             }
         }
-        AnimatedContent(
-            targetState = scrollState.firstVisibleItemIndex == 0 && scrollState.firstVisibleItemScrollOffset == 0,
-            transitionSpec = {
-                fadeIn(tween(300)).togetherWith(fadeOut(tween(300)))
-            },
-        ) { target ->
-            Column(
-                modifier =
-                    Modifier
-                        .align(Alignment.TopCenter)
-                        .then(
-                            if (target) {
-                                Modifier.background(Color.Transparent)
-                            } else {
-                                Modifier
-                                    .hazeEffect(hazeState, style = HazeMaterials.ultraThin()) {
-                                        blurEnabled = true
-                                    }
-                            },
-                        ).onGloballyPositioned { coordinates ->
-                            topAppBarHeightPx = coordinates.size.height
-                        },
-            ) {
-                AnimatedVisibility(
-                    visible = isScrollingUp,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    HomeTopAppBar(navController)
-                }
-                AnimatedVisibility(
-                    visible = !isScrollingUp,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    Spacer(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .windowInsetsPadding(
-                                    WindowInsets.statusBars,
-                                ),
-                    )
-                }
-                Row(
-                    modifier =
-                        Modifier
-                            .horizontalScroll(chipRowState)
-                            .padding(vertical = 8.dp, horizontal = 15.dp)
-                            .background(Color.Transparent),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    listOfHomeChip.forEach { id ->
-                        val isSelected =
-                            when (params) {
-                                HOME_PARAMS_RELAX -> id == Res.string.relax
-                                HOME_PARAMS_SLEEP -> id == Res.string.sleep
-                                HOME_PARAMS_ENERGIZE -> id == Res.string.energize
-                                HOME_PARAMS_SAD -> id == Res.string.sad
-                                HOME_PARAMS_ROMANCE -> id == Res.string.romance
-                                HOME_PARAMS_FEEL_GOOD -> id == Res.string.feel_good
-                                HOME_PARAMS_WORKOUT -> id == Res.string.workout
-                                HOME_PARAMS_PARTY -> id == Res.string.party
-                                HOME_PARAMS_COMMUTE -> id == Res.string.commute
-                                HOME_PARAMS_FOCUS -> id == Res.string.focus
-                                else -> id == Res.string.all
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(cardHeight)
+                .pointerInput(items.size, stepPx) {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            velocityTracker.resetTracking()
+                            coroutineScope.launch {
+                                scrollOffset.stop()
                             }
-                        Chip(
-                            isAnimated = loading,
-                            isSelected = isSelected,
-                            text = stringResource(id),
-                        ) {
-                            when (id) {
-                                Res.string.all -> viewModel.setParams(null)
-                                Res.string.relax -> viewModel.setParams(HOME_PARAMS_RELAX)
-                                Res.string.sleep -> viewModel.setParams(HOME_PARAMS_SLEEP)
-                                Res.string.energize -> viewModel.setParams(HOME_PARAMS_ENERGIZE)
-                                Res.string.sad -> viewModel.setParams(HOME_PARAMS_SAD)
-                                Res.string.romance -> viewModel.setParams(HOME_PARAMS_ROMANCE)
-                                Res.string.feel_good -> viewModel.setParams(HOME_PARAMS_FEEL_GOOD)
-                                Res.string.workout -> viewModel.setParams(HOME_PARAMS_WORKOUT)
-                                Res.string.party -> viewModel.setParams(HOME_PARAMS_PARTY)
-                                Res.string.commute -> viewModel.setParams(HOME_PARAMS_COMMUTE)
-                                Res.string.focus -> viewModel.setParams(HOME_PARAMS_FOCUS)
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            velocityTracker.addPointerInputChange(change)
+                            coroutineScope.launch {
+                                val newOffset = (scrollOffset.value - dragAmount).coerceIn(0f, maxOffset)
+                                scrollOffset.snapTo(newOffset)
+                            }
+                        },
+                        onDragEnd = {
+                            val velocity = velocityTracker.calculateVelocity().x
+                            val dragVelocity = -velocity
+                            val absVel = abs(dragVelocity)
+                            val currentOffset = scrollOffset.value
+                            val currentPos = currentOffset / stepPx
+
+                            // Velocity thresholds in dp/s for natural feel across all screen densities
+                            val minFlingVelocity = with(density) { 350.dp.toPx() }
+                            val mediumFlingVelocity = with(density) { 1400.dp.toPx() }
+                            val maxFlingVelocity = with(density) { 2800.dp.toPx() }
+
+                            val targetIndex = when {
+                                absVel < minFlingVelocity -> {
+                                    currentPos.roundToInt()
+                                }
+                                absVel < mediumFlingVelocity -> {
+                                    if (dragVelocity > 0f) {
+                                        (floor(currentPos) + 1).toInt()
+                                    } else {
+                                        (ceil(currentPos) - 1).toInt()
+                                    }
+                                }
+                                absVel < maxFlingVelocity -> {
+                                    if (dragVelocity > 0f) {
+                                        (floor(currentPos) + 2).toInt()
+                                    } else {
+                                        (ceil(currentPos) - 2).toInt()
+                                    }
+                                }
+                                else -> {
+                                    if (dragVelocity > 0f) {
+                                        (floor(currentPos) + 3).toInt()
+                                    } else {
+                                        (ceil(currentPos) - 3).toInt()
+                                    }
+                                }
+                            }.coerceIn(0, items.lastIndex)
+
+                            // Clamp initial spring velocity to prevent overshoot while preserving natural momentum
+                            val maxSpringVelocity = with(density) { 1600.dp.toPx() }
+                            val clampedInitialVelocity = dragVelocity.coerceIn(-maxSpringVelocity, maxSpringVelocity)
+
+                            coroutineScope.launch {
+                                scrollOffset.animateTo(
+                                    targetValue = targetIndex * stepPx,
+                                    initialVelocity = clampedInitialVelocity,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                            }
+                        },
+                        onDragCancel = {
+                            val currentOffset = scrollOffset.value
+                            val targetIndex = (currentOffset / stepPx).roundToInt().coerceIn(0, items.lastIndex)
+                            coroutineScope.launch {
+                                scrollOffset.animateTo(
+                                    targetValue = targetIndex * stepPx,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                },
+        ) {
+            // Render visible items
+            val currentFocalIndex = (scrollOffset.value / stepPx).roundToInt().coerceIn(0, items.lastIndex)
+            val minVisibleIndex = (currentFocalIndex - 3).coerceAtLeast(0)
+            val maxVisibleIndex = (currentFocalIndex + 3).coerceAtMost(items.lastIndex)
+
+            for (index in minVisibleIndex..maxVisibleIndex) {
+                val item = items[index]
+                val visuals = getItemVisuals(index)
+
+                val itemX = visuals.x
+                val itemW = visuals.width
+                val itemAlpha = visuals.alpha
+                val darkenAlpha = visuals.darkenAlpha
+                val zIndex = visuals.zIndex
+                val heightScale = visuals.heightScale
+                val overlayAlpha = visuals.overlayAlpha
+
+                if (itemAlpha > 0.01f && itemW > 0.5f) {
+                    val browse = item.browseId
+                    val vid = item.videoId
+                    val customCover = resolvePlaylistCover(browse, null, customCoversMap)
+                    val artworkUrl = customCover ?: item.thumbnails.lastOrNull()?.url.orEmpty()
+                    val isLikedMusic = browse == "LM" || browse == "VLLM" || browse == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && vid == null)
+                    val displayTitle = if (isLikedMusic) "Liked Songs" else item.title
+
+                    val badgeText = when {
+                        isLikedMusic -> "Playlist"
+                        browse?.startsWith("VL") == true || browse?.startsWith("PL") == true || browse?.startsWith("RD") == true -> "Playlist"
+                        browse?.startsWith("UC") == true || browse?.startsWith("FEmusic_library_privately_owned_artist") == true -> "Artist"
+                        browse?.startsWith("MPRE") == true || browse?.startsWith("FEmusic_library_privately_owned_release") == true || (item.album != null && vid.isNullOrEmpty()) -> "Album"
+                        !vid.isNullOrEmpty() -> "Song"
+                        else -> "Featured"
+                    }
+
+                    val itemWidthDp = with(density) { itemW.toDp() }
+                    val itemXDp = with(density) { itemX.toDp() }
+
+                    val isCurrentFocal = abs(progress - index) < 0.35f
+
+                    Box(
+                        modifier = Modifier
+                            .offset(x = itemXDp)
+                            .width(itemWidthDp)
+                            .height(cardHeight)
+                            .zIndex(zIndex)
+                            .graphicsLayer {
+                                alpha = itemAlpha
+                                scaleY = heightScale
+                            }
+                            .clip(cardShape)
+                            .background(Color(0xFF15181C))
+                            .padding(2.5.dp)
+                            .clip(RoundedCornerShape(21.5.dp))
+                            .background(Color(0xFF141416))
+                            .combinedClickable(
+                                onClick = {
+                                    if (isCurrentFocal) {
+                                        onItemClick(item)
+                                    } else {
+                                        coroutineScope.launch {
+                                            scrollOffset.animateTo(
+                                                targetValue = index * stepPx,
+                                                animationSpec = spring(
+                                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                                    stiffness = Spring.StiffnessMediumLow,
+                                                ),
+                                            )
+                                        }
+                                    }
+                                },
+                                onLongClick = {
+                                    onItemLongClick(item)
+                                },
+                            ),
+                    ) {
+                        // Full Artwork with smooth GPU scaling
+                        if (isLikedMusic) {
+                            LikedSongsCover(
+                                modifier = Modifier.fillMaxSize(),
+                                iconSize = 72.dp,
+                            )
+                        } else if (customCover != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalPlatformContext.current)
+                                    .data(customCover)
+                                    .crossfade(true)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .build(),
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalPlatformContext.current)
+                                    .data(artworkUrl)
+                                    .crossfade(true)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .build(),
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+
+                        // Dynamic dimming: 100% (focal) -> 80% (2nd) -> 60% (3rd)
+                        if (darkenAlpha > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = darkenAlpha)),
+                            )
+                        }
+
+                        if (overlayAlpha > 0f) {
+                            // Dark Bottom Gradient
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(cardHeight * 0.5f)
+                                    .align(Alignment.BottomCenter)
+                                    .graphicsLayer { alpha = overlayAlpha }
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.85f),
+                                            ),
+                                        ),
+                                    ),
+                            )
+
+                            // Top-Right Pill Badge
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 12.dp, end = 12.dp)
+                                    .graphicsLayer { alpha = overlayAlpha }
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.Black.copy(alpha = 0.65f))
+                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)), RoundedCornerShape(50))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                            ) {
+                                Text(
+                                    text = badgeText,
+                                    fontFamily = itemSubtitleFontFamily(),
+                                    fontSize = 11.sp,
+                                    color = Color.White,
+                                )
+                            }
+
+                            // Bottom-Left Title and Subtitle Overlay
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                                    .graphicsLayer { alpha = overlayAlpha },
+                            ) {
+                                Text(
+                                    text = displayTitle,
+                                    fontFamily = sectionTitleFontFamily(),
+                                    fontSize = 22.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                val artistText = item.artists?.map { it.name }?.connectArtists() ?: item.description.orEmpty()
+                                Text(
+                                    text = if (isLikedMusic) "Auto playlist" else artistText,
+                                    fontFamily = itemSubtitleFontFamily(),
+                                    fontSize = 14.sp,
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                     }
@@ -831,248 +1075,98 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 4-Row Quick Picks Section
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HomeTopAppBar(navController: NavController) {
-    val hour =
-        remember {
-            val date = now().time
-            date.hour
-        }
-    TopAppBar(
-        windowInsets =
-            TopAppBarDefaults.windowInsets.exclude(
-                TopAppBarDefaults.windowInsets.only(WindowInsetsSides.Start),
-            ),
-        title = {
-            Column {
-                Text(
-                    text = stringResource(Res.string.app_name),
-                    style = typo().titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-                Text(
-                    text =
-                        when (hour) {
-                            in 6..12 -> {
-                                stringResource(Res.string.good_morning)
-                            }
-
-                            in 13..17 -> {
-                                stringResource(Res.string.good_afternoon)
-                            }
-
-                            in 18..23 -> {
-                                stringResource(Res.string.good_evening)
-                            }
-
-                            else -> {
-                                stringResource(Res.string.good_night)
-                            }
-                        },
-                    style = typo().bodySmall,
-                )
-            }
-        },
-        actions = {
-            RippleIconButton(imageVector = SimpIcons.Notifications, tint = MaterialTheme.colorScheme.onBackground) {
-                navController.navigate(NotificationDestination)
-            }
-            RippleIconButton(imageVector = SimpIcons.History, tint = MaterialTheme.colorScheme.onBackground) {
-                navController.navigate(RecentlySongsDestination)
-            }
-            RippleIconButton(imageVector = SimpIcons.Settings, tint = MaterialTheme.colorScheme.onBackground) {
-                navController.navigate(SettingsDestination)
-            }
-        },
-        colors =
-            TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.Transparent,
-            ),
-    )
-}
-
-@Composable
-fun AccountLayout(
-    accountName: String,
-    url: String,
-) {
-    Column {
-        Text(
-            text = stringResource(Res.string.welcome_back),
-            style = typo().bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(bottom = 3.dp),
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 5.dp),
-        ) {
-            AsyncImage(
-                model =
-                    ImageRequest
-                        .Builder(LocalPlatformContext.current)
-                        .data(url)
-                        .diskCachePolicy(CachePolicy.ENABLED)
-                        .diskCacheKey(url)
-                        .crossfade(true)
-                        .build(),
-                placeholder = rememberHolderPainter(),
-                error = rememberHolderPainter(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier =
-                    Modifier
-                        .size(40.dp)
-                        .clip(
-                            CircleShape,
-                        ),
-            )
-            Text(
-                text = accountName,
-                style = typo().headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier =
-                    Modifier
-                        .padding(start = 8.dp),
-            )
-        }
-    }
-}
-
-@ExperimentalFoundationApi
-@Composable
-fun QuickPicks(
+fun QuickPicksSection(
     homeItem: HomeItem,
-    navController: NavController,
-    viewModel: HomeViewModel = koinViewModel(),
+    currentPlayingVideoId: String?,
+    isPlaying: Boolean,
+    customCoversMap: Map<String, String> = emptyMap(),
+    likedVideoIds: Set<String> = emptySet(),
+    onPlayAllClick: () -> Unit,
+    onTrackClick: (Content) -> Unit,
+    onTrackLongClick: (Content) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val lazyListState = rememberLazyGridState()
-    val snapperFlingBehavior = rememberSnapFlingBehavior(SnapLayoutInfoProvider(lazyGridState = lazyListState, snapPosition = SnapPosition.Start))
-    val density = LocalDensity.current
-    var widthDp by remember {
-        mutableStateOf(0.dp)
-    }
-    var bottomSheetShow by remember { mutableStateOf(false) }
-    var track by remember { mutableStateOf<Track?>(null) }
+    val listState = rememberLazyListState()
+    val snapFling = rememberSnapFlingBehavior(SnapLayoutInfoProvider(lazyListState = listState))
 
-    if (bottomSheetShow) {
-        NowPlayingBottomSheet(
-            onDismiss = { bottomSheetShow = false },
-            song = track?.toSongEntity(),
-            navController = navController,
-        )
-    }
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val screenWidth = maxWidth
+        val columnWidth = (screenWidth * 0.82f).coerceIn(280.dp, 360.dp)
 
-    Column(
-        Modifier
-            .padding(vertical = 8.dp)
-            .onGloballyPositioned { coordinates ->
-                with(density) {
-                    widthDp = (coordinates.size.width).toDp()
-                }
-            },
-    ) {
-        Text(
-            text = stringResource(Res.string.let_s_start_with_a_radio),
-            style = typo().bodySmall,
-        )
-        Text(
-            text = stringResource(Res.string.quick_picks),
-            style = typo().headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            modifier =
-                Modifier
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Section Header
+            Row(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 5.dp),
-        )
-        LazyHorizontalGrid(
-            rows = GridCells.Fixed(4),
-            modifier = Modifier.height(256.dp),
-            state = lazyListState,
-            flingBehavior = snapperFlingBehavior,
-        ) {
-            items(homeItem.contents, key = { it.hashCode() }) {
-                if (it != null) {
-                    QuickPicksItem(
-                        onClick = {
-                            val firstQueue: Track = it.toTrack()
-                            viewModel.setQueueData(
-                                QueueData.Data(
-                                    listTracks = arrayListOf(firstQueue),
-                                    firstPlayedTrack = firstQueue,
-                                    playlistId = "RDAMVM${it.videoId}",
-                                    playlistName = "\"${it.title}\" Radio",
-                                    playlistType = PlaylistType.RADIO,
-                                    continuation = null,
-                                ),
-                            )
-                            viewModel.loadMediaItem(
-                                firstQueue,
-                                type = Config.SONG_CLICK,
-                            )
-                        },
-                        onLongClick = {
-                            track = it.toTrack()
-                            bottomSheetShow = true
-                        },
-                        data = it,
-                        widthDp = widthDp,
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(Res.string.quick_picks),
+                    fontFamily = sectionTitleFontFamily(),
+                    fontSize = 22.sp,
+                    color = Color.White,
+                )
+
+                // Play / Pause Circle Button on right
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1E1E22))
+                        .clickable { onPlayAllClick() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) SimpIcons.Pause else SimpIcons.PlayArrow,
+                        contentDescription = "Play All Quick Picks",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
-        }
-    }
-}
 
-@Composable
-fun MoodMomentAndGenre(
-    mood: Mood,
-    navController: NavController,
-) {
-    Column(
-        Modifier
-            .padding(vertical = 8.dp),
-    ) {
-        Text(
-            text = stringResource(Res.string.let_s_pick_a_playlist_for_you),
-            style = typo().bodyMedium,
-        )
-        // One block per section YouTube returned, headed by ITS OWN title. Hard-coding
-        // "Moods & moment" / "Genre" here (and reading mood.moodsMoments / mood.genres by
-        // index) mislabelled every row as soon as a signed-in account got an extra
-        // "For you" section, and hid the real Genres section altogether.
-        mood.sections.forEach { section ->
-            val gridState = rememberLazyGridState()
-            val flingBehavior = rememberSnapFlingBehavior(SnapLayoutInfoProvider(lazyGridState = gridState))
-            Text(
-                text = section.title,
-                style = typo().headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 5.dp),
-            )
-            LazyHorizontalGrid(
-                rows = GridCells.Fixed(3),
-                modifier = Modifier.height(210.dp),
-                state = gridState,
-                flingBehavior = flingBehavior,
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Grouped 4-item columns in horizontal snapping row
+            val nonNullItems = homeItem.contents.filterNotNull()
+            val columns = remember(nonNullItems) { nonNullItems.chunked(4) }
+
+            LazyRow(
+                state = listState,
+                flingBehavior = snapFling,
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                items(section.items, key = { it.params }) { item ->
-                    MoodMomentAndGenreHomeItem(
-                        title = item.title,
-                        stripeColor = item.stripeColor,
+                items(columns) { columnItems ->
+                    Column(
+                        modifier = Modifier.width(columnWidth),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        navController.navigate(
-                            MoodDestination(
-                                item.params,
-                            ),
-                        )
+                        columnItems.forEachIndexed { rowIndex, item ->
+                            val isSelected = currentPlayingVideoId != null && currentPlayingVideoId == item.videoId
+                            val isLiked = item.videoId != null && likedVideoIds.contains(item.videoId)
+                            val isFirstInGroup = rowIndex == 0
+                            val isLastInGroup = rowIndex == columnItems.lastIndex
+
+                            QuickPickCard(
+                                item = item,
+                                isSelected = isSelected,
+                                isLiked = isLiked,
+                                isFirstInGroup = isFirstInGroup,
+                                isLastInGroup = isLastInGroup,
+                                customCoversMap = customCoversMap,
+                                onCardClick = { onTrackClick(item) },
+                                onCardLongClick = { onTrackLongClick(item) },
+                            )
+                        }
                     }
                 }
             }
@@ -1080,110 +1174,312 @@ fun MoodMomentAndGenre(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ChartTitle() {
-    Column {
-        Text(
-            text = stringResource(Res.string.what_is_best_choice_today),
-            style = typo().bodyMedium,
-        )
-        Text(
-            text = stringResource(Res.string.chart),
-            style = typo().headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 5.dp),
-        )
+private fun QuickPickCard(
+    item: Content,
+    isSelected: Boolean,
+    isLiked: Boolean = false,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
+    customCoversMap: Map<String, String> = emptyMap(),
+    onCardClick: () -> Unit,
+    onCardLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val customCover = resolvePlaylistCover(item.browseId, null, customCoversMap)
+    val artworkUrl = customCover ?: item.thumbnails.lastOrNull()?.url.orEmpty()
+    val rawSubtitle = item.artists?.map { it.name }?.connectArtists() ?: item.description.orEmpty()
+    val isSong = item.videoId != null
+    val artistText = when {
+        isSong -> rawSubtitle
+        item.browseId?.startsWith("VL") == true || item.browseId?.startsWith("PL") == true -> {
+            if (rawSubtitle.isNotEmpty()) "Playlist • $rawSubtitle" else "Playlist"
+        }
+        item.browseId?.startsWith("UC") == true || item.browseId?.startsWith("FEmusic_library_privately_owned_artist") == true -> {
+            if (rawSubtitle.isNotEmpty()) "Artist • $rawSubtitle" else "Artist"
+        }
+        item.browseId?.startsWith("MPRE") == true || item.browseId?.startsWith("FEmusic_library_privately_owned_release") == true -> {
+            if (rawSubtitle.isNotEmpty()) "Album • $rawSubtitle" else "Album"
+        }
+        else -> if (rawSubtitle.isNotEmpty()) "Playlist • $rawSubtitle" else "Playlist"
+    }
+
+    val isLikedMusic = item.browseId == "LM" || item.browseId == "VLLM" || item.browseId == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && !isSong)
+    val displayTitle = if (isLikedMusic) "Liked Songs" else item.title
+
+    // Smooth animations for corner rounding and colors
+    val animatedBg by animateColorAsState(
+        targetValue = if (isSelected) Color(0xFF2B3E52) else Color(0xFF15181C),
+        animationSpec = tween(durationMillis = 300),
+    )
+
+    // Compute optical corner radius for card (26dp for prominent pill groups)
+    val topStartRadius by animateDpAsState(
+        targetValue = when {
+            isSelected -> 50.dp
+            isFirstInGroup -> 26.dp
+            else -> 6.dp
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    )
+    val topEndRadius by animateDpAsState(
+        targetValue = when {
+            isSelected -> 50.dp
+            isFirstInGroup -> 26.dp
+            else -> 6.dp
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    )
+    val bottomStartRadius by animateDpAsState(
+        targetValue = when {
+            isSelected -> 50.dp
+            isLastInGroup -> 26.dp
+            else -> 6.dp
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    )
+    val bottomEndRadius by animateDpAsState(
+        targetValue = when {
+            isSelected -> 50.dp
+            isLastInGroup -> 26.dp
+            else -> 6.dp
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    )
+
+    val cardShape = RoundedCornerShape(
+        topStart = topStartRadius,
+        topEnd = topEndRadius,
+        bottomStart = bottomStartRadius,
+        bottomEnd = bottomEndRadius,
+    )
+
+    // Compute concentric optical corner radius for inner artwork
+    val artTopStart by animateDpAsState(
+        targetValue = when {
+            isSelected -> 50.dp
+            isFirstInGroup -> 18.dp
+            else -> 6.dp
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    )
+    val artBottomStart by animateDpAsState(
+        targetValue = when {
+            isSelected -> 50.dp
+            isLastInGroup -> 18.dp
+            else -> 6.dp
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    )
+    val artOtherCorners by animateDpAsState(
+        targetValue = if (isSelected) 50.dp else 6.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    )
+
+    val artShape = RoundedCornerShape(
+        topStart = artTopStart,
+        topEnd = artOtherCorners,
+        bottomStart = artBottomStart,
+        bottomEnd = artOtherCorners,
+    )
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clip(cardShape)
+            .background(animatedBg)
+            .combinedClickable(
+                onClick = onCardClick,
+                onLongClick = onCardLongClick,
+            )
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Artwork
+        if (isLikedMusic) {
+            LikedSongsCover(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(artShape),
+                iconSize = 22.dp,
+            )
+        } else if (customCover != null) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalPlatformContext.current)
+                    .data(customCover)
+                    .crossfade(true)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .build(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(artShape),
+            )
+        } else {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalPlatformContext.current)
+                    .data(artworkUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(artShape),
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = displayTitle,
+                fontFamily = itemTitleFontFamily(),
+                fontSize = 14.5.sp,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            // Heart must follow the adjacent subtitle tint — grey when the row is
+            // unselected (liked but not focused), never stuck on the selection blue.
+            val subtitleTint = if (isSelected) Color(0xFFB0CCE6) else Color(0xFF9E9EA4)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isLiked) {
+                    Icon(
+                        imageVector = SimpIcons.Favorite,
+                        contentDescription = "Liked",
+                        tint = subtitleTint,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text(
+                    text = artistText,
+                    fontFamily = itemSubtitleFontFamily(),
+                    fontSize = 12.5.sp,
+                    color = subtitleTint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
+/**
+ * Clean Horizontal Section Carousel for "Albums for you", "Mixed for you", etc.
+ * NO outlines!
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ChartData(
-    chart: Chart,
-    navController: NavController,
+fun SectionCarousel(
+    section: HomeItem,
+    customCoversMap: Map<String, String> = emptyMap(),
+    onItemClick: (Content) -> Unit,
+    onItemLongClick: (Content) -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
-    var gridWidthDp by remember {
-        mutableStateOf(0.dp)
-    }
-    val density = LocalDensity.current
+    val listState = rememberLazyListState()
+    val snapFling = rememberSnapFlingBehavior(SnapLayoutInfoProvider(lazyListState = listState))
 
-    val lazyListState2 = rememberLazyGridState()
-    val snapperFlingBehavior2 = rememberSnapFlingBehavior(SnapLayoutInfoProvider(lazyGridState = lazyListState2))
-
-    Column(
-        Modifier.onGloballyPositioned { coordinates ->
-            with(density) {
-                gridWidthDp = (coordinates.size.width).toDp()
-            }
-        },
-    ) {
-        chart.listChartItem.forEach { item ->
-            Text(
-                text = item.title,
-                style = typo().headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 10.dp),
-            )
-            val lazyListState = rememberLazyListState()
-            val snapperFlingBehavior = rememberSnapFlingBehavior(SnapLayoutInfoProvider(lazyListState = lazyListState))
-            LazyRow(flingBehavior = snapperFlingBehavior) {
-                items(item.playlists.size, key = { index ->
-                    val data = item.playlists[index]
-                    data.id + data.title + index
-                }) {
-                    HomeItemContentPlaylist(
-                        onClick = {
-                            navController.navigate(
-                                PlaylistDestination(
-                                    playlistId = item.playlists[it].id,
-                                    isYourYouTubePlaylist = false,
-                                ),
-                            )
-                        },
-                        data = item.playlists[it],
-                    )
-                }
-            }
-        }
+    Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            text = stringResource(Res.string.top_artists),
-            style = typo().headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp),
+            text = section.title,
+            fontFamily = sectionTitleFontFamily(),
+            fontSize = 22.sp,
+            color = Color.White,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
-        LazyHorizontalGrid(
-            rows = GridCells.Fixed(3),
-            modifier = Modifier.height(240.dp),
-            state = lazyListState2,
-            flingBehavior = snapperFlingBehavior2,
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        LazyRow(
+            state = listState,
+            flingBehavior = snapFling,
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            items(chart.artists.itemArtists.size, key = { index ->
-                val item = chart.artists.itemArtists[index]
-                item.title + item.browseId + index
-            }) {
-                val data = chart.artists.itemArtists[it]
-                ItemArtistChart(
-                    onClick = {
-                        navController.navigate(
-                            ArtistDestination(
-                                channelId = data.browseId,
-                            ),
+            val nonNullContents = section.contents.filterNotNull()
+            itemsIndexed(nonNullContents, key = { index, item -> "item_${item.browseId ?: item.videoId ?: item.title}_${item.hashCode()}_$index" }) { _, item ->
+                val customCover = resolvePlaylistCover(item.browseId, null, customCoversMap)
+                val artworkUrl = customCover ?: item.thumbnails.lastOrNull()?.url.orEmpty()
+                val isLiked = item.browseId == "LM" || item.browseId == "VLLM" || item.browseId == "FEmusic_liked_videos" || (item.title.contains("Liked", ignoreCase = true) && item.videoId == null)
+                val displayTitle = if (isLiked) "Liked Songs" else item.title
+                val subtitleText = if (isLiked) "Auto playlist" else (item.artists?.map { it.name }?.connectArtists() ?: item.description.orEmpty())
+
+                Column(
+                    modifier = Modifier
+                        .width(140.dp)
+                        .combinedClickable(
+                            onClick = { onItemClick(item) },
+                            onLongClick = { onItemLongClick(item) },
+                        ),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(140.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color(0xFF15181C)),
+                    ) {
+                        if (isLiked) {
+                            LikedSongsCover(
+                                modifier = Modifier.fillMaxSize(),
+                                iconSize = 54.dp,
+                            )
+                        } else if (customCover != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalPlatformContext.current)
+                                    .data(customCover)
+                                    .crossfade(true)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .build(),
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalPlatformContext.current)
+                                    .data(artworkUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = displayTitle,
+                        fontFamily = itemTitleFontFamily(),
+                        fontSize = 14.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (subtitleText.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = subtitleText,
+                            fontFamily = itemSubtitleFontFamily(),
+                            fontSize = 12.sp,
+                            color = Color(0xFF9E9EA4),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                    },
-                    data = data,
-                    widthDp = gridWidthDp,
-                )
+                    }
+                }
             }
         }
     }

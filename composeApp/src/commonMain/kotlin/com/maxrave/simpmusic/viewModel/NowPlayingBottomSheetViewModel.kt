@@ -15,6 +15,7 @@ import com.maxrave.domain.manager.DataStoreManager.Values.LRCLIB
 import com.maxrave.domain.manager.DataStoreManager.Values.SIMPMUSIC
 import com.maxrave.domain.manager.DataStoreManager.Values.YOUTUBE
 import com.maxrave.domain.mediaservice.handler.DownloadHandler
+import com.maxrave.domain.mediaservice.handler.PlayerEvent
 import com.maxrave.domain.mediaservice.handler.PlaylistType
 import com.maxrave.domain.mediaservice.handler.QueueData
 import com.maxrave.domain.mediaservice.handler.SleepTimerState
@@ -242,9 +243,9 @@ class NowPlayingBottomSheetViewModel(
                 }
 
                 is NowPlayingBottomSheetUIEvent.AddToYouTubePlaylist -> {
-                    localPlaylistRepository
-                        .addYouTubePlaylistItem(
-                            youtubePlaylistId = ev.browseId,
+                    playlistRepository
+                        .addTrackToPlaylist(
+                            playlistId = ev.browseId,
                             videoId = songUIState.videoId,
                         ).collectLatestResource(
                             onSuccess = {
@@ -256,9 +257,38 @@ class NowPlayingBottomSheetViewModel(
                         )
                 }
 
+                is NowPlayingBottomSheetUIEvent.CreateNewYouTubePlaylist -> {
+                    playlistRepository
+                        .createPlaylist(
+                            title = ev.title,
+                            description = "",
+                            privacyStatus = "PRIVATE",
+                        ).collectLatestResource(
+                            onSuccess = { createdId ->
+                                if (!createdId.isNullOrEmpty() && songUIState.videoId.isNotEmpty()) {
+                                    onUIEvent(NowPlayingBottomSheetUIEvent.AddToYouTubePlaylist(createdId))
+                                }
+                                resetPlaylists()
+                            },
+                            onError = {
+                                makeToast(it)
+                            },
+                        )
+                }
+
                 is NowPlayingBottomSheetUIEvent.ToggleLike -> {
+                    // Liking a video persists its attached song when one exists.
+                    val entity = songRepository.getSongById(songUIState.videoId).singleOrNull()
+                    val targetId =
+                        if (entity != null) {
+                            runCatching {
+                                songRepository.getLikeTargetId(entity.toTrack())
+                            }.getOrDefault(songUIState.videoId)
+                        } else {
+                            songUIState.videoId
+                        }
                     songRepository.updateLikeStatus(
-                        songUIState.videoId,
+                        targetId,
                         if (songUIState.liked) 0 else 1,
                     )
                 }
@@ -399,6 +429,78 @@ class NowPlayingBottomSheetViewModel(
                             }
                         }
                 }
+
+                is NowPlayingBottomSheetUIEvent.NotInterested -> {
+                    val queueTracks = mediaPlayerHandler.queueData.value?.data?.listTracks.orEmpty()
+                    val token =
+                        queueTracks
+                            .firstOrNull { it.videoId == ev.videoId }
+                            ?.feedbackTokens
+                            ?.notInterested
+                            ?: queueTracks
+                                .firstOrNull { it.videoId == songUIState.videoId }
+                                ?.feedbackTokens
+                                ?.notInterested
+                    if (token.isNullOrBlank()) {
+                        makeToast("Couldn't send feedback — no YouTube token for this track")
+                    } else {
+                        when (val res = songRepository.sendFeedback(listOf(token)).singleOrNull()) {
+                            is Resource.Success -> makeToast("Feedback submitted: Not interested")
+                            is Resource.Error -> makeToast(res.message ?: getString(Res.string.error))
+                            null -> makeToast(getString(Res.string.error))
+                        }
+                    }
+                    val currentIdx = mediaPlayerHandler.currentSongIndex.value
+                    for (i in queueTracks.indices.reversed()) {
+                        if (i != currentIdx && queueTracks[i].videoId == ev.videoId) {
+                            runCatching { mediaPlayerHandler.removeMediaItem(i) }
+                        }
+                    }
+                    if (mediaPlayerHandler.nowPlayingState.value.songEntity?.videoId == ev.videoId) {
+                        runCatching { mediaPlayerHandler.onPlayerEvent(PlayerEvent.Next) }
+                    }
+                }
+
+                is NowPlayingBottomSheetUIEvent.DontRecommendArtist -> {
+                    val queueTracks = mediaPlayerHandler.queueData.value?.data?.listTracks.orEmpty()
+                    val token =
+                        queueTracks
+                            .firstOrNull { it.videoId == songUIState.videoId }
+                            ?.feedbackTokens
+                            ?.dontRecommend
+                    if (token.isNullOrBlank()) {
+                        makeToast("Couldn't send feedback — no YouTube token for this artist")
+                    } else {
+                        when (val res = songRepository.sendFeedback(listOf(token)).singleOrNull()) {
+                            is Resource.Success -> makeToast("Feedback submitted: Don't recommend ${ev.artistName}")
+                            is Resource.Error -> makeToast(res.message ?: getString(Res.string.error))
+                            null -> makeToast(getString(Res.string.error))
+                        }
+                    }
+                    val blockedNameLower = ev.artistName.trim().lowercase()
+                    val blockedIdLower = ev.artistId?.trim()?.lowercase().orEmpty()
+                    val currentIdx = mediaPlayerHandler.currentSongIndex.value
+                    for (i in queueTracks.indices.reversed()) {
+                        if (i != currentIdx) {
+                            val matchesArtist =
+                                queueTracks[i].artists?.any { a ->
+                                    (blockedNameLower.isNotEmpty() && a.name.trim().lowercase() == blockedNameLower) ||
+                                        (blockedIdLower.isNotEmpty() && a.id?.trim()?.lowercase() == blockedIdLower)
+                                } == true
+                            if (matchesArtist) {
+                                runCatching { mediaPlayerHandler.removeMediaItem(i) }
+                            }
+                        }
+                    }
+                    val nowPlayingSong = mediaPlayerHandler.nowPlayingState.value.songEntity
+                    val nowPlayingMatchesArtist =
+                        nowPlayingSong?.videoId == songUIState.videoId ||
+                            nowPlayingSong?.artistName?.any { it.trim().lowercase() == blockedNameLower } == true ||
+                            (blockedIdLower.isNotEmpty() && nowPlayingSong?.artistId?.any { it.trim().lowercase() == blockedIdLower } == true)
+                    if (nowPlayingMatchesArtist) {
+                        runCatching { mediaPlayerHandler.onPlayerEvent(PlayerEvent.Next) }
+                    }
+                }
             }
         }
     }
@@ -441,6 +543,10 @@ sealed class NowPlayingBottomSheetUIEvent {
         val browseId: String,
     ) : NowPlayingBottomSheetUIEvent()
 
+    data class CreateNewYouTubePlaylist(
+        val title: String,
+    ) : NowPlayingBottomSheetUIEvent()
+
     data object PlayNext : NowPlayingBottomSheetUIEvent()
 
     data object AddToQueue : NowPlayingBottomSheetUIEvent()
@@ -465,4 +571,13 @@ sealed class NowPlayingBottomSheetUIEvent {
     ) : NowPlayingBottomSheetUIEvent()
 
     data object Share : NowPlayingBottomSheetUIEvent()
+
+    data class NotInterested(
+        val videoId: String,
+    ) : NowPlayingBottomSheetUIEvent()
+
+    data class DontRecommendArtist(
+        val artistName: String,
+        val artistId: String? = null,
+    ) : NowPlayingBottomSheetUIEvent()
 }

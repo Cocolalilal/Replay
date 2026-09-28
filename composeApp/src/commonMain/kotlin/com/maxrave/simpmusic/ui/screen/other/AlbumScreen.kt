@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -106,8 +108,11 @@ import com.maxrave.simpmusic.ui.icon.PlayArrow
 import com.maxrave.simpmusic.ui.icon.PlayCircle
 import com.maxrave.simpmusic.ui.icon.Shuffle
 import com.maxrave.simpmusic.ui.icon.SimpIcons
+import com.maxrave.simpmusic.extension.getStringBlocking
+import com.maxrave.simpmusic.ui.icon.MoreVert
 import com.maxrave.simpmusic.ui.navigation.destination.list.AlbumDestination
 import com.maxrave.simpmusic.ui.navigation.destination.list.ArtistDestination
+import com.maxrave.simpmusic.ui.theme.sectionTitleFontFamily
 import com.maxrave.simpmusic.ui.theme.seed
 import com.maxrave.simpmusic.ui.theme.typo
 import com.maxrave.simpmusic.viewModel.AlbumViewModel
@@ -147,10 +152,12 @@ fun AlbumScreen(
     navController: NavController,
     viewModel: AlbumViewModel = koinViewModel(),
     sharedViewModel: SharedViewModel = koinInject(),
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val uriHandler = LocalUriHandler.current
 
     val playingVideoId by viewModel.nowPlayingVideoId.collectAsStateWithLifecycle()
+    val controllerState by sharedViewModel.controllerState.collectAsStateWithLifecycle()
 
     val queueData by sharedViewModel.getQueueDataState().collectAsStateWithLifecycle()
     val playingPlaylistId by remember {
@@ -176,6 +183,7 @@ fun AlbumScreen(
     }
 
     val lazyState = rememberLazyListState()
+    lazyState.TrackScrolling(onScrolling = onScrolling)
     val firstItemVisible by remember {
         derivedStateOf {
             lazyState.firstVisibleItemIndex == 0
@@ -515,7 +523,8 @@ fun AlbumScreen(
                                                 // Apple Music-style action row:
                                                 // [Shuffle][Play pill][Download] (cluster centered, all 48dp matching size)
                                                 val isThisPlaying =
-                                                    playingVideoId.isNotEmpty() &&
+                                                    controllerState.isPlaying &&
+                                                        playingVideoId.isNotEmpty() &&
                                                         playingPlaylistId == browseId.replaceFirst("VL", "")
                                                 Row(
                                                     modifier =
@@ -661,7 +670,8 @@ fun AlbumScreen(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                 ) {
                                                     Crossfade(
-                                                        playingVideoId.isNotEmpty() &&
+                                                        controllerState.isPlaying &&
+                                                            playingVideoId.isNotEmpty() &&
                                                             playingPlaylistId == browseId.replaceFirst("VL", ""),
                                                     ) { isThisPlaying ->
                                                         if (isThisPlaying) {
@@ -696,9 +706,7 @@ fun AlbumScreen(
                                                                                 CircleShape,
                                                                             ).clickable {
                                                                                 viewModel.makeToast(
-                                                                                    runBlocking {
-                                                                                        getString(Res.string.downloaded)
-                                                                                    },
+                                                                                    getStringBlocking(Res.string.downloaded)
                                                                                 )
                                                                             },
                                                                 ) {
@@ -723,9 +731,7 @@ fun AlbumScreen(
                                                                                 CircleShape,
                                                                             ).clickable {
                                                                                 viewModel.makeToast(
-                                                                                    runBlocking {
-                                                                                        getString(Res.string.downloading)
-                                                                                    },
+                                                                                    getStringBlocking(Res.string.downloading)
                                                                                 )
                                                                             },
                                                                 ) {
@@ -769,6 +775,15 @@ fun AlbumScreen(
                                                         fillMaxSize = true,
                                                     ) {
                                                         viewModel.shuffle()
+                                                    }
+                                                    Spacer(Modifier.size(5.dp))
+                                                    RippleIconButton(
+                                                        modifier =
+                                                            Modifier.size(36.dp),
+                                                        imageVector = SimpIcons.MoreVert,
+                                                        fillMaxSize = true,
+                                                    ) {
+                                                        albumBottomSheetShow = true
                                                     }
                                                 }
                                             }
@@ -846,7 +861,8 @@ fun AlbumScreen(
                                 Spacer(Modifier.height(10.dp))
                                 Text(
                                     text = stringResource(Res.string.other_version),
-                                    style = typo().labelMedium,
+                                    style = typo().titleLarge.copy(fontFamily = sectionTitleFontFamily()),
+                                    color = Color.White,
                                     modifier =
                                         Modifier.padding(
                                             horizontal = 24.dp,

@@ -160,12 +160,14 @@ class AlbumViewModel(
 
     fun setAlbumLike() {
         viewModelScope.launch {
-            albumRepository.updateAlbumLiked(uiState.value.browseId, if (!uiState.value.liked) 1 else 0)
+            val targetId = uiState.value.otherVersion.firstOrNull()?.browseId ?: uiState.value.browseId
+            val newLiked = !uiState.value.liked
             _uiState.update {
                 it.copy(
-                    liked = !it.liked,
+                    liked = newLiked,
                 )
             }
+            albumRepository.updateAlbumLiked(targetId, if (newLiked) 1 else 0)
         }
     }
 
@@ -213,7 +215,7 @@ class AlbumViewModel(
                 firstPlayedTrack = track,
                 playlistId = uiState.value.browseId.replaceFirst("VL", ""),
                 playlistName = "${getString(Res.string.album)} \"${uiState.value.title}\"",
-                playlistType = PlaylistType.ALBUM,
+                playlistType = PlaylistType.PLAYLIST,
                 continuation = null,
             ),
         )
@@ -234,8 +236,6 @@ class AlbumViewModel(
                 firstPlayedTrack = shuffleList[randomIndex],
                 playlistId = uiState.value.browseId.replaceFirst("VL", ""),
                 playlistName = "${getString(Res.string.album)} \"${uiState.value.title}\"",
-                // Not ALBUM: shuffling has already thrown away the running order, so the reason to
-                // keep transitions gapless is gone. Crossfade behaves as it would for any playlist.
                 playlistType = PlaylistType.PLAYLIST,
                 continuation = null,
             ),

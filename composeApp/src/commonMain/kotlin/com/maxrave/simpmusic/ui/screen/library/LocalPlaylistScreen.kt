@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.defaultMinSize
@@ -45,6 +47,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.maxrave.simpmusic.extension.TrackScrolling
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -63,6 +66,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -126,6 +130,7 @@ import com.maxrave.simpmusic.ui.component.DraggableItem
 import com.maxrave.simpmusic.ui.component.EndOfPage
 import com.maxrave.simpmusic.ui.component.LiquidGlassIconButton
 import com.maxrave.simpmusic.ui.component.LoadingDialog
+import com.maxrave.simpmusic.ui.component.LikedSongsCover
 import com.maxrave.simpmusic.ui.component.LocalPlaylistBottomSheet
 import com.maxrave.simpmusic.ui.component.NowPlayingBottomSheet
 import com.maxrave.simpmusic.ui.component.RippleIconButton
@@ -136,6 +141,11 @@ import com.maxrave.simpmusic.ui.component.liquidGlass
 import com.maxrave.simpmusic.ui.component.painterPlaylistThumbnail
 import com.maxrave.simpmusic.ui.component.playlistTitleGradient
 import com.maxrave.simpmusic.ui.component.rememberDragDropState
+import com.maxrave.domain.manager.DataStoreManager
+import com.maxrave.simpmusic.util.CustomCoverHelper
+import com.maxrave.simpmusic.util.isLikedSongsPlaylist
+import com.maxrave.simpmusic.util.resolvePlaylistCover
+import org.koin.compose.koinInject
 import com.maxrave.simpmusic.ui.icon.ArrowBackIosNew
 import com.maxrave.simpmusic.ui.icon.DownloadForOffline
 import com.maxrave.simpmusic.ui.icon.MoreVert
@@ -212,6 +222,7 @@ fun LocalPlaylistScreen(
     sharedViewModel: SharedViewModel = koinInject(),
     viewModel: LocalPlaylistViewModel = koinViewModel(),
     navController: NavController,
+    onScrolling: (onTop: Boolean, direction: Int) -> Unit = { _, _ -> },
 ) {
     val composition by rememberLottieComposition {
         LottieCompositionSpec.JsonString(
@@ -247,6 +258,7 @@ fun LocalPlaylistScreen(
     )
 
     val lazyState = rememberLazyListState()
+    lazyState.TrackScrolling(onScrolling = onScrolling)
     val firstItemVisible by remember {
         derivedStateOf {
             lazyState.firstVisibleItemIndex == 0
@@ -361,13 +373,32 @@ fun LocalPlaylistScreen(
     var bitmap by remember {
         mutableStateOf<ImageBitmap?>(null)
     }
-    // Track which thumbnail we've already extracted a palette from.
-    // Prevents palette flash when LazyColumn recycles the header item on scroll —
-    // AsyncImage re-mount fires onSuccess again, but we skip the regenerate.
+    val dataStoreManager: DataStoreManager = koinInject()
+    val customCoversRaw by dataStoreManager.customPlaylistCovers.collectAsStateWithLifecycle(null)
+    val customCoversMap = remember(customCoversRaw) {
+        val raw = customCoversRaw
+        try {
+            if (!raw.isNullOrEmpty()) {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(raw)
+            } else emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+    val currentThumbnail = remember(uiState.thumbnail, uiState.id, customCoversMap) {
+        resolvePlaylistCover("local_${uiState.id}", uiState.thumbnail, customCoversMap)
+            ?: resolvePlaylistCover(uiState.id.toString(), uiState.thumbnail, customCoversMap)
+            ?: uiState.thumbnail
+    }
+    val hasCustomCover = remember(currentThumbnail, uiState.thumbnail, customCoversMap, uiState.id) {
+        CustomCoverHelper.hasCustomCover("local_${uiState.id}", customCoversMap)
+            || CustomCoverHelper.hasCustomCover(uiState.id.toString(), customCoversMap)
+            || !uiState.thumbnail.isNullOrBlank()
+    }
+
     var paletteGeneratedFor by remember {
         mutableStateOf<String?>(null)
     }
-    val currentThumbnail = uiState.thumbnail
 
     LaunchedEffect(bitmap) {
         val bm = bitmap
@@ -562,27 +593,35 @@ fun LocalPlaylistScreen(
                             ) {
                                 // Inner Box — backdrop SOURCE (artwork + overlays only, NO glass)
                                 Box(modifier = Modifier.fillMaxSize().layerBackdrop(artworkBackdrop)) {
-                                    AsyncImage(
-                                        model =
-                                            ImageRequest
-                                                .Builder(LocalPlatformContext.current)
-                                                .data(uiState.thumbnail)
-                                                .diskCachePolicy(CachePolicy.ENABLED)
-                                                .memoryCachePolicy(CachePolicy.ENABLED)
-                                                .diskCacheKey(uiState.thumbnail)
-                                                .memoryCacheKey(uiState.thumbnail)
-                                                .crossfade(false)
-                                                .build(),
-                                        placeholder = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
-                                        error = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
-                                        fallback = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        onSuccess = {
-                                            bitmap = it.result.image.toImageBitmap()
-                                        },
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
+                                    val isLikedSongs = isLikedSongsPlaylist(uiState.ytPlaylistId ?: uiState.id.toString(), uiState.title)
+                                    if (isLikedSongs) {
+                                        LikedSongsCover(
+                                            modifier = Modifier.fillMaxSize(),
+                                            iconSize = 96.dp,
+                                        )
+                                    } else {
+                                        AsyncImage(
+                                            model =
+                                                ImageRequest
+                                                    .Builder(LocalPlatformContext.current)
+                                                    .data(currentThumbnail)
+                                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                                    .memoryCachePolicy(CachePolicy.ENABLED)
+                                                    .diskCacheKey(currentThumbnail)
+                                                    .memoryCacheKey(currentThumbnail)
+                                                    .crossfade(false)
+                                                    .build(),
+                                            placeholder = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
+                                            error = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
+                                            fallback = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            onSuccess = {
+                                                bitmap = it.result.image.toImageBitmap()
+                                            },
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    }
                                     // Scrim spans 70% of the artwork (not a fixed 200dp): the shorter the
                                     // ramp, the steeper the alpha, and a steep ramp is what makes the fade
                                     // read as an edge. See artworkScrimBrush for the curve itself.
@@ -726,32 +765,46 @@ fun LocalPlaylistScreen(
                                 }
                             }
                         } else {
-                            AsyncImage(
-                                model =
-                                    ImageRequest
-                                        .Builder(LocalPlatformContext.current)
-                                        .data(uiState.thumbnail)
-                                        .diskCachePolicy(CachePolicy.ENABLED)
-                                        .diskCacheKey(uiState.thumbnail)
-                                        .crossfade(550)
-                                        .build(),
-                                placeholder = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
-                                error = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
-                                fallback = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
-                                contentDescription = null,
-                                contentScale = ContentScale.FillHeight,
-                                onSuccess = {
-                                    bitmap = it.result.image.toImageBitmap()
-                                },
-                                modifier =
-                                    Modifier
-                                        .height(250.dp)
-                                        .wrapContentWidth()
-                                        .align(Alignment.CenterHorizontally)
-                                        .clip(
-                                            RoundedCornerShape(8.dp),
-                                        ),
-                            )
+                            val isLikedSongs = isLikedSongsPlaylist(uiState.ytPlaylistId ?: uiState.id.toString(), uiState.title)
+                            if (isLikedSongs) {
+                                LikedSongsCover(
+                                    modifier =
+                                        Modifier
+                                            .size(250.dp)
+                                            .align(Alignment.CenterHorizontally)
+                                            .clip(
+                                                RoundedCornerShape(8.dp),
+                                            ),
+                                    iconSize = 72.dp,
+                                )
+                            } else {
+                                AsyncImage(
+                                    model =
+                                        ImageRequest
+                                            .Builder(LocalPlatformContext.current)
+                                            .data(currentThumbnail)
+                                            .diskCachePolicy(CachePolicy.ENABLED)
+                                            .diskCacheKey(currentThumbnail)
+                                            .crossfade(550)
+                                            .build(),
+                                    placeholder = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
+                                    error = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
+                                    fallback = painterPlaylistThumbnail(uiState.title, style = typo().labelMedium, 250.dp to 250.dp),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.FillHeight,
+                                    onSuccess = {
+                                        bitmap = it.result.image.toImageBitmap()
+                                    },
+                                    modifier =
+                                        Modifier
+                                            .height(250.dp)
+                                            .wrapContentWidth()
+                                            .align(Alignment.CenterHorizontally)
+                                            .clip(
+                                                RoundedCornerShape(8.dp),
+                                            ),
+                                )
+                            }
                         }
                         Box(
                             modifier =
@@ -1386,13 +1439,18 @@ fun LocalPlaylistScreen(
             onDismiss = { playlistBottomSheetShow = false },
             title = uiState.title,
             ytPlaylistId = uiState.ytPlaylistId,
+            hasCustomCover = hasCustomCover,
             onEditTitle =
                 { newTitle ->
                     viewModel.updatePlaylistTitle(newTitle, uiState.id)
                 },
             onEditThumbnail =
-                { thumbUri ->
-                    viewModel.updatePlaylistThumbnail(thumbUri, uiState.id)
+                { imageBytes ->
+                    viewModel.updatePlaylistThumbnail(imageBytes, uiState.id)
+                },
+            onRemoveThumbnail =
+                {
+                    viewModel.updatePlaylistThumbnail(null as ByteArray?, uiState.id)
                 },
             onAddToQueue = {
                 viewModel.addAllToQueue()

@@ -11,4 +11,5 @@
    <exclude domain="sharedpref" path="device.xml"/>
 -->
     <include domain="file" path="datastore/."/>
+    <include domain="file" path="custom_covers/."/>
 </full-backup-content>

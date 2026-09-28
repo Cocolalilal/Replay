@@ -26,6 +26,8 @@ expect fun LiquidGlassAppBottomNavigationBar(
     backdrop: PlatformBackdrop,
     viewModel: SharedViewModel,
     isScrolledToTop: Boolean = false,
+    scrollDirection: Int = 0,
+    scrollEpoch: Int = 0,
     onOpenNowPlaying: () -> Unit = {},
     reloadDestinationIfNeeded: (KClass<*>) -> Unit = { _ -> },
 )

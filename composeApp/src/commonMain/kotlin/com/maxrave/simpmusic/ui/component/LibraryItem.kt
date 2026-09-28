@@ -90,7 +90,7 @@ fun LibraryItem(
     val title =
         when (state.type) {
             is LibraryItemType.RecentlyAdded -> stringResource(Res.string.recently_added)
-            is LibraryItemType.CanvasSong -> stringResource(Res.string.most_played)
+            is LibraryItemType.AnimatedArtworkSong -> stringResource(Res.string.most_played)
             else -> return
         }
     val noPlaylistTitle =
@@ -98,7 +98,7 @@ fun LibraryItem(
             LibraryItemType.DownloadedPlaylist -> stringResource(Res.string.no_playlists_downloaded)
             LibraryItemType.FavoritePlaylist -> stringResource(Res.string.no_favorite_playlists)
             is LibraryItemType.RecentlyAdded -> stringResource(Res.string.recently_added)
-            is LibraryItemType.CanvasSong -> stringResource(Res.string.most_played)
+            is LibraryItemType.AnimatedArtworkSong -> stringResource(Res.string.most_played)
             else -> return
         }
     Box {
@@ -227,7 +227,7 @@ fun LibraryItem(
                                 }
                             }
                         }
-                    } else if (state.type is LibraryItemType.CanvasSong) {
+                    } else if (state.type is LibraryItemType.AnimatedArtworkSong) {
                         LazyRow(
                             Modifier.padding(
                                 top = 10.dp,
@@ -262,9 +262,9 @@ fun LibraryItem(
                                         model =
                                             ImageRequest
                                                 .Builder(LocalPlatformContext.current)
-                                                .data(item.canvasThumbUrl)
+                                                .data(item.animatedArtworkThumbUrl)
                                                 .diskCachePolicy(CachePolicy.ENABLED)
-                                                .diskCacheKey(item.canvasThumbUrl)
+                                                .diskCacheKey(item.animatedArtworkThumbUrl)
                                                 .crossfade(true)
                                                 .build(),
                                         placeholder = rememberHolderPainter(),
@@ -414,7 +414,7 @@ fun LibraryItem(
 }
 
 sealed class LibraryItemType {
-    data object CanvasSong : LibraryItemType()
+    data object AnimatedArtworkSong : LibraryItemType()
 
     data class YouTubePlaylist(
         val isLoggedIn: Boolean,

@@ -6,6 +6,7 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.maxrave.common.CUSTOM_COVERS_FOLDER
 import com.maxrave.common.DB_NAME
 import com.maxrave.common.DOWNLOAD_EXOPLAYER_FOLDER
 import com.maxrave.common.EXOPLAYER_DB_NAME
@@ -102,6 +103,12 @@ class AutoBackupWorker(
                     zipOutputStream.putNextEntry(ZipEntry(DB_NAME))
                     inputStream.copyTo(zipOutputStream)
                     zipOutputStream.closeEntry()
+                }
+
+                // Backup custom covers folder
+                val customCoversFolder = File(context.filesDir, CUSTOM_COVERS_FOLDER)
+                if (customCoversFolder.exists() && customCoversFolder.isDirectory) {
+                    backupFolder(customCoversFolder, CUSTOM_COVERS_FOLDER, zipOutputStream)
                 }
 
                 // Backup downloaded data if enabled
