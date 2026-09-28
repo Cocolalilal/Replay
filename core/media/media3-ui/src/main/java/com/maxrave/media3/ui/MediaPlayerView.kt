@@ -244,10 +244,11 @@ fun MediaPlayerViewWithSubtitle(
         mutableFloatStateOf(16f / 9)
     }
 
-    // Last ratio forwarded outward — listener-side guard so aspect reports
-    // don't recompose on every duplicate callback.
+    // Last ratio forwarded outward — start at 0 so the first real video size
+    // always reports (covers the case where NP seeded 1:1 from square cover art
+    // while this defaulted to 16:9 and skipped an identical callback).
     var lastReportedRatio by remember {
-        mutableFloatStateOf(16f / 9)
+        mutableFloatStateOf(0f)
     }
 
     var showArtwork by rememberSaveable {
@@ -397,9 +398,20 @@ fun MediaPlayerViewWithSubtitle(
     }
     LaunchedEffect(player) {
         player.addListener(playerListener)
-        // Fill the NP stage which already morphs to the true video AR — no letterbox
-        // / pillarbox black bars (Julian Dynamic Video Aspect Ratios + YT morph asks).
-        (player as? ExoPlayer)?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+        // Report immediately if size is already known (listener may attach after
+        // onVideoSizeChanged already fired for the current item).
+        val vs = player.videoSize
+        if (vs.width > 0 && vs.height > 0) {
+            val ratio = vs.width.toFloat() / vs.height.toFloat()
+            if (ratio.isFinite() && kotlin.math.abs(ratio - lastReportedRatio) > 0.01f) {
+                lastReportedRatio = ratio
+                videoRatio = ratio
+                onVideoAspectRatioChanged?.invoke(ratio)
+            }
+        }
+        // Compose Crop sizes the surface; Fit-with-cropping is a safe Exo fallback.
+        (player as? ExoPlayer)?.videoScalingMode =
+            C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
     }
 
     val presentationState = rememberPresentationState(player)
@@ -468,22 +480,33 @@ fun MediaPlayerViewWithSubtitle(
                             .align(Alignment.Center),
                 )
             } else {
-                // Parent (NP stage) already morphs to the reported true AR — fill it.
-                // Avoid wrapContent+aspectRatio letterboxing inside an already-correct frame
-                // (Julian: square stays square like cover art; no stretch / black bars).
-                PlayerSurface(
-                    player = player,
-                    surfaceType = SURFACE_TYPE_SURFACE_VIEW,
+                // Crop into the NP stage: preserves true video AR (no stretch). When the
+                // stage already matches the reported AR within epsilon this fills exactly
+                // (no letterbox bars); otherwise it center-crops overflow.
+                Box(
                     modifier =
                         Modifier
                             .fillMaxSize()
-                            .align(Alignment.Center),
-                )
+                            .align(Alignment.Center)
+                            .graphicsLayer { clip = true },
+                ) {
+                    PlayerSurface(
+                        player = player,
+                        surfaceType = SURFACE_TYPE_SURFACE_VIEW,
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .resizeWithContentScale(
+                                    contentScale = ContentScale.Crop,
+                                    sourceSizeDp = presentationState.videoSizeDp,
+                                ),
+                    )
 
-                if (presentationState.coverSurface) {
-                    // Preparing shutter — transparent so we never flash black bars;
-                    // atmosphere/art underneath already covers the stage.
-                    Box(Modifier.fillMaxSize().background(Color.Transparent))
+                    if (presentationState.coverSurface) {
+                        // Preparing shutter — transparent so we never flash black bars;
+                        // atmosphere/art underneath already covers the stage.
+                        Box(Modifier.fillMaxSize().background(Color.Transparent))
+                    }
                 }
             }
         }

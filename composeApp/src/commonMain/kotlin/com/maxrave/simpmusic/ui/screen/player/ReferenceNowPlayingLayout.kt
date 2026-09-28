@@ -277,12 +277,15 @@ fun ReferenceNowPlayingLayout(
     // videos dynamically adapt their frame size and match the cover-art silhouette when square.
     var videoAspectRatio by rememberSaveable(currentVideoId) { mutableFloatStateOf(16f / 9f) }
     var hasReportedVideoAspectRatio by rememberSaveable(currentVideoId) { mutableStateOf(false) }
+    // Only seed from non-square bitmaps. Album covers are almost always 1:1 and would
+    // poison the stage into a square before the real video AR arrives — then if the
+    // player also reports 16:9 matching its internal default, the update is skipped.
     LaunchedEffect(currentVideoId, screenDataState.bitmap) {
         if (!hasReportedVideoAspectRatio) {
             val bmp = screenDataState.bitmap
             if (bmp != null && bmp.width > 0 && bmp.height > 0) {
                 val bmpRatio = bmp.width.toFloat() / bmp.height.toFloat()
-                if (bmpRatio.isFinite() && bmpRatio > 0f) {
+                if (bmpRatio.isFinite() && bmpRatio > 0f && kotlin.math.abs(bmpRatio - 1f) > 0.08f) {
                     videoAspectRatio = bmpRatio.coerceIn(0.35f, 3.0f)
                 }
             }
@@ -1172,10 +1175,8 @@ private fun ReferencePlayerPage(
                         }
 
                         key.startsWith("video:") -> {
-                            // The video track dynamically adapts to the actual playing video's aspect ratio
-                            // within the same square footprint the cover art would occupy, centred both
-                            // ways — so a square (1:1) video looks like the cover art playing video, and
-                            // landscape/portrait videos fit without stretching.
+                            // Adaptive AR stage: frame follows the real video aspect (16:9, 4:3,
+                            // square, vertical). Content fills without stretch or letterboxing.
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center,
@@ -1264,8 +1265,8 @@ private fun ReferenceInlineVideo(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "videoPauseScale",
     )
-    // True-AR inside the caller's FIXED square stage budget (fill width for
-    // landscape, height for portrait) — do not resize the outer NP column.
+    // True-AR inside the caller's adaptive stage (fill width for landscape,
+    // height for portrait). Outer NP column / toggle / chrome stay stable.
     val animatedAspectRatio by animateFloatAsState(
         targetValue = videoAspectRatio.coerceIn(0.35f, 3.0f),
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
