@@ -27,14 +27,52 @@ data class MusicResponsiveListItemRenderer(
     val navigationEndpoint: NavigationEndpoint?,
 ) {
     val isSong: Boolean
-        get() = navigationEndpoint == null || navigationEndpoint.watchEndpoint != null || navigationEndpoint.watchPlaylistEndpoint != null
-    val isVideo: Boolean
         get() =
-            navigationEndpoint
+            (
+                navigationEndpoint == null ||
+                    navigationEndpoint.watchEndpoint != null ||
+                    navigationEndpoint.watchPlaylistEndpoint != null
+            ) && !isVideo
+
+    /**
+     * YTM's authoritative song/video marker. Prefers overlay play button, then title
+     * flex column, then the row navigationEndpoint — YouTube does not always populate all three.
+     */
+    val musicVideoType: String?
+        get() =
+            overlay
+                ?.musicItemThumbnailOverlayRenderer
+                ?.content
+                ?.musicPlayButtonRenderer
+                ?.playNavigationEndpoint
                 ?.watchEndpoint
                 ?.watchEndpointMusicSupportedConfigs
                 ?.watchEndpointMusicConfig
-                ?.musicVideoType != null
+                ?.musicVideoType
+                ?: flexColumns
+                    .firstOrNull()
+                    ?.musicResponsiveListItemFlexColumnRenderer
+                    ?.text
+                    ?.runs
+                    ?.firstOrNull()
+                    ?.navigationEndpoint
+                    ?.watchEndpoint
+                    ?.watchEndpointMusicSupportedConfigs
+                    ?.watchEndpointMusicConfig
+                    ?.musicVideoType
+                ?: navigationEndpoint
+                    ?.watchEndpoint
+                    ?.watchEndpointMusicSupportedConfigs
+                    ?.watchEndpointMusicConfig
+                    ?.musicVideoType
+
+    /** Official music videos only — ATV (audio) stays a song. */
+    val isVideo: Boolean
+        get() {
+            val type = musicVideoType
+            return type == WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.MUSIC_VIDEO_TYPE_OMV ||
+                type == WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.MUSIC_VIDEO_TYPE_UGC
+        }
     val isPlaylist: Boolean
         get() =
             navigationEndpoint

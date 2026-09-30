@@ -22,4 +22,5 @@ data class Content(
     val durationSeconds: Int? = null,
     val radio: String? = null,
     val feedbackTokens: FeedbackTokens? = null,
+    val videoType: String? = null,
 ) : HomeContentType

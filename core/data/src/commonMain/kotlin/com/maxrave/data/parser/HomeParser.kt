@@ -222,6 +222,12 @@ internal fun parseMixedContent(
                                             durationSeconds = ytItem.duration,
                                             radio = null,
                                             feedbackTokens = ytItem.feedbackTokens?.toDomainFeedbackTokens(),
+                                            videoType =
+                                                ytItem.endpoint
+                                                    ?.watchEndpointMusicSupportedConfigs
+                                                    ?.watchEndpointMusicConfig
+                                                    ?.musicVideoType
+                                                    ?: "MUSIC_VIDEO_TYPE_ATV",
                                         ),
                                     )
                                 }
@@ -278,6 +284,12 @@ internal fun parseMixedContent(
                                             views = ytItem.view,
                                             durationSeconds = ytItem.duration,
                                             radio = null,
+                                            videoType =
+                                                ytItem.endpoint
+                                                    ?.watchEndpointMusicSupportedConfigs
+                                                    ?.watchEndpointMusicConfig
+                                                    ?.musicVideoType
+                                                    ?: "MUSIC_VIDEO_TYPE_OMV",
                                         ),
                                     )
                                 }
@@ -504,6 +516,7 @@ internal fun parseMixedContent(
                                         views = "",
                                         radio = null,
                                         feedbackTokens = ytItem.feedbackTokens?.toDomainFeedbackTokens(),
+                                        videoType = result1.musicResponsiveListItemRenderer!!.musicVideoType,
                                     )
                                 listContent.add(content)
                             }
@@ -604,6 +617,7 @@ internal fun parseSongFlat(
                     ?.watchEndpoint
                     ?.videoId
                     ?: "",
+            videoType = data.musicVideoType,
             // A row shows either an album or a view count, never both — so a row that resolved an
             // album column reports no views, exactly as before. Only the detection changed: the
             // count is now recognised by its shape rather than by "whatever the last run of

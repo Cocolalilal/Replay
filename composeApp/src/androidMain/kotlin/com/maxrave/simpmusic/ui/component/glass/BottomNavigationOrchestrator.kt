@@ -27,7 +27,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +62,7 @@ import com.maxrave.simpmusic.ui.icon.Close
 import com.maxrave.simpmusic.ui.icon.Search
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
+import com.maxrave.simpmusic.ui.theme.LocalGlassBleedColor
 import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
 import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
 import com.maxrave.simpmusic.ui.theme.itemSubtitleFontFamily
@@ -105,10 +109,14 @@ fun BottomNavigationOrchestrator(
     val rawCollapse = if (isSearchActive) 0f else scrollCollapseProgress
     val effectiveCollapse = maxOf(searchProgress, rawCollapse).fastCoerceIn(0f, 1f)
 
+    // Strong nearby colour from now-playing artwork — lightly reflected on glass borders.
+    var glassBleedColor by remember { mutableStateOf<Color?>(null) }
+
     // Height follows the same springs as the collapse/presence animations so the
     // bar transitions smoothly between expanded and collapsed states.
     val orchestratorHeight = 56.dp + 89.dp * miniPlayerPresence * (1f - rawCollapse)
 
+    CompositionLocalProvider(LocalGlassBleedColor provides glassBleedColor) {
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -213,11 +221,13 @@ fun BottomNavigationOrchestrator(
                     onNextTrack = onNextTrack,
                     onExpandFullPlayer = onExpandFullPlayer,
                     onDismiss = onDismissMiniPlayer,
-                    isInline = rawCollapse > 0.4f
+                    isInline = rawCollapse > 0.4f,
+                    onBleedColor = { glassBleedColor = it },
                 )
             }
         }
     }
+    } // CompositionLocalProvider LocalGlassBleedColor
 }
 
 @Composable
@@ -237,7 +247,11 @@ private fun SearchFieldOrCircle(
     val isBlur = isFloatingSurfaceBlurEnabled()
     val containerColor = (if (isDark) Color(0xFF1E1E1E) else Color(0xFFFAFAFA)).copy(alpha = if (isDark) 0.38f else 0.45f)
     val surfaceColor = if (isLastChat) LastChatSurfaceTokens.surfaceColor(colorScheme = MaterialTheme.colorScheme, isDark = isDark, isBlur = isBlur) else containerColor
-    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = MaterialTheme.colorScheme)
+    val glassBleed = LocalGlassBleedColor.current
+    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(
+        colorScheme = MaterialTheme.colorScheme,
+        bleedColor = glassBleed,
+    )
     val textColor = if (isDark) Color.White else Color.Black
     val focusManager = LocalFocusManager.current
 

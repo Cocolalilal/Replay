@@ -2,6 +2,7 @@ package com.maxrave.simpmusic.util
 
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import com.maxrave.domain.extension.isVideoContent
 import kotlin.test.assertTrue
 
 class HomeSectionHelperTest {
@@ -84,3 +85,31 @@ class HomeSectionHelperTest {
         assertFalse(isQuickPicksSection(""))
     }
 }
+
+
+    @Test
+    fun testContentSongVsVideoClassifier() {
+        val songThumb =
+            com.maxrave.domain.data.model.searchResult.songs.Thumbnail(120, "https://lh3.googleusercontent.com/w120-h120", 120)
+        val videoThumb =
+            com.maxrave.domain.data.model.searchResult.songs.Thumbnail(180, "https://i.ytimg.com/vi/x/hq720.jpg", 320)
+        fun content(videoType: String?, thumb: com.maxrave.domain.data.model.searchResult.songs.Thumbnail) =
+            com.maxrave.domain.data.model.home.Content(
+                album = null,
+                artists = null,
+                description = null,
+                isExplicit = null,
+                playlistId = null,
+                browseId = null,
+                thumbnails = listOf(thumb),
+                title = "t",
+                videoId = "id",
+                views = null,
+                videoType = videoType,
+            )
+        assertFalse(content("MUSIC_VIDEO_TYPE_ATV", songThumb).isVideoContent())
+        assertTrue(content("MUSIC_VIDEO_TYPE_OMV", videoThumb).isVideoContent())
+        assertFalse(content(null, songThumb).isVideoContent())
+        assertTrue(content(null, videoThumb).isVideoContent())
+    }
+

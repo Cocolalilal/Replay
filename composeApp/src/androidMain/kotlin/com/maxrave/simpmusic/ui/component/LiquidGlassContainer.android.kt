@@ -44,6 +44,7 @@ import com.kyant.backdrop.effects.vibrancy
 import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.expect.ui.PlatformBackdrop
 import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
+import com.maxrave.simpmusic.ui.theme.LocalGlassBleedColor
 import com.maxrave.simpmusic.ui.theme.LocalIsDarkTheme
 import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
 import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
@@ -62,6 +63,7 @@ actual fun Modifier.liquidGlass(
     val isBlur = isFloatingSurfaceBlurEnabled()
     val layer = rememberGraphicsLayer()
     val interaction = rememberGlassInteraction()
+    val bleedColor = LocalGlassBleedColor.current
     return this.drawInteractiveGlass(
         isDark = isDark,
         colorScheme = MaterialTheme.colorScheme,
@@ -72,6 +74,7 @@ actual fun Modifier.liquidGlass(
         interaction = if (interactive) interaction else null,
         isLastChat = isLastChat,
         isBlur = isBlur,
+        bleedColor = bleedColor,
     )
 }
 
@@ -87,6 +90,7 @@ actual fun Modifier.liquidGlass(
     val isLastChat = isLastChatFloatingStyle()
     val isBlur = isFloatingSurfaceBlurEnabled()
     val interaction = rememberGlassInteraction()
+    val bleedColor = LocalGlassBleedColor.current
     return this.drawInteractiveGlass(
         isDark = isDark,
         colorScheme = MaterialTheme.colorScheme,
@@ -100,6 +104,7 @@ actual fun Modifier.liquidGlass(
         pressedScale = 1.04f,
         isLastChat = isLastChat,
         isBlur = isBlur,
+        bleedColor = bleedColor,
     )
 }
 
@@ -167,10 +172,11 @@ fun Modifier.drawInteractiveGlass(
     pressedScale: Float = 1.12f,
     isLastChat: Boolean = false,
     isBlur: Boolean = true,
+    bleedColor: Color? = null,
 ): Modifier {
     if (isLastChat) {
         val surfaceColor = LastChatSurfaceTokens.surfaceColor(colorScheme = colorScheme, isDark = isDark, isBlur = isBlur)
-        val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = colorScheme)
+        val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = colorScheme, bleedColor = bleedColor)
         val base = if (isBlur) {
             this
                 .drawBackdrop(
@@ -267,6 +273,9 @@ fun Modifier.drawInteractiveGlass(
                 } else {
                     null
                 },
+        ).border(
+            LastChatSurfaceTokens.softEdgeBorder(colorScheme = colorScheme, bleedColor = bleedColor),
+            shape,
         ).then(
             if (interaction != null) {
                 Modifier.pointerInput(interaction) { interaction.detectPress(this) }

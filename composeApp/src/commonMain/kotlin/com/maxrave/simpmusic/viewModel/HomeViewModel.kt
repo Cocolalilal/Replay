@@ -22,6 +22,7 @@ import com.maxrave.domain.utils.toTrack
 import com.maxrave.logger.Logger
 import com.maxrave.simpmusic.util.isListenAgainSection
 import com.maxrave.simpmusic.util.isQuickPicksSection
+import com.maxrave.domain.extension.isVideoContent
 import com.maxrave.simpmusic.viewModel.base.BaseViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -424,7 +425,11 @@ class HomeViewModel(
     }
 
     fun playAllQuickPicks(quickPicks: HomeItem) {
-        val tracks: List<Track> = quickPicks.contents.filterNotNull().filter { !it.videoId.isNullOrEmpty() }.map { it.toTrack() }
+        val tracks: List<Track> =
+            quickPicks.contents
+                .filterNotNull()
+                .filter { !it.videoId.isNullOrEmpty() && !it.isVideoContent() }
+                .map { it.toTrack() }
         if (tracks.isNotEmpty()) {
             val first = tracks.first()
             setQueueData(
@@ -442,7 +447,11 @@ class HomeViewModel(
     }
 
     fun playQuickPickTrack(quickPicks: HomeItem, item: Content) {
-        val tracks: List<Track> = quickPicks.contents.filterNotNull().filter { !it.videoId.isNullOrEmpty() }.map { it.toTrack() }
+        val tracks: List<Track> =
+            quickPicks.contents
+                .filterNotNull()
+                .filter { !it.videoId.isNullOrEmpty() && !it.isVideoContent() }
+                .map { it.toTrack() }
         val track = item.toTrack()
         val index = tracks.indexOfFirst { it.videoId == track.videoId }.takeIf { it >= 0 } ?: 0
         val vid = track.videoId

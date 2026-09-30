@@ -69,6 +69,7 @@ import com.maxrave.simpmusic.ui.icon.Home
 import com.maxrave.simpmusic.ui.icon.LibraryMusic
 import com.maxrave.simpmusic.ui.icon.SimpIcons
 import com.maxrave.simpmusic.ui.theme.LastChatSurfaceTokens
+import com.maxrave.simpmusic.ui.theme.LocalGlassBleedColor
 import com.maxrave.simpmusic.ui.theme.isFloatingSurfaceBlurEnabled
 import com.maxrave.simpmusic.ui.theme.isLastChatFloatingStyle
 import com.maxrave.simpmusic.ui.theme.itemTitleFontFamily
@@ -119,7 +120,10 @@ private fun LiquidBottomTabs(
     val isBlur = isFloatingSurfaceBlurEnabled()
     val containerColor = Color(if (isDark) 0xFF1E1E1E else 0xFFFAFAFA).copy(alpha = if (isDark) 0.38f else 0.45f)
     val surfaceColor = if (isLastChat) LastChatSurfaceTokens.surfaceColor(colorScheme = MaterialTheme.colorScheme, isDark = isDark, isBlur = isBlur) else containerColor
-    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = MaterialTheme.colorScheme)
+    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(
+        colorScheme = MaterialTheme.colorScheme,
+        bleedColor = LocalGlassBleedColor.current,
+    )
     val activeColor = Color(0xFF82BEFF)
     val inactiveColor = if (isDark) Color.White.copy(alpha = 0.84f) else Color.Black.copy(alpha = 0.75f)
 

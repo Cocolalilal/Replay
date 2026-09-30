@@ -100,6 +100,7 @@ import com.maxrave.domain.utils.toSongEntity
 import com.maxrave.domain.utils.toTrack
 import com.maxrave.simpmusic.util.isListenAgainSection
 import com.maxrave.simpmusic.util.isQuickPicksSection
+import com.maxrave.domain.extension.isVideoContent
 import com.maxrave.simpmusic.util.resolvePlaylistCover
 import com.maxrave.simpmusic.ui.component.EndOfPage
 import com.maxrave.simpmusic.ui.component.HomeShimmer
@@ -186,25 +187,49 @@ fun HomeScreen(
         homeData.firstOrNull { isListenAgainSection(it.title, listenAgainTitle) }
     }
 
-    // Quick Picks Section identification (matches Quick Picks title or track-based section)
+    // Quick Picks Section identification (matches Quick Picks title or track-based section).
+    // Contents are song-only: official music videos (OMV/UGC / wide stills) are excluded.
     val quickPicksData = remember(homeData, quickPicksTitle, listenAgainData) {
-        homeData.firstOrNull { isQuickPicksSection(it.title, quickPicksTitle) }
-            ?: homeData.firstOrNull { section ->
-                section != listenAgainData &&
-                    !isListenAgainSection(section.title) &&
-                    section.contents.filterNotNull().isNotEmpty() &&
-                    section.contents.filterNotNull().all { it.videoId?.isNotEmpty() == true }
-            }
-            ?: homeData.firstOrNull { section ->
-                section != listenAgainData &&
-                    !isListenAgainSection(section.title) &&
-                    section.contents.filterNotNull().count { it.videoId?.isNotEmpty() == true } >= 3
-            }
-            ?: homeData.firstOrNull { section ->
-                section != listenAgainData &&
-                    !isListenAgainSection(section.title) &&
-                    section.contents.filterNotNull().any { it.videoId?.isNotEmpty() == true }
-            }
+        fun HomeItem.songsOnly(): HomeItem? {
+            val songs =
+                contents.filterNotNull().filter {
+                    !it.videoId.isNullOrEmpty() && !it.isVideoContent()
+                }
+            return if (songs.isEmpty()) null else copy(contents = songs)
+        }
+
+        fun isTrackShelf(section: HomeItem): Boolean {
+            val tracks = section.contents.filterNotNull().filter { it.videoId?.isNotEmpty() == true }
+            return tracks.isNotEmpty()
+        }
+
+        fun songMajority(section: HomeItem): Boolean {
+            val tracks = section.contents.filterNotNull().filter { it.videoId?.isNotEmpty() == true }
+            if (tracks.isEmpty()) return false
+            val songs = tracks.count { !it.isVideoContent() }
+            return songs >= (tracks.size + 1) / 2
+        }
+
+        (
+            homeData.firstOrNull { isQuickPicksSection(it.title, quickPicksTitle) }
+                ?: homeData.firstOrNull { section ->
+                    section != listenAgainData &&
+                        !isListenAgainSection(section.title) &&
+                        isTrackShelf(section) &&
+                        section.contents.filterNotNull().all { it.videoId?.isNotEmpty() == true } &&
+                        songMajority(section)
+                }
+                ?: homeData.firstOrNull { section ->
+                    section != listenAgainData &&
+                        !isListenAgainSection(section.title) &&
+                        section.contents.filterNotNull().count { it.videoId?.isNotEmpty() == true && !it.isVideoContent() } >= 3
+                }
+                ?: homeData.firstOrNull { section ->
+                    section != listenAgainData &&
+                        !isListenAgainSection(section.title) &&
+                        section.contents.filterNotNull().any { it.videoId?.isNotEmpty() == true && !it.isVideoContent() }
+                }
+        )?.songsOnly()
     }
 
     // Hero carousel items: Listen Again section contents (with fallback to featuredCarouselItems)
@@ -1134,8 +1159,13 @@ fun QuickPicksSection(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Grouped 4-item columns in horizontal snapping row
-            val nonNullItems = homeItem.contents.filterNotNull()
+            // Grouped 4-item columns in horizontal snapping row (songs only — no music videos)
+            val nonNullItems =
+                remember(homeItem.contents) {
+                    homeItem.contents.filterNotNull().filter {
+                        !it.videoId.isNullOrEmpty() && !it.isVideoContent()
+                    }
+                }
             val columns = remember(nonNullItems) { nonNullItems.chunked(4) }
 
             LazyRow(

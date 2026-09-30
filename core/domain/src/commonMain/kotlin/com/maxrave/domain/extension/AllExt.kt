@@ -19,6 +19,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
+import com.maxrave.domain.data.model.home.Content
 
 @OptIn(ExperimentalTime::class)
 fun now(): LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
@@ -220,6 +221,27 @@ fun Track.isVideoContent(): Boolean {
     if (category == "Song" || category == "Songs" || resultType == "Song" || resultType == "Songs") return false
     thumbnails?.lastOrNull()?.let { thumb ->
         // Video stills keep their YouTube URLs even at square crops.
+        val url = thumb.url
+        if (url.contains("hq720") || url.contains("maxresdefault")) return true
+        if (thumb.height > 0 && thumb.width > 0) {
+            return kotlin.math.abs(thumb.width.toFloat() / thumb.height.toFloat() - 1f) > 0.06f
+        }
+    }
+    return false
+}
+
+
+/**
+ * Home-shelf counterpart of [Track.isVideoContent]. Uses the YTM marker when the
+ * parser propagated [Content.videoType], otherwise artwork shape / still URLs.
+ * Unknown stays a song so Quick Picks never empties incorrectly.
+ */
+fun Content.isVideoContent(): Boolean {
+    when (videoType) {
+        "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC", "Video", "Videos" -> return true
+        "MUSIC_VIDEO_TYPE_ATV", "Song", "Songs" -> return false
+    }
+    thumbnails.lastOrNull()?.let { thumb ->
         val url = thumb.url
         if (url.contains("hq720") || url.contains("maxresdefault")) return true
         if (thumb.height > 0 && thumb.width > 0) {

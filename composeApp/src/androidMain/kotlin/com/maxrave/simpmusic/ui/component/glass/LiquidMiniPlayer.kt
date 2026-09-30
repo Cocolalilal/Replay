@@ -87,6 +87,7 @@ fun LiquidMiniPlayer(
     onDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
     isInline: Boolean = false,
+    onBleedColor: (Color?) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val isDark = isSystemInDarkTheme()
@@ -99,8 +100,13 @@ fun LiquidMiniPlayer(
 
     val paletteState = rememberPaletteState()
     val dominantColor = remember(paletteState.palette) {
-        paletteState.palette?.dominantSwatch?.rgb?.let { Color(it) }
-            ?: paletteState.palette?.getDominantColor(0)?.takeIf { it != 0 }?.let { Color(it) }
+        val p = paletteState.palette
+        p?.getVibrantColor(0)?.takeIf { it != 0 }?.let { Color(it) }
+            ?: p?.dominantSwatch?.rgb?.let { Color(it) }
+            ?: p?.getDominantColor(0)?.takeIf { it != 0 }?.let { Color(it) }
+    }
+    androidx.compose.runtime.LaunchedEffect(dominantColor) {
+        onBleedColor(dominantColor)
     }
 
     val baseSurfaceColor = if (isLastChat) {
@@ -122,7 +128,10 @@ fun LiquidMiniPlayer(
         label = "miniPlayerContainerColor"
     )
 
-    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = MaterialTheme.colorScheme)
+    val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(
+        colorScheme = MaterialTheme.colorScheme,
+        bleedColor = dominantColor,
+    )
 
     var isPressed by remember { mutableStateOf(false) }
     val pressScale by animateFloatAsState(
@@ -185,19 +194,21 @@ fun LiquidMiniPlayer(
             }
             .then(
                 if (!isLastChat) {
-                    Modifier.drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { Capsule() },
-                        effects = {
-                            vibrancy()
-                            blur(7.dp.toPx())
-                            lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
-                        },
-                        highlight = { Highlight.Default.copy(alpha = 0.80f) },
-                        shadow = { Shadow(alpha = 0.35f) },
-                        innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
-                        onDrawSurface = { drawRect(containerColor) }
-                    )
+                    Modifier
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                vibrancy()
+                                blur(7.dp.toPx())
+                                lens(18.dp.toPx(), 22.dp.toPx(), chromaticAberration = true)
+                            },
+                            highlight = { Highlight.Default.copy(alpha = 0.80f) },
+                            shadow = { Shadow(alpha = 0.35f) },
+                            innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.25f) },
+                            onDrawSurface = { drawRect(containerColor) }
+                        )
+                        .border(outlineBorder, Capsule())
                 } else if (isBlur) {
                     Modifier
                         .drawBackdrop(
