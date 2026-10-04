@@ -1002,14 +1002,48 @@ class SharedViewModel(
         index: Int? = null,
     ) {
         quality = runBlocking { dataStoreManager.quality.first() }
-        // Explicit selection anywhere in the app defines the sticky content mode.
-        setContentModeFromTrack(track)
         viewModelScope.launch {
+            var playTrack = track
+            var playType = type
+            // YouTube Better First: prefer the official YTM song (ATV) over a music
+            // video when the user didn't explicitly pick Videos. VIDEO_CLICK and
+            // queue recovery keep the requested video as-is.
+            if (type != VIDEO_CLICK &&
+                type != RECOVER_TRACK_QUEUE &&
+                track.isVideoContent()
+            ) {
+                val song =
+                    runCatching { songRepository.getSongCounterpartForVideo(track) }
+                        .getOrNull()
+                if (song != null) {
+                    playTrack = song
+                    playType = SONG_CLICK
+                    mediaPlayerHandler.queueData.value?.data?.let { q ->
+                        val replaced =
+                            q.listTracks.map {
+                                if (it.videoId == track.videoId) song else it
+                            }
+                        mediaPlayerHandler.setQueueData(
+                            q.copy(
+                                listTracks = replaced,
+                                firstPlayedTrack =
+                                    if (q.firstPlayedTrack?.videoId == track.videoId) {
+                                        song
+                                    } else {
+                                        q.firstPlayedTrack
+                                    },
+                            ),
+                        )
+                    }
+                }
+            }
+            // Explicit selection anywhere in the app defines the sticky content mode.
+            setContentModeFromTrack(playTrack)
             mediaPlayerHandler.clearMediaItems()
-            songRepository.insertSong(track.toSongEntity()).lastOrNull()?.let {
+            songRepository.insertSong(playTrack.toSongEntity()).lastOrNull()?.let {
                 println("insertSong: $it")
                 songRepository
-                    .getSongById(track.videoId)
+                    .getSongById(playTrack.videoId)
                     .collect { songEntity ->
                         if (songEntity != null) {
                             Logger.w("Check like", "loadMediaItemFromTrack ${songEntity.liked}")
@@ -1017,27 +1051,27 @@ class SharedViewModel(
                         }
                     }
             }
-            track.durationSeconds?.let {
+            playTrack.durationSeconds?.let {
                 songRepository.updateDurationSeconds(
                     it,
-                    track.videoId,
+                    playTrack.videoId,
                 )
             }
             withContext(Dispatchers.Main) {
-                mediaPlayerHandler.addMediaItem(track.toGenericMediaItem(), playWhenReady = type != RECOVER_TRACK_QUEUE)
+                mediaPlayerHandler.addMediaItem(playTrack.toGenericMediaItem(), playWhenReady = playType != RECOVER_TRACK_QUEUE)
             }
 
-            when (type) {
+            when (playType) {
                 SONG_CLICK -> {
-                    mediaPlayerHandler.getRelated(track.videoId)
+                    mediaPlayerHandler.getRelated(playTrack.videoId)
                 }
 
                 VIDEO_CLICK -> {
-                    mediaPlayerHandler.getRelated(track.videoId)
+                    mediaPlayerHandler.getRelated(playTrack.videoId)
                 }
 
                 SHARE -> {
-                    mediaPlayerHandler.getRelated(track.videoId)
+                    mediaPlayerHandler.getRelated(playTrack.videoId)
                 }
 
                 PLAYLIST_CLICK -> {
