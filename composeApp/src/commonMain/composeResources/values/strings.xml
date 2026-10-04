@@ -275,9 +275,9 @@
     <string name="older_first">Older First</string>
     <string name="newer_first">Newer First</string>
     <string name="added_date">Added date</string>
-    <string name="credit_app">A simple music app using YouTube Music for backend \n\nSimpMusic is an open source project to stream music from YouTube and YouTube Music without ads and tracking. SimpMusic provides many features:\n\n - Streaming music \n - Synced lyrics\n - Personalize data\n - etc… \n\nSimpMusic is always free and no ads\n\nBuild with ❤️ from Tuan Minh Nguyen Duc (maxrave-dev)</string>
+    <string name="credit_app">Replay is a personal fork of SimpMusic, a FOSS YouTube Music client.\n\nUpstream SimpMusic is an open source project by Tuan Minh Nguyen Duc (maxrave-dev) to stream music from YouTube and YouTube Music without ads and tracking.\n\nReplay keeps those foundations and adds its own UI and playback experiments. Please do not expect support from the SimpMusic developer for Replay builds.</string>
     <string name="issue_tracker">Issue Tracker</string>
-    <string name="copyright" translatable="false">©2023-2025 Tuan Minh Nguyen Duc (maxrave-dev)</string>
+    <string name="copyright" translatable="false">©2023-2026 Tuan Minh Nguyen Duc (maxrave-dev) · Replay fork</string>
     <string name="featured_playlists">Featured Playlists</string>
     <string name="podcasts" translatable="false">Podcasts</string>
     <string name="featured_inArtist">Featured on</string>
@@ -594,12 +594,12 @@
     <string name="not_available_while_casting">Not available while casting</string>
     <string name="import_data">Import playlists</string>
     <string name="import_playlists_from_other_apps">Import playlists from another app</string>
-    <string name="import_data_intro">Import brings in playlists converted from Spotify or another YT Music client app.\nConverting tool: https://www.simpmusic.org/tools\nIn SimpMusic, only playlist files in our own format can be imported</string>
+    <string name="import_data_intro">Import brings in playlists converted from Spotify or another YT Music client app.\nConverting tool: https://www.simpmusic.org/tools\nReplay accepts playlist files in the SimpMusic import format</string>
     <string name="import_reading_file">Reading file…</string>
     <string name="import_progress_songs">%1$d of %2$d songs</string>
     <string name="import_result">Created %1$d playlists and imported %2$d songs.</string>
     <string name="import_result_skipped">%1$d entries were skipped because their song was missing from the file.</string>
-    <string name="import_invalid_file">This file is not a valid SimpMusic import file. Convert your library at simpmusic.org first.</string>
+    <string name="import_invalid_file">This file is not a valid Replay/SimpMusic import file. Convert your library at simpmusic.org first.</string>
     <string name="pinned">Pinned</string>
     <string name="pin_to_library">Pin to Library</string>
     <string name="unpin_from_library">Unpin from Library</string>
