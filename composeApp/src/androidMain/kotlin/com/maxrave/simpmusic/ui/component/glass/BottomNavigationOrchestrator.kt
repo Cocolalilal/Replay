@@ -149,10 +149,13 @@ fun BottomNavigationOrchestrator(
             LiquidTabBarRow(
                 selectedTabIndex = selectedTabIndex,
                 onTabSelected = { index ->
+                    // Minimized pill: expand chrome only. Never reload / pop the
+                    // nested screen the user is mid-way through.
                     if (effectiveCollapse > 0.4f) {
                         onExpandRequested?.invoke()
+                    } else {
+                        onTabSelected(index)
                     }
-                    onTabSelected(index)
                 },
                 onSearchClick = { onSearchActiveChange(true) },
                 backdrop = backdrop,
