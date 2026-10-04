@@ -41,14 +41,80 @@ object LastChatSurfaceTokens {
     fun outlineColor(colorScheme: ColorScheme): Color =
         colorScheme.outlineVariant.copy(alpha = SoftEdgeAlpha)
 
-    fun softEdgeBorder(colorScheme: ColorScheme, bleedColor: Color? = null): BorderStroke {
-        val base = outlineColor(colorScheme)
+    /**
+     * Src-over stroke that lightens the blur under the edge. On a black backdrop it
+     * matches [outlineColor] composited on glass-over-black.
+     */
+    fun softEdgeLightenStroke(
+        outline: Color,
+        surface: Color,
+        glassAlpha: Float,
+        edgeAlpha: Float = SoftEdgeAlpha,
+    ): Color {
+        fun glass(channel: Float) = channel * glassAlpha
+        fun current(outlineChannel: Float, glassChannel: Float) =
+            outlineChannel * edgeAlpha + glassChannel * (1f - edgeAlpha)
+
+        val glassRed = glass(surface.red)
+        val glassGreen = glass(surface.green)
+        val glassBlue = glass(surface.blue)
+        val currentRed = current(outline.red, glassRed)
+        val currentGreen = current(outline.green, glassGreen)
+        val currentBlue = current(outline.blue, glassBlue)
+
+        fun ratio(currentChannel: Float, glassChannel: Float): Float {
+            val denom = 1f - glassChannel
+            if (denom <= 0.0001f) return 0f
+            return (currentChannel - glassChannel) / denom
+        }
+
+        val alpha = maxOf(
+            ratio(currentRed, glassRed),
+            ratio(currentGreen, glassGreen),
+            ratio(currentBlue, glassBlue),
+        ).coerceIn(0f, 1f)
+        if (alpha <= 0.0001f) return outline.copy(alpha = edgeAlpha)
+
+        fun source(currentChannel: Float, glassChannel: Float): Float =
+            (glassChannel + (currentChannel - glassChannel) / alpha).coerceIn(0f, 1f)
+
+        return Color(
+            red = source(currentRed, glassRed),
+            green = source(currentGreen, glassGreen),
+            blue = source(currentBlue, glassBlue),
+            alpha = alpha,
+        )
+    }
+
+    fun softEdgeBorder(
+        colorScheme: ColorScheme,
+        bleedColor: Color? = null,
+        lightenBackdrop: Boolean = false,
+        isDark: Boolean = true,
+    ): BorderStroke {
+        if (!lightenBackdrop) {
+            val base = outlineColor(colorScheme)
+            val color =
+                if (bleedColor != null) {
+                    lerp(base.copy(alpha = 1f), bleedColor.copy(alpha = 1f), BleedMix)
+                        .copy(alpha = BleedAlpha)
+                } else {
+                    base
+                }
+            return BorderStroke(SoftEdgeWidth, color)
+        }
+        val glassAlpha = if (isDark) GlassAlphaDark else GlassAlphaLight
+        val stroke = softEdgeLightenStroke(
+            outline = colorScheme.outlineVariant,
+            surface = colorScheme.surfaceContainer,
+            glassAlpha = glassAlpha,
+        )
         val color =
             if (bleedColor != null) {
-                lerp(base.copy(alpha = 1f), bleedColor.copy(alpha = 1f), BleedMix)
-                    .copy(alpha = BleedAlpha)
+                lerp(Color(stroke.red, stroke.green, stroke.blue), bleedColor.copy(alpha = 1f), BleedMix)
+                    .copy(alpha = stroke.alpha)
             } else {
-                base
+                stroke
             }
         return BorderStroke(SoftEdgeWidth, color)
     }

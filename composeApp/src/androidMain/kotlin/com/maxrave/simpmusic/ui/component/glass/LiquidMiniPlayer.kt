@@ -131,6 +131,8 @@ fun LiquidMiniPlayer(
     val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(
         colorScheme = MaterialTheme.colorScheme,
         bleedColor = dominantColor,
+        lightenBackdrop = isLastChat && isBlur,
+        isDark = isDark,
     )
 
     var isPressed by remember { mutableStateOf(false) }

@@ -176,7 +176,7 @@ fun Modifier.drawInteractiveGlass(
 ): Modifier {
     if (isLastChat) {
         val surfaceColor = LastChatSurfaceTokens.surfaceColor(colorScheme = colorScheme, isDark = isDark, isBlur = isBlur)
-        val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = colorScheme, bleedColor = bleedColor)
+        val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(colorScheme = colorScheme, bleedColor = bleedColor, lightenBackdrop = isBlur, isDark = isDark)
         val base = if (isBlur) {
             this
                 .drawBackdrop(

@@ -123,6 +123,8 @@ private fun LiquidBottomTabs(
     val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(
         colorScheme = MaterialTheme.colorScheme,
         bleedColor = LocalGlassBleedColor.current,
+        lightenBackdrop = isLastChat && isBlur,
+        isDark = isDark,
     )
     val activeColor = Color(0xFF82BEFF)
     val inactiveColor = if (isDark) Color.White.copy(alpha = 0.84f) else Color.Black.copy(alpha = 0.75f)

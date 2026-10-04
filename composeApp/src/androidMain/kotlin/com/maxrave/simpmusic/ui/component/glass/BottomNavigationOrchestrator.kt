@@ -251,6 +251,8 @@ private fun SearchFieldOrCircle(
     val outlineBorder = LastChatSurfaceTokens.softEdgeBorder(
         colorScheme = MaterialTheme.colorScheme,
         bleedColor = glassBleed,
+        lightenBackdrop = isLastChat && isBlur,
+        isDark = isDark,
     )
     val textColor = if (isDark) Color.White else Color.Black
     val focusManager = LocalFocusManager.current
